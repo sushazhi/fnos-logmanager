@@ -1,9 +1,14 @@
-import { ref, reactive } from 'vue'
+﻿import { ref, reactive } from 'vue'
 import api, { getToken, setToken } from '../services/api'
 
 const APP_VERSION = '__APP_VERSION__'
+const appVersion = ref(APP_VERSION)
 const REPO_OWNER = 'sushazhi'
 const REPO_NAME = 'fnos-logmanager'
+
+const IGNORE_KEY = 'logmanager_ignore_version'
+const CLOSE_TIME_KEY = 'logmanager_update_close_time'
+const CLOSE_DURATION = 24 * 60 * 60 * 1000
 
 let confirmFn = null
 export function setConfirmFn(fn) {
@@ -327,18 +332,53 @@ export function useStore() {
     refreshAll()
   }
   
+  function getIgnoredVersion() {
+    try {
+      return localStorage.getItem(IGNORE_KEY) || ''
+    } catch (e) {
+      return ''
+    }
+  }
+
+  function getCloseTime() {
+    try {
+      const closeTime = localStorage.getItem(CLOSE_TIME_KEY)
+      return closeTime ? parseInt(closeTime, 10) : 0
+    } catch (e) {
+      return 0
+    }
+  }
+
+  function isRecentlyClosed() {
+    return Date.now() - getCloseTime() < CLOSE_DURATION
+  }
+
   async function checkForUpdates() {
     try {
-      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`)
+      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`, {
+        headers: { 'Accept': 'application/vnd.github.v3+json' },
+        cache: 'no-store'
+      })
       if (!response.ok) return
       
       const data = await response.json()
-      const latestVersion = data.tag_name.replace('v', '')
+      const latestVersion = (data.tag_name || '').replace(/^v/, '')
       
       if (compareVersions(latestVersion, APP_VERSION) > 0) {
+        if (getIgnoredVersion() === latestVersion) {
+          console.log('[Update] 已忽略版本', latestVersion)
+          return
+        }
+
+        if (isRecentlyClosed()) {
+          console.log('[Update] 24小时内已关闭，跳过通知')
+          return
+        }
+
         updateInfo.value = {
           version: latestVersion,
-          url: data.html_url
+          url: data.html_url || '',
+          changelog: data.body || ''
         }
       }
     } catch (e) {
@@ -380,6 +420,7 @@ export function useStore() {
     selectedDir,
     updateInfo,
     listType,
+    appVersion,
     loadStats,
     loadDirs,
     loadFilterStatus,

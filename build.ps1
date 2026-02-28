@@ -110,16 +110,29 @@ Write-Host "  Build directory ready" -ForegroundColor Green
 
 Write-Host "[2/5] Build Vue frontend..." -ForegroundColor Yellow
 $UI_DIR = Join-Path $PROJECT_DIR "app\ui"
+$VERSION_PLACEHOLDER = "__APP_VERSION__"
+$appHeaderPath = Join-Path $UI_DIR "src\components\AppHeader.vue"
+$useStorePath = Join-Path $UI_DIR "src\composables\useStore.js"
+$originalAppHeaderContent = $null
+$originalUseStoreContent = $null
+
 if (-not $SkipVueBuild) {
     if (Test-Path "$UI_DIR\package.json") {
-        # Inject version into AppHeader.vue BEFORE build
-        $appHeaderPath = Join-Path $UI_DIR "src\components\AppHeader.vue"
+        # Save original content and inject version into files BEFORE build
         if (Test-Path $appHeaderPath) {
             Write-Host "  Injecting version into AppHeader.vue..." -ForegroundColor Yellow
-            $appHeaderContent = Get-Content $appHeaderPath -Raw -Encoding UTF8
-            $appHeaderContent = $appHeaderContent -replace "__APP_VERSION__", $APP_VERSION
+            $originalAppHeaderContent = Get-Content $appHeaderPath -Raw -Encoding UTF8
+            $appHeaderContent = $originalAppHeaderContent -replace [regex]::Escape($VERSION_PLACEHOLDER), $APP_VERSION
             [System.IO.File]::WriteAllText($appHeaderPath, $appHeaderContent, [System.Text.Encoding]::UTF8)
-            Write-Host "  Version $APP_VERSION injected" -ForegroundColor Green
+            Write-Host "  Version $APP_VERSION injected into AppHeader.vue" -ForegroundColor Green
+        }
+        
+        if (Test-Path $useStorePath) {
+            Write-Host "  Injecting version into useStore.js..." -ForegroundColor Yellow
+            $originalUseStoreContent = Get-Content $useStorePath -Raw -Encoding UTF8
+            $useStoreContent = $originalUseStoreContent -replace [regex]::Escape($VERSION_PLACEHOLDER), $APP_VERSION
+            [System.IO.File]::WriteAllText($useStorePath, $useStoreContent, [System.Text.Encoding]::UTF8)
+            Write-Host "  Version $APP_VERSION injected into useStore.js" -ForegroundColor Green
         }
         
         Push-Location $UI_DIR
@@ -131,6 +144,12 @@ if (-not $SkipVueBuild) {
                 Write-Host "  Error: npm install failed" -ForegroundColor Red
                 Write-Host $npmInstall
                 Pop-Location
+                if ($null -ne $originalAppHeaderContent) {
+                    [System.IO.File]::WriteAllText($appHeaderPath, $originalAppHeaderContent, [System.Text.Encoding]::UTF8)
+                }
+                if ($null -ne $originalUseStoreContent) {
+                    [System.IO.File]::WriteAllText($useStorePath, $originalUseStoreContent, [System.Text.Encoding]::UTF8)
+                }
                 exit 1
             }
         }
@@ -140,6 +159,16 @@ if (-not $SkipVueBuild) {
         $buildExitCode = $LASTEXITCODE
         
         Pop-Location
+        
+        # Restore original file contents
+        if ($null -ne $originalAppHeaderContent) {
+            [System.IO.File]::WriteAllText($appHeaderPath, $originalAppHeaderContent, [System.Text.Encoding]::UTF8)
+            Write-Host "  Restored original AppHeader.vue" -ForegroundColor Green
+        }
+        if ($null -ne $originalUseStoreContent) {
+            [System.IO.File]::WriteAllText($useStorePath, $originalUseStoreContent, [System.Text.Encoding]::UTF8)
+            Write-Host "  Restored original useStore.js" -ForegroundColor Green
+        }
         
         if ($buildExitCode -ne 0) {
             Write-Host "  Error: Vue build failed" -ForegroundColor Red

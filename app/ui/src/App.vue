@@ -7,6 +7,7 @@
     <UpdateNotification 
       v-if="updateInfo" 
       :update-info="updateInfo" 
+      :current-version="appVersion"
       @close="updateInfo = null"
     />
     
@@ -105,6 +106,7 @@ const {
   selectedDir,
   updateInfo,
   listType,
+  appVersion,
   loadFilterStatus,
   refreshAll,
   selectDir,

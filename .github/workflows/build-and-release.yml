@@ -30,12 +30,19 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Inject version into AppHeader.vue
+      - name: Inject version into source files
         run: |
           APP_HEADER="app/ui/src/components/AppHeader.vue"
+          USE_STORE="app/ui/src/composables/useStore.js"
+          
           if [ -f "$APP_HEADER" ]; then
             sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$APP_HEADER"
             echo "Version ${APP_VERSION} injected into AppHeader.vue"
+          fi
+          
+          if [ -f "$USE_STORE" ]; then
+            sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$USE_STORE"
+            echo "Version ${APP_VERSION} injected into useStore.js"
           fi
 
       - name: Build Vue frontend
