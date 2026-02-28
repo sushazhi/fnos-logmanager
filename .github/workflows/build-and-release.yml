@@ -76,7 +76,32 @@ jobs:
 
       - name: Create .fpk package
         run: |
-          ./fnpack build .
+          # Create clean build directory
+          mkdir -p build
+          
+          # Copy only necessary files
+          cp -r cmd build/
+          cp -r config build/
+          cp -r wizard build/
+          cp manifest build/
+          cp LICENSE build/
+          cp ICON.PNG build/
+          cp ICON_256.PNG build/
+          
+          # Copy Vue build output
+          mkdir -p build/app/ui
+          cp -r app/ui/dist/* build/app/ui/
+          if [ -d "app/ui/config" ]; then cp -r app/ui/config build/app/ui/; fi
+          if [ -d "app/ui/images" ]; then cp -r app/ui/images build/app/ui/; fi
+          
+          # Copy server files
+          mkdir -p build/app/server
+          if [ -f "app/server/server.js" ]; then cp app/server/server.js build/app/server/; fi
+          if [ -f "app/server/package.json" ]; then cp app/server/package.json build/app/server/; fi
+          
+          # Build package from clean directory
+          cd build
+          ../fnpack build .
           
           if [ ! -f "logmanager.fpk" ]; then
             echo "ERROR: fnpack did not generate logmanager.fpk"
@@ -84,10 +109,10 @@ jobs:
           fi
           
           PACKAGE_NAME="logmanager-${APP_VERSION}.fpk"
-          mv logmanager.fpk "${PACKAGE_NAME}"
+          mv logmanager.fpk "../${PACKAGE_NAME}"
           echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
           echo "Created package: ${PACKAGE_NAME}"
-          ls -lh "${PACKAGE_NAME}"
+          ls -lh "../${PACKAGE_NAME}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
