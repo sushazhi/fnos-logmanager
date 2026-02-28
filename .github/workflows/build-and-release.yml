@@ -101,7 +101,7 @@ jobs:
           
           # Build package from clean directory
           cd build
-          ../../fnpack build .
+          ../fnpack build .
           
           if [ ! -f "logmanager.fpk" ]; then
             echo "ERROR: fnpack did not generate logmanager.fpk"
