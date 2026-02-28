@@ -91,7 +91,7 @@ jobs:
           # Copy Vue build output
           mkdir -p build/app/ui
           cp -r app/ui/dist/* build/app/ui/
-          if [ -d "app/ui/config" ]; then cp -r app/ui/config build/app/ui/; fi
+          cp -r app/ui/config build/app/ui/
           if [ -d "app/ui/images" ]; then cp -r app/ui/images build/app/ui/; fi
           
           # Copy server files
@@ -101,7 +101,7 @@ jobs:
           
           # Build package from clean directory
           cd build
-          ../fnpack build .
+          ../../fnpack build .
           
           if [ ! -f "logmanager.fpk" ]; then
             echo "ERROR: fnpack did not generate logmanager.fpk"
