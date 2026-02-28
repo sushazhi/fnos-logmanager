@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# 飞牛日志管理卸载回调脚本
+
+echo "正在完成卸载..."
+
+APP_NAME="logmanager"
+DATA_DIR="${TRIM_PKGVAR}"
+
+# 根据用户选择处理数据
+DATA_ACTION="${wizard_data_action:-keep}"
+if [ "$DATA_ACTION" = "delete" ]; then
+    rm -rf "$DATA_DIR"
+    echo "所有数据已删除"
+else
+    echo "数据已保留在 $DATA_DIR"
+fi
+
+echo "卸载完成"
+exit 0

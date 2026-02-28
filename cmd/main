@@ -1,0 +1,139 @@
+#!/bin/bash
+
+APP_NAME="logmanager"
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+PID_FILE="${TRIM_PKGVAR}/app.pid"
+SERVER_DIR="${TRIM_APPDEST}/server"
+
+export PATH=/var/apps/nodejs_v22/target/bin:$PATH
+PORT="${wizard_app_port:-${TRIM_SERVICE_PORT:-8090}}"
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
+}
+
+start_process() {
+    if status; then
+        log_msg "$APP_NAME is already running"
+        return 0
+    fi
+    
+    log_msg "Starting $APP_NAME on port $PORT..."
+    
+    mkdir -p "${TRIM_PKGVAR}"
+    mkdir -p "/vol1/@appshare/log-backup"
+    
+    FILTER_FILE="${TRIM_PKGVAR}/.filter_sensitive"
+    
+    if [ -f "$FILTER_FILE" ]; then
+        FILTER_SENSITIVE=$(cat "$FILTER_FILE" 2>/dev/null)
+    else
+        FILTER_SENSITIVE="true"
+    fi
+    
+    cd "$SERVER_DIR"
+    
+    if [ ! -f "$SERVER_DIR/node_modules/express" ]; then
+        log_msg "Installing dependencies..."
+        npm install --production >> ${LOG_FILE} 2>&1
+    fi
+    
+    PORT=$PORT LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" FILTER_SENSITIVE="$FILTER_SENSITIVE" node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
+    printf "%s" "$!" > "$PID_FILE"
+    
+    sleep 2
+    
+    if check_process "$(cat $PID_FILE 2>/dev/null)"; then
+        log_msg "$APP_NAME started successfully on port $PORT"
+        echo ""
+        echo "=========================================="
+        echo "  飞牛应用日志管理已启动"
+        echo "  端口: $PORT"
+        echo "  访问地址: http://<IP>:$PORT/"
+        echo "  数据目录: ${TRIM_PKGVAR}"
+        echo "  首次启动请查看日志获取初始密码"
+        echo "  日志: cat ${TRIM_PKGVAR}/info.log"
+        echo "=========================================="
+        echo ""
+        return 0
+    else
+        log_msg "Failed to start $APP_NAME"
+        return 1
+    fi
+}
+
+stop_process() {
+    log_msg "Stopping $APP_NAME..."
+    
+    if [ -r "$PID_FILE" ]; then
+        pid=$(head -n 1 "$PID_FILE" | tr -d '[:space:]')
+        
+        if ! check_process "$pid"; then
+            rm -f "$PID_FILE"
+            return 0
+        fi
+        
+        kill -TERM "$pid" >> ${LOG_FILE} 2>&1
+        
+        local count=0
+        while check_process "$pid" && [ $count -lt 10 ]; do
+            sleep 1
+            count=$((count + 1))
+        done
+        
+        if check_process "$pid"; then
+            kill -KILL "$pid" 2>/dev/null
+            sleep 1
+        fi
+        
+        rm -f "$PID_FILE"
+    fi
+    
+    log_msg "$APP_NAME stopped"
+    return 0
+}
+
+check_process() {
+    local pid=$1
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+status() {
+    if [ -f "$PID_FILE" ]; then
+        pid=$(head -n 1 "$PID_FILE" | tr -d '[:space:]')
+        if check_process "$pid"; then
+            echo "$APP_NAME is running (PID: $pid)"
+            return 0
+        else
+            rm -f "$PID_FILE"
+        fi
+    fi
+    
+    echo "$APP_NAME is not running"
+    return 3
+}
+
+case "$1" in
+    start)
+        start_process
+        ;;
+    stop)
+        stop_process
+        ;;
+    restart)
+        stop_process
+        sleep 2
+        start_process
+        ;;
+    status)
+        status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac

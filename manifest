@@ -1,0 +1,33 @@
+appname = logmanager
+version = 0.1.0
+display_name = 日志管理
+desc = <b>飞牛日志管理工具</b>，集中管理飞牛三方应用散落在各个文件夹的日志文件。<br><br>📁 <b>支持的日志目录：</b><br>- 存储空间应用日志 (@appdata/@appshare等)<br>- /var/log/apps/ (系统应用日志)<br>- Docker容器日志<br>- 归档日志文件(.gz, .bz2, .xz, .zip等)<br><br>⚙️ <b>功能特点：</b><br>- 集中查看所有应用日志<br>- 日志文件大小统计与管理<br>- 日志清理与压缩功能<br>- 日志备份与归档<br>- 支持查看归档日志内容<br><br>🐛 <b>问题反馈：</b><a href="https://github.com/sushazhi/fnos-logmanager/issues" target="_blank">GitHub Issues</a>
+
+# 系统要求
+platform = all
+os_min_version = 1.1.19
+source = thirdparty
+
+# 开发者信息
+maintainer = yukihana
+maintainer_url = https://github.com/sushazhi
+
+distributor = yukihana
+distributor_url = https://github.com/sushazhi/fnos-logmanager
+
+# 安装控制
+ctl_stop = true
+
+# 依赖
+install_dep_apps = nodejs_v22
+
+# 端口配置
+service_port = ${wizard_app_port}
+checkport = true
+
+# 桌面图标配置
+desktop_uidir = ui
+desktop_applaunchname = logmanager.Application
+
+# 更新日志
+changelog = v0.1.0<br>初始版本<br>1. 支持管理多个目录的日志文件<br>2. 提供日志查看、清理、备份功能<br>3. 响应式UI设计，支持桌面端访问

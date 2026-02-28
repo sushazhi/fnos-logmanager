@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# 飞牛日志管理升级初始化脚本
+
+echo "正在准备升级..."
+
+APP_NAME="logmanager"
+DATA_DIR="${TRIM_PKGVAR}"
+BACKUP_DIR="/vol1/@appshare/log-backup/.upgrade-backup"
+MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
+
+# 停止服务
+if [ -f "$MAIN_SCRIPT" ]; then
+    "$MAIN_SCRIPT" stop
+fi
+
+# 备份数据（如果用户选择）
+BACKUP_ACTION="${wizard_backup_before_upgrade:-yes}"
+if [ "$BACKUP_ACTION" = "yes" ]; then
+    if [ -d "$DATA_DIR" ]; then
+        mkdir -p "$BACKUP_DIR"
+        cp -a "$DATA_DIR"/* "$BACKUP_DIR/" 2>/dev/null || true
+        echo "数据已备份到 $BACKUP_DIR"
+    fi
+fi
+
+echo "升级准备完成"
+exit 0

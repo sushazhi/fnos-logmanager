@@ -1,0 +1,34 @@
+# Build output
+.local-build/
+dist/
+*.fpk
+
+# Dependencies
+node_modules/
+
+# fnpack binary
+fnpack*
+!fnpack-*.sha256
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Cache
+.cache/
+.parcel-cache/

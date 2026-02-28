@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# 飞牛日志管理配置回调脚本
+
+echo "正在应用配置..."
+
+APP_NAME="logmanager"
+CONFIG_DIR="${TRIM_PKGVAR}/config"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
+
+# 更新配置文件
+if [ -f "$CONFIG_FILE" ]; then
+    # 更新配置参数
+    sed -i "s/\"max_log_size\": \"[^\"]*\"/\"max_log_size\": \"${wizard_max_log_size:-100M}\"/" "$CONFIG_FILE"
+    sed -i "s/\"backup_retention_days\": [0-9]*/\"backup_retention_days\": ${wizard_backup_retention:-7}/" "$CONFIG_FILE"
+fi
+
+# 重启服务
+if [ -f "$MAIN_SCRIPT" ]; then
+    "$MAIN_SCRIPT" restart
+fi
+
+echo "配置已应用"
+exit 0

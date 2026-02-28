@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# 飞牛日志管理卸载初始化脚本
+
+echo "正在准备卸载飞牛日志管理..."
+
+APP_NAME="logmanager"
+MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
+
+# 停止服务
+if [ -f "$MAIN_SCRIPT" ]; then
+    "$MAIN_SCRIPT" stop
+fi
+
+echo "卸载准备完成"
+exit 0

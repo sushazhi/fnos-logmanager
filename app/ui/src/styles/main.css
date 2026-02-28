@@ -1,0 +1,105 @@
+:root {
+  --base-font-size: 16px;
+  --primary-color: #667eea;
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --bg-color: #f5f7fa;
+  --card-bg: white;
+  --text-color: #333;
+  --text-secondary: #666;
+  --border-color: #e0e0e0;
+}
+
+.dark-theme {
+  --bg-color: #1a1a2e;
+  --card-bg: #16213e;
+  --text-color: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --border-color: #2a2a4a;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: var(--base-font-size) !important;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--bg-color);
+  color: var(--text-color);
+  line-height: 1.6;
+  transition: background 0.3s, color 0.3s;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: background 0.3s;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 0 0 15px 0;
+  color: var(--text-color);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+button:focus {
+  outline: none;
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+.secondary {
+  background: var(--border-color) !important;
+  color: var(--text-color) !important;
+}
+
+.danger {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%) !important;
+}
+
+.small {
+  padding: 6px 12px !important;
+  font-size: 0.75rem !important;
+}
+
+a {
+  color: var(--primary-color);
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+  
+  .card {
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+  
+  h2 {
+    font-size: 1rem;
+  }
+}

@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# 飞牛日志管理升级回调脚本
+
+echo "正在完成升级..."
+
+APP_NAME="logmanager"
+DATA_DIR="${TRIM_PKGVAR}"
+BACKUP_DIR="/vol1/@appshare/log-backup/.upgrade-backup"
+MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
+BIN_DIR="${TRIM_APPDEST}/app/bin"
+
+# 恢复数据
+if [ -d "$BACKUP_DIR" ]; then
+    cp -a "$BACKUP_DIR"/* "$DATA_DIR/" 2>/dev/null || true
+    rm -rf "$BACKUP_DIR"
+    echo "数据已恢复"
+fi
+
+# 设置权限
+if [ -f "$BIN_DIR/logmanager.sh" ]; then
+    chmod +x "$BIN_DIR/logmanager.sh"
+fi
+
+# 启动服务
+if [ -f "$MAIN_SCRIPT" ]; then
+    "$MAIN_SCRIPT" start
+fi
+
+echo "升级完成"
+exit 0

@@ -1,0 +1,126 @@
+name: Build and Release LogManager for fnOS
+
+on:
+  push:
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build LogManager
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read version from manifest
+        run: |
+          APP_VERSION=$(grep "^version\s*=" manifest | sed 's/version\s*=\s*//' | tr -d ' ')
+          echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
+          echo "APP_VERSION=${APP_VERSION}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Inject version into AppHeader.vue
+        run: |
+          APP_HEADER="app/ui/src/components/AppHeader.vue"
+          if [ -f "$APP_HEADER" ]; then
+            sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$APP_HEADER"
+            echo "Version ${APP_VERSION} injected into AppHeader.vue"
+          fi
+
+      - name: Build Vue frontend
+        run: |
+          cd app/ui
+          npm install
+          npm run build
+
+      - name: Verify Vue build
+        run: |
+          if [ ! -d "app/ui/dist" ]; then
+            echo "ERROR: Vue build output not found"
+            exit 1
+          fi
+          echo "Vue build complete"
+          ls -la app/ui/dist/
+
+      - name: Download fnpack
+        run: |
+          FNPACK_URL="https://static2.fnnas.com/fnpack/fnpack-1.2.1-linux-amd64"
+          wget -q "$FNPACK_URL" -O fnpack
+          chmod +x fnpack
+          echo "fnpack downloaded"
+
+      - name: Verify project structure
+        run: |
+          echo "=== Project structure ==="
+          ls -la
+          echo ""
+          echo "=== Required files ==="
+          for file in manifest ICON.PNG ICON_256.PNG app cmd config wizard; do
+            if [ ! -e "$file" ]; then
+              echo "ERROR: Required file/directory '$file' not found!"
+              exit 1
+            fi
+            echo "  ✓ $file"
+          done
+
+      - name: Create .fpk package
+        run: |
+          ./fnpack build .
+          
+          if [ ! -f "logmanager.fpk" ]; then
+            echo "ERROR: fnpack did not generate logmanager.fpk"
+            exit 1
+          fi
+          
+          PACKAGE_NAME="logmanager-${APP_VERSION}.fpk"
+          mv logmanager.fpk "${PACKAGE_NAME}"
+          echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
+          echo "Created package: ${PACKAGE_NAME}"
+          ls -lh "${PACKAGE_NAME}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LogManager-fpk
+          path: ${{ env.PACKAGE_NAME }}
+          retention-days: 30
+
+      - name: Build summary
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## ✅ Build Summary
+
+          **Version:** ${{ env.APP_VERSION }}
+
+          **Git Info:**
+          - Commit: \`${{ github.sha }}\`
+          - Branch: \`${{ github.ref_name }}\`
+          - Triggered by: ${{ github.event_name }}
+
+          **Build Artifacts:**
+          - Package: \`${PACKAGE_NAME}\`
+          EOF
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${{ github.ref_name }}"
+          CHANGELOG=$(grep "^changelog" manifest | sed 's/changelog\s*=\s*//' | sed 's/<br>/\n/g')
+          
+          gh release create "$TAG" \
+            "${PACKAGE_NAME}" \
+            --title "$TAG" \
+            --notes "$CHANGELOG"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

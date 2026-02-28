@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# 飞牛日志管理安装初始化脚本
+
+echo "正在初始化飞牛日志管理安装..."
+
+# 创建必要目录
+mkdir -p "${TRIM_PKGVAR}"
+mkdir -p "${TRIM_PKGTMP}"
+mkdir -p "/vol1/@appshare/log-backup"
+
+# 检查端口
+PORT="${wizard_app_port:-8090}"
+if netstat -tuln 2>/dev/null | grep -q ":$PORT " || ss -tuln 2>/dev/null | grep -q ":$PORT "; then
+    echo "Error: Port $PORT is already in use" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
+
+echo "安装初始化完成"
+exit 0

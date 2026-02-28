@@ -1,0 +1,12 @@
+{
+    "data-share": {
+        "shares": [
+            {
+                "name": "log-backup",
+                "permission": {
+                    "rw": ["logmanager"]
+                }
+            }
+        ]
+    }
+}

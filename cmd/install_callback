@@ -1,0 +1,60 @@
+#!/bin/bash
+
+echo "正在配置飞牛应用日志管理..."
+
+APP_NAME="logmanager"
+SERVER_DIR="${TRIM_APPDEST}/app/server"
+CONFIG_DIR="${TRIM_PKGVAR}/config"
+
+mkdir -p "$CONFIG_DIR"
+mkdir -p "${TRIM_PKGVAR}"
+
+cat > "$CONFIG_DIR/config.json" << EOF
+{
+    "log_dirs": [
+        "/vol1/@appdata",
+        "/vol1/@appconf",
+        "/vol1/@apphome",
+        "/vol1/@apptemp",
+        "/vol1/@appshare",
+        "/var/log/apps"
+    ],
+    "backup_dir": "/vol1/@appshare/log-backup",
+    "archive_extensions": [
+        ".gz", ".bz2", ".xz", ".zip",
+        ".tar", ".tar.gz", ".tar.bz2", ".tar.xz", ".7z", ".rar"
+    ],
+    "log_patterns": [
+        "*.log", "*.log.*", "*log*.txt"
+    ]
+}
+EOF
+
+PASSWORD_FILE="${TRIM_PKGVAR}/.password"
+
+if [ -n "$wizard_password" ]; then
+    if [ "$wizard_password" = "$wizard_password_confirm" ]; then
+        HASHED_PASSWORD=$(echo -n "$wizard_password" | sha256sum | awk '{print $1}')
+        echo "$HASHED_PASSWORD" > "$PASSWORD_FILE"
+        chmod 600 "$PASSWORD_FILE"
+        echo "登录密码已设置"
+    else
+        echo "警告: 两次输入的密码不一致，将生成随机密码"
+    fi
+else
+    echo "未设置密码，将在首次启动时生成随机密码"
+fi
+
+FILTER_SENSITIVE="${wizard_filter_sensitive:-true}"
+echo "$FILTER_SENSITIVE" > "${TRIM_PKGVAR}/.filter_sensitive"
+
+cat > "${TRIM_PKGVAR}/env.sh" << EOF
+APP_NAME="$APP_NAME"
+LOG_BACKUP_DIR="/vol1/@appshare/log-backup"
+FILTER_SENSITIVE="$FILTER_SENSITIVE"
+EOF
+
+mkdir -p "/vol1/@appshare/log-backup"
+
+echo "飞牛应用日志管理配置完成"
+exit 0
