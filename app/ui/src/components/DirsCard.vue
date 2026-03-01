@@ -128,7 +128,10 @@ function loadVisibleDirs() {
     if (saved) {
       visibleDirs.value = JSON.parse(saved)
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Failed to load visible directories:', e)
+    localStorage.removeItem(STORAGE_KEY)
+  }
 }
 
 onMounted(() => {

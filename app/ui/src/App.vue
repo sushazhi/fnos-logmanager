@@ -1,8 +1,14 @@
 <template>
-  <LoginModal v-if="!isLoggedIn" @login="handleLogin" />
+  <div v-if="isCheckingAuth" class="auth-loading">
+    <div class="auth-loading-spinner"></div>
+  </div>
+  
+  <SetupModal v-else-if="!isInitialized" @setup="handleSetup" />
+  
+  <LoginModal v-else-if="!isLoggedIn" @login="handleLogin" />
   
   <div v-else class="container">
-    <AppHeader @open-settings="showSettings = true" />
+    <AppHeader />
     
     <UpdateNotification 
       v-if="updateInfo" 
@@ -24,13 +30,13 @@
       :filter-enabled="filterEnabled"
       @refresh="refreshAll"
       @list-logs="listLogs"
-      @find-large="findLargeLogs"
+      @show-search="showSearchModal = true"
       @show-clean="showCleanModal = true"
-      @compress="compressLogs"
       @backup="backupLogs"
       @list-archives="listArchives"
       @list-docker="listDockerContainers"
       @toggle-filter="toggleFilter"
+      @open-settings="showSettings = true"
     />
     
     <AppFooter />
@@ -60,6 +66,12 @@
       @execute="executeClean"
     />
     
+    <SearchModal 
+      v-if="showSearchModal"
+      @close="showSearchModal = false"
+      @execute="searchLogs"
+    />
+    
     <SettingsModal 
       v-if="showSettings"
       @close="showSettings = false"
@@ -87,9 +99,11 @@ import LogListCard from './components/LogListCard.vue'
 import AppFooter from './components/AppFooter.vue'
 import LogModal from './components/LogModal.vue'
 import CleanModal from './components/CleanModal.vue'
+import SearchModal from './components/SearchModal.vue'
 import UpdateNotification from './components/UpdateNotification.vue'
 import SettingsModal from './components/SettingsModal.vue'
 import LoginModal from './components/LoginModal.vue'
+import SetupModal from './components/SetupModal.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import AuditLog from './components/AuditLog.vue'
 
@@ -101,6 +115,7 @@ const {
   filterEnabled,
   showLogModal,
   showCleanModal,
+  showSearchModal,
   logContent,
   logTitle,
   selectedDir,
@@ -111,7 +126,7 @@ const {
   refreshAll,
   selectDir,
   listLogs,
-  findLargeLogs,
+  searchLogs,
   listArchives,
   viewLog,
   viewArchive,
@@ -120,7 +135,6 @@ const {
   truncateLog,
   listDockerContainers,
   viewDockerLogs,
-  compressLogs,
   backupLogs,
   executeClean,
   toggleFilter,
@@ -130,6 +144,8 @@ const {
 
 const showSettings = ref(false)
 const isLoggedIn = ref(false)
+const isInitialized = ref(true)
+const isCheckingAuth = ref(true)
 const confirmDialog = ref(null)
 const showAuditLog = ref(false)
 
@@ -143,26 +159,40 @@ async function showConfirm(options) {
 
 setConfirmFn(showConfirm)
 
-function handleLogin(token) {
+function handleLogin(csrfToken) {
   isLoggedIn.value = true
+  loadFilterStatus()
   refreshAll()
   checkForUpdates()
 }
 
+function handleSetup() {
+  isInitialized.value = true
+}
+
 async function checkAuth() {
-  const token = api.getToken()
-  if (!token) {
-    isLoggedIn.value = false
-    return
-  }
+  isCheckingAuth.value = true
   
   try {
-    await api.get('/api/dirs')
-    isLoggedIn.value = true
-    refreshAll()
-    checkForUpdates()
+    const data = await api.get('/api/auth/status')
+    isInitialized.value = data.initialized
+    
+    if (data.isLoggedIn) {
+      isLoggedIn.value = true
+      if (!api.getCSRFToken()) {
+        await api.fetchCSRFToken()
+      }
+      loadFilterStatus()
+      refreshAll()
+      checkForUpdates()
+    } else {
+      isLoggedIn.value = false
+    }
   } catch (e) {
+    console.error('认证检查失败:', e)
     isLoggedIn.value = false
+  } finally {
+    isCheckingAuth.value = false
   }
 }
 
@@ -170,7 +200,7 @@ function loadSavedSettings() {
   try {
     const saved = localStorage.getItem('logmanager_settings')
     if (saved) {
-      const settings = JSON.parse(saved)
+      const settings = JSON.parse(saved)  // 添加错误处理
       const root = document.documentElement
       
       if (settings.fontSize) {
@@ -189,12 +219,14 @@ function loadSavedSettings() {
         }
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Failed to load settings:', e)
+    localStorage.removeItem('logmanager_settings')
+  }
 }
 
 onMounted(() => {
   loadSavedSettings()
-  loadFilterStatus()
   checkAuth()
 })
 </script>

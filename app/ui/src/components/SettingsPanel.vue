@@ -194,7 +194,10 @@ function loadSettings() {
       theme.value = settings.theme || 'light'
       primaryColor.value = settings.primaryColor || '#667eea'
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Failed to load settings:', e)
+    localStorage.removeItem('logmanager_settings')
+  }
   
   applyAll()
 }
@@ -279,6 +282,7 @@ onMounted(() => {
   font-size: 1rem;
   color: var(--text-color, #333);
   flex: 1;
+  white-space: nowrap;
 }
 
 .close-btn {

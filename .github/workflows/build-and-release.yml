@@ -33,16 +33,16 @@ jobs:
       - name: Inject version into source files
         run: |
           APP_HEADER="app/ui/src/components/AppHeader.vue"
-          USE_STORE="app/ui/src/composables/useStore.js"
+          USE_UPDATE="app/ui/src/composables/useUpdate.js"
           
           if [ -f "$APP_HEADER" ]; then
             sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$APP_HEADER"
             echo "Version ${APP_VERSION} injected into AppHeader.vue"
           fi
           
-          if [ -f "$USE_STORE" ]; then
-            sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$USE_STORE"
-            echo "Version ${APP_VERSION} injected into useStore.js"
+          if [ -f "$USE_UPDATE" ]; then
+            sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$USE_UPDATE"
+            echo "Version ${APP_VERSION} injected into useUpdate.js"
           fi
 
       - name: Build Vue frontend
@@ -83,10 +83,9 @@ jobs:
 
       - name: Create .fpk package
         run: |
-          # Create clean build directory
           mkdir -p build
           
-          # Copy only necessary files
+          # Copy root files
           cp -r cmd build/
           cp -r config build/
           cp -r wizard build/
@@ -103,10 +102,19 @@ jobs:
           
           # Copy server files
           mkdir -p build/app/server
-          if [ -f "app/server/server.js" ]; then cp app/server/server.js build/app/server/; fi
-          if [ -f "app/server/package.json" ]; then cp app/server/package.json build/app/server/; fi
+          cp app/server/server.js build/app/server/
+          cp app/server/package.json build/app/server/
           
-          # Build package from clean directory
+          # Copy server subdirectories
+          for subdir in utils middleware services routes; do
+            if [ -d "app/server/$subdir" ]; then
+              mkdir -p "build/app/server/$subdir"
+              cp app/server/$subdir/*.js "build/app/server/$subdir/" 2>/dev/null || true
+              echo "  Copied $subdir/"
+            fi
+          done
+          
+          # Build package
           cd build
           ../fnpack build .
           

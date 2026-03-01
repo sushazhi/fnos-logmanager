@@ -6,8 +6,8 @@
       <button @click="$emit('listLogs')" title="列出所有日志文件">
         <span>📋</span> 列出日志
       </button>
-      <button @click="$emit('findLarge')" :title="`查找超过${largeThreshold}的日志文件`">
-        <span>🔍</span> 大日志
+      <button @click="$emit('showSearch')" title="按大小或名称查找日志文件">
+        <span>🔍</span> 查找日志
       </button>
       <button @click="$emit('listArchives')" title="查看压缩归档的日志文件">
         <span>📂</span> 归档日志
@@ -21,14 +21,14 @@
       <button class="danger" @click="$emit('showClean')" title="清空或删除旧日志文件">
         <span>🗑️</span> 清理
       </button>
-      <button @click="$emit('compress')" title="压缩大日志文件节省空间">
-        <span>📦</span> 压缩
-      </button>
       <button @click="$emit('backup')" title="备份日志到指定目录">
         <span>💾</span> 备份
       </button>
       <button @click="$emit('refresh')" title="刷新统计数据">
         <span>🔄</span> 刷新
+      </button>
+      <button @click="$emit('openSettings')" title="显示设置">
+        <span>⚙️</span> 设置
       </button>
     </div>
     
@@ -63,23 +63,19 @@ defineProps({
   filterEnabled: {
     type: Boolean,
     default: true
-  },
-  largeThreshold: {
-    type: String,
-    default: '10M'
   }
 })
 
 defineEmits([
   'refresh',
   'listLogs',
-  'findLarge',
+  'showSearch',
   'showClean',
-  'compress',
   'backup',
   'listArchives',
   'listDocker',
-  'toggleFilter'
+  'toggleFilter',
+  'openSettings'
 ])
 
 const statusIcons = {

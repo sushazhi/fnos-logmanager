@@ -45,13 +45,23 @@ const changelogHtml = computed(() => {
   if (!props.updateInfo.changelog) return ''
   let text = props.updateInfo.changelog.substring(0, 500)
   text = text.split('\n').filter(line => line.trim().length > 0)
-  text = text.map(line => line.replace(/^-\s*/, '• '))
+  text = text.map(line => escapeHtml(line.replace(/^-\s*/, '• ')))
   const result = text.join('<br>')
   if (props.updateInfo.changelog.length > 500) {
     return result + '...'
   }
   return result
 })
+
+function escapeHtml(text) {
+  if (!text) return ''
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 function getIgnoredVersion() {
   try {
@@ -281,45 +291,66 @@ onMounted(() => {
   }
 
   .update-notification-content {
-    padding: 16px 16px 16px 18px;
+    padding: 16px 40px 16px 16px;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .update-notification-header {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding-right: 24px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding-right: 0;
   }
 
   .update-notification-title {
     font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .update-notification-version {
-    font-size: 12px;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .update-notification-changelog {
-    font-size: 12px;
+    font-size: 13px;
     margin-top: 8px;
     max-height: 80px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .update-notification-actions {
-    width: auto;
-    flex-wrap: nowrap;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .update-notification-btn {
     padding: 8px 12px;
-    font-size: 12px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 80px;
+    text-align: center;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .update-notification-close {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    font-size: 22px;
+    top: 8px;
+    right: 8px;
+    font-size: 20px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
   }
 }
 

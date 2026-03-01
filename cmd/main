@@ -33,9 +33,11 @@ start_process() {
     
     cd "$SERVER_DIR"
     
-    if [ ! -f "$SERVER_DIR/node_modules/express" ]; then
+    if [ ! -d "$SERVER_DIR/node_modules" ]; then
         log_msg "Installing dependencies..."
         npm install --production >> ${LOG_FILE} 2>&1
+    else
+        log_msg "Dependencies already installed"
     fi
     
     PORT=$PORT LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" FILTER_SENSITIVE="$FILTER_SENSITIVE" node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &

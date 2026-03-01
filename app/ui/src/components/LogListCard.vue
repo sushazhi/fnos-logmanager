@@ -95,6 +95,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import DOMPurify from 'dompurify'
 
 const props = defineProps({
   logs: {
@@ -117,7 +118,7 @@ const searchQuery = ref('')
 
 const title = computed(() => {
   switch (props.type) {
-    case 'docker': return 'Docker容器'
+    case 'docker': return 'Docker容器日志'
     case 'archives': return '归档日志'
     default: return '结果列表'
   }
@@ -149,7 +150,9 @@ const filteredLogs = computed(() => {
 function highlightText(text, query) {
   if (!query || !text) return text
   const regex = new RegExp(`(${escapeRegex(query)})`, 'gi')
-  return text.replace(regex, '<mark class="highlight">$1</mark>')
+  const html = text.replace(regex, '<mark class="highlight">$1</mark>')
+  // 使用DOMPurify清理HTML，防止XSS攻击
+  return DOMPurify.sanitize(html)
 }
 
 function escapeRegex(string) {
@@ -198,6 +201,7 @@ function escapeRegex(string) {
 .drawer-header h3 {
   margin: 0;
   font-size: 16px;
+  white-space: nowrap;
 }
 
 .close-btn {
@@ -332,9 +336,45 @@ function escapeRegex(string) {
 }
 
 @media (max-width: 768px) {
+  .drawer-overlay {
+    align-items: flex-end;
+  }
+  
   .drawer {
     width: 100%;
     max-width: 100%;
+    height: 85vh;
+    border-radius: 16px 16px 0 0;
+  }
+  
+  .drawer-header {
+    padding: 12px 15px;
+  }
+  
+  .drawer-header h3 {
+    font-size: 15px;
+  }
+  
+  .close-btn {
+    font-size: 22px;
+  }
+  
+  .drawer-search {
+    padding: 10px 15px;
+  }
+  
+  .search-input {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  
+  .clear-btn {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  
+  .search-count {
+    font-size: 11px;
   }
   
   .log-item {
@@ -344,22 +384,78 @@ function escapeRegex(string) {
   
   .log-item .path {
     width: 100%;
-    font-size: 11px;
-    margin-bottom: 5px;
+    font-size: 12px;
+    margin-bottom: 6px;
+    white-space: normal;
+    word-break: break-all;
   }
   
   .log-item .size {
     font-size: 12px;
+    margin-left: 0;
   }
   
   .log-item .actions {
     width: 100%;
     margin-left: 0;
     margin-top: 8px;
+    gap: 6px;
   }
   
   .log-item .actions button {
     flex: 1;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  
+  .log-item.header {
+    display: none;
+  }
+  
+  .no-results {
+    padding: 30px 15px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .drawer {
+    height: 90vh;
+  }
+  
+  .drawer-header {
+    padding: 10px 12px;
+  }
+  
+  .drawer-header h3 {
+    font-size: 15px;
+  }
+  
+  .drawer-search {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+  }
+  
+  .search-input {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+  
+  .log-item {
+    padding: 10px 12px;
+  }
+  
+  .log-item .path {
+    font-size: 13px;
+  }
+  
+  .log-item .size {
+    font-size: 13px;
+  }
+  
+  .log-item .actions button {
+    padding: 8px 10px;
+    font-size: 13px;
   }
 }
 </style>

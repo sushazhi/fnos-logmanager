@@ -29,63 +29,10 @@
             "message": "端口号必须是数字"
           }
         ]
-      }
-    ]
-  },
-  {
-    "stepTitle": "🔐 安全设置",
-    "items": [
-      {
-        "type": "tips",
-        "helpText": "⚠️ <b>重要：</b>设置登录密码以保护应用安全"
-      },
-      {
-        "type": "password",
-        "field": "wizard_password",
-        "label": "登录密码",
-        "initValue": "",
-        "rules": [
-          {
-            "required": true,
-            "message": "请设置登录密码"
-          },
-          {
-            "min": 8,
-            "message": "密码长度至少8位"
-          }
-        ]
-      },
-      {
-        "type": "password",
-        "field": "wizard_password_confirm",
-        "label": "确认密码",
-        "initValue": "",
-        "rules": [
-          {
-            "required": true,
-            "message": "请再次输入密码"
-          }
-        ]
       },
       {
         "type": "tips",
-        "helpText": "💡 密码至少8位，建议包含字母、数字和特殊字符"
-      },
-      {
-        "type": "radio",
-        "field": "wizard_filter_sensitive",
-        "label": "敏感信息过滤",
-        "initValue": "true",
-        "options": [
-          {
-            "label": "启用 - 自动过滤密码、密钥等敏感信息",
-            "value": "true"
-          },
-          {
-            "label": "禁用 - 显示原始日志内容",
-            "value": "false"
-          }
-        ]
+        "helpText": "💡 安装完成后，首次访问时需要设置登录密码"
       }
     ]
   }

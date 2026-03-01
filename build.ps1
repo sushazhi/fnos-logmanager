@@ -112,9 +112,9 @@ Write-Host "[2/5] Build Vue frontend..." -ForegroundColor Yellow
 $UI_DIR = Join-Path $PROJECT_DIR "app\ui"
 $VERSION_PLACEHOLDER = "__APP_VERSION__"
 $appHeaderPath = Join-Path $UI_DIR "src\components\AppHeader.vue"
-$useStorePath = Join-Path $UI_DIR "src\composables\useStore.js"
+$useUpdatePath = Join-Path $UI_DIR "src\composables\useUpdate.js"
 $originalAppHeaderContent = $null
-$originalUseStoreContent = $null
+$originalUseUpdateContent = $null
 
 if (-not $SkipVueBuild) {
     if (Test-Path "$UI_DIR\package.json") {
@@ -127,12 +127,12 @@ if (-not $SkipVueBuild) {
             Write-Host "  Version $APP_VERSION injected into AppHeader.vue" -ForegroundColor Green
         }
         
-        if (Test-Path $useStorePath) {
-            Write-Host "  Injecting version into useStore.js..." -ForegroundColor Yellow
-            $originalUseStoreContent = Get-Content $useStorePath -Raw -Encoding UTF8
-            $useStoreContent = $originalUseStoreContent -replace [regex]::Escape($VERSION_PLACEHOLDER), $APP_VERSION
-            [System.IO.File]::WriteAllText($useStorePath, $useStoreContent, [System.Text.Encoding]::UTF8)
-            Write-Host "  Version $APP_VERSION injected into useStore.js" -ForegroundColor Green
+        if (Test-Path $useUpdatePath) {
+            Write-Host "  Injecting version into useUpdate.js..." -ForegroundColor Yellow
+            $originalUseUpdateContent = Get-Content $useUpdatePath -Raw -Encoding UTF8
+            $useUpdateContent = $originalUseUpdateContent -replace [regex]::Escape($VERSION_PLACEHOLDER), $APP_VERSION
+            [System.IO.File]::WriteAllText($useUpdatePath, $useUpdateContent, [System.Text.Encoding]::UTF8)
+            Write-Host "  Version $APP_VERSION injected into useUpdate.js" -ForegroundColor Green
         }
         
         Push-Location $UI_DIR
@@ -147,8 +147,8 @@ if (-not $SkipVueBuild) {
                 if ($null -ne $originalAppHeaderContent) {
                     [System.IO.File]::WriteAllText($appHeaderPath, $originalAppHeaderContent, [System.Text.Encoding]::UTF8)
                 }
-                if ($null -ne $originalUseStoreContent) {
-                    [System.IO.File]::WriteAllText($useStorePath, $originalUseStoreContent, [System.Text.Encoding]::UTF8)
+                if ($null -ne $originalUseUpdateContent) {
+                    [System.IO.File]::WriteAllText($useUpdatePath, $originalUseUpdateContent, [System.Text.Encoding]::UTF8)
                 }
                 exit 1
             }
@@ -165,9 +165,9 @@ if (-not $SkipVueBuild) {
             [System.IO.File]::WriteAllText($appHeaderPath, $originalAppHeaderContent, [System.Text.Encoding]::UTF8)
             Write-Host "  Restored original AppHeader.vue" -ForegroundColor Green
         }
-        if ($null -ne $originalUseStoreContent) {
-            [System.IO.File]::WriteAllText($useStorePath, $originalUseStoreContent, [System.Text.Encoding]::UTF8)
-            Write-Host "  Restored original useStore.js" -ForegroundColor Green
+        if ($null -ne $originalUseUpdateContent) {
+            [System.IO.File]::WriteAllText($useUpdatePath, $originalUseUpdateContent, [System.Text.Encoding]::UTF8)
+            Write-Host "  Restored original useUpdate.js" -ForegroundColor Green
         }
         
         if ($buildExitCode -ne 0) {
@@ -221,6 +221,18 @@ New-Item -ItemType Directory -Force -Path $serverDir | Out-Null
 if (Test-Path "$PROJECT_DIR\app\server\server.js") {
     Copy-Item "$PROJECT_DIR\app\server\server.js" "$serverDir\server.js" -Force
     Copy-Item "$PROJECT_DIR\app\server\package.json" "$serverDir\package.json" -Force
+    
+    $subdirs = @("utils", "middleware", "services", "routes")
+    foreach ($subdir in $subdirs) {
+        $srcPath = Join-Path "$PROJECT_DIR\app\server" $subdir
+        $dstPath = Join-Path $serverDir $subdir
+        if (Test-Path $srcPath) {
+            New-Item -ItemType Directory -Force -Path $dstPath | Out-Null
+            Copy-Item "$srcPath\*.js" $dstPath -Force
+            Write-Host "  Copied $subdir/" -ForegroundColor Green
+        }
+    }
+    
     Write-Host "  Server files copied" -ForegroundColor Green
 }
 

@@ -30,21 +30,6 @@ cat > "$CONFIG_DIR/config.json" << EOF
 }
 EOF
 
-PASSWORD_FILE="${TRIM_PKGVAR}/.password"
-
-if [ -n "$wizard_password" ]; then
-    if [ "$wizard_password" = "$wizard_password_confirm" ]; then
-        HASHED_PASSWORD=$(echo -n "$wizard_password" | sha256sum | awk '{print $1}')
-        echo "$HASHED_PASSWORD" > "$PASSWORD_FILE"
-        chmod 600 "$PASSWORD_FILE"
-        echo "登录密码已设置"
-    else
-        echo "警告: 两次输入的密码不一致，将生成随机密码"
-    fi
-else
-    echo "未设置密码，将在首次启动时生成随机密码"
-fi
-
 FILTER_SENSITIVE="${wizard_filter_sensitive:-true}"
 echo "$FILTER_SENSITIVE" > "${TRIM_PKGVAR}/.filter_sensitive"
 
@@ -57,4 +42,5 @@ EOF
 mkdir -p "/vol1/@appshare/log-backup"
 
 echo "飞牛应用日志管理配置完成"
+echo "请首次访问时设置登录密码"
 exit 0

@@ -1,21 +1,18 @@
 <template>
   <div class="login-overlay">
     <div class="login-modal">
-      <h2>🔐 登录</h2>
-      <form @submit.prevent="handleLogin">
+      <h2>🔐 设置密码</h2>
+      <p class="setup-hint">首次使用，请设置登录密码</p>
+      <form @submit.prevent="handleSetup">
         <div class="form-group">
-          <label>密码</label>
+          <label>新密码</label>
           <div class="password-input">
             <input 
               :type="showPassword ? 'text' : 'password'" 
               v-model="password" 
-              placeholder="请输入密码"
+              placeholder="请输入密码（至少8位）"
               :disabled="loading"
-              autocomplete="current-password"
-              autocapitalize="off"
-              autocorrect="off"
-              spellcheck="false"
-              inputmode="text"
+              autocomplete="new-password"
               ref="passwordInput"
             >
             <button type="button" class="toggle-password-btn" @click="showPassword = !showPassword">
@@ -23,12 +20,24 @@
             </button>
           </div>
         </div>
-        <div class="error" v-if="error">{{ error }}</div>
-        <div class="hint" v-if="remaining !== null && remaining > 0">
-          剩余尝试次数: {{ remaining }}
+        <div class="form-group">
+          <label>确认密码</label>
+          <div class="password-input">
+            <input 
+              :type="showConfirmPassword ? 'text' : 'password'" 
+              v-model="confirmPassword" 
+              placeholder="请再次输入密码"
+              :disabled="loading"
+              autocomplete="new-password"
+            >
+            <button type="button" class="toggle-password-btn" @click="showConfirmPassword = !showConfirmPassword">
+              {{ showConfirmPassword ? '🙈' : '👁️' }}
+            </button>
+          </div>
         </div>
-        <button type="submit" :disabled="loading || !password">
-          {{ loading ? '登录中...' : '登录' }}
+        <div class="error" v-if="error">{{ error }}</div>
+        <button type="submit" :disabled="loading || !password || !confirmPassword">
+          {{ loading ? '设置中...' : '设置密码' }}
         </button>
       </form>
     </div>
@@ -39,34 +48,41 @@
 import { ref } from 'vue'
 import api from '../services/api'
 
-const emit = defineEmits(['login'])
+const emit = defineEmits(['setup'])
 
 const password = ref('')
+const confirmPassword = ref('')
 const error = ref('')
 const loading = ref(false)
-const remaining = ref(null)
 const showPassword = ref(false)
+const showConfirmPassword = ref(false)
 const passwordInput = ref(null)
 
-async function handleLogin() {
-  if (!password.value) return
+async function handleSetup() {
+  if (!password.value || !confirmPassword.value) return
+  
+  if (password.value.length < 8) {
+    error.value = '密码至少8位'
+    return
+  }
+  
+  if (password.value !== confirmPassword.value) {
+    error.value = '两次密码不一致'
+    return
+  }
   
   loading.value = true
   error.value = ''
   
   try {
-    const data = await api.post('/api/auth/login', { password: password.value })
+    const data = await api.post('/api/auth/setup', { password: password.value })
     if (data.success) {
-      if (data.csrfToken) {
-        api.setCSRFToken(data.csrfToken)
-      }
-      // 移除localStorage token存储，仅依赖httpOnly cookie
-      emit('login', data.csrfToken)
+      emit('setup')
+    } else {
+      error.value = data.message || '设置失败'
     }
   } catch (e) {
-    const msg = e.message || '登录失败'
-    error.value = msg
-    remaining.value = e.remaining || null
+    error.value = e.message || '设置失败'
   } finally {
     loading.value = false
   }
@@ -97,10 +113,17 @@ async function handleLogin() {
 }
 
 .login-modal h2 {
-  margin: 0 0 24px 0;
+  margin: 0 0 8px 0;
   text-align: center;
   color: var(--text-color, #333);
   font-size: 1.5rem;
+}
+
+.setup-hint {
+  text-align: center;
+  color: var(--text-secondary, #666);
+  margin: 0 0 24px 0;
+  font-size: 0.9rem;
 }
 
 .form-group {
@@ -127,10 +150,6 @@ async function handleLogin() {
   border-radius: 8px 0 0 8px;
   font-size: 1rem;
   transition: border-color 0.2s;
-  pointer-events: auto;
-  -webkit-user-select: text;
-  user-select: text;
-  touch-action: manipulation;
 }
 
 .password-input input:focus {
@@ -161,13 +180,6 @@ async function handleLogin() {
 .error {
   color: #f44336;
   font-size: 0.9rem;
-  margin-bottom: 16px;
-  text-align: center;
-}
-
-.hint {
-  color: #ff9800;
-  font-size: 0.85rem;
   margin-bottom: 16px;
   text-align: center;
 }
