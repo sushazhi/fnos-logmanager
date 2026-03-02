@@ -24,6 +24,10 @@
         <span class="match-count" v-if="searchQuery && matchPositions.length === 0">
           无匹配
         </span>
+        <div class="jump-nav" v-if="!searchQuery">
+          <button class="jump-btn" @click="goToFirstLine" title="跳转到首行">⏫</button>
+          <button class="jump-btn" @click="goToLastLine" title="跳转到末行">⏬</button>
+        </div>
       </div>
       <div class="modal-body" ref="logBody" @scroll="handleScroll">
         <div class="virtual-scroll-container" :style="{ height: totalHeight }">
@@ -175,7 +179,10 @@ function formatLine(line, lineIndex) {
 
 function escapeHtml(text) {
   if (!text) return ''
+  // 移除 ANSI 转义码（颜色代码等）
+  const ansiRegex = /\x1b\[[0-9;]*m/g
   return text
+    .replace(ansiRegex, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -211,6 +218,36 @@ function prevMatch() {
   }
 }
 
+function goToFirstLine() {
+  if (!logBody.value || allLines.value.length === 0) return
+  visibleRange.value = { start: 0, end: 50 }
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      logBody.value.scrollTo({
+        top: 0,
+        behavior: 'auto'
+      })
+    }, 100)
+  })
+}
+
+function goToLastLine() {
+  if (!logBody.value || allLines.value.length === 0) return
+  const lastLineIndex = allLines.value.length - 1
+  visibleRange.value = { 
+    start: Math.max(0, lastLineIndex - 50), 
+    end: lastLineIndex + 10 
+  }
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      logBody.value.scrollTo({
+        top: logBody.value.scrollHeight,
+        behavior: 'auto'
+      })
+    }, 100)
+  })
+}
+
 onMounted(() => {
   handleScroll()
 })
@@ -234,8 +271,9 @@ onUnmounted(() => {
 }
 
 .modal-content.large {
-  max-width: 1000px;
-  width: 95%;
+  width: 90%;
+  max-width: 1200px;
+  height: 85vh;
   max-height: 85vh;
   background: var(--card-bg, white);
   border-radius: 12px;
@@ -372,6 +410,28 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.jump-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jump-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  background: var(--card-bg, white);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-color, #333);
+}
+
+.jump-btn:hover {
+  background: var(--primary-color, #667eea);
+  color: white;
+  border-color: var(--primary-color, #667eea);
+}
+
 .modal-body {
   flex: 1;
   overflow: auto;
@@ -458,69 +518,118 @@ onUnmounted(() => {
   
   .modal-content.large {
     width: 100%;
-    max-height: 90vh;
+    max-height: 95vh;
+    height: 95vh;
     border-radius: 16px 16px 0 0;
   }
   
   .modal-header {
-    padding: 12px 15px;
-    flex-wrap: wrap;
+    padding: 10px 12px;
+    flex-wrap: nowrap;
     gap: 8px;
+    min-height: auto;
   }
   
   .modal-header .title {
     font-size: 13px;
-    width: 100%;
-    order: 1;
+    flex: 1;
+    order: 0;
   }
   
   .header-actions {
-    width: 100%;
-    justify-content: space-between;
-    order: 2;
+    width: auto;
+    justify-content: flex-end;
+    order: 0;
+    gap: 8px;
   }
   
   .line-count {
-    font-size: 11px;
-    padding: 3px 8px;
+    font-size: 10px;
+    padding: 2px 6px;
+    white-space: nowrap;
+  }
+  
+  .close-btn {
+    font-size: 20px;
+    line-height: 1;
   }
   
   .modal-search {
-    padding: 10px 15px;
+    padding: 8px 12px;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
   
   .search-input {
     flex: 1;
     min-width: 120px;
-    padding: 8px 10px;
+    padding: 6px 10px;
     font-size: 12px;
   }
   
   .clear-btn {
-    padding: 6px 8px;
-    font-size: 14px;
+    padding: 4px 6px;
+    font-size: 12px;
+    min-width: 24px;
+    max-width: 24px;
   }
   
   .search-nav {
     order: 3;
     width: 100%;
     justify-content: center;
+    gap: 4px;
+  }
+  
+  .match-info {
+    font-size: 11px;
+    min-width: 50px;
+  }
+  
+  .nav-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    min-width: 50px;
   }
   
   .match-count {
     order: 3;
     width: 100%;
     text-align: center;
+    font-size: 11px;
+  }
+  
+  .jump-nav {
+    gap: 4px;
+  }
+  
+  .jump-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+  
+  .modal-body {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+  }
+  
+  .virtual-scroll-container {
+    min-width: max-content;
+  }
+  
+  .virtual-scroll-content {
+    min-width: max-content;
   }
   
   .log-viewer {
     font-size: 12px;
+    min-width: max-content;
   }
   
   .log-line {
     padding: 0 10px;
+    min-width: max-content;
   }
   
   .line-number {
@@ -532,6 +641,10 @@ onUnmounted(() => {
   
   .line-content {
     font-size: 12px;
+    white-space: pre;
+    overflow: visible;
+    text-overflow: unset;
+    flex: none;
   }
 }
 </style>

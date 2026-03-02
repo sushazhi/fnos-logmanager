@@ -294,10 +294,17 @@ onMounted(() => {
   
   .log-dir-item h3 {
     font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .log-dir-item .stat-value {
     font-size: 0.85rem;
+  }
+  
+  .log-dir-item .stat span:last-child {
+    font-size: 0.6rem;
   }
   
   .dir-checkboxes {
@@ -309,6 +316,27 @@ onMounted(() => {
 @media (max-width: 480px) {
   .log-dirs {
     grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+  
+  .log-dir-item {
+    padding: 0.5rem;
+  }
+  
+  .log-dir-item h3 {
+    font-size: 0.75rem;
+  }
+  
+  .log-dir-item .stats {
+    gap: 0.5rem;
+  }
+  
+  .log-dir-item .stat-value {
+    font-size: 0.8rem;
+  }
+  
+  .log-dir-item .stat span:last-child {
+    font-size: 0.55rem;
   }
 }
 </style>
