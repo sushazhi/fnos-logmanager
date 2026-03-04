@@ -1,20 +1,102 @@
 :root {
+  /* 鸿蒙设计规范 - 字体系统 */
   --base-font-size: 16px;
-  --primary-color: #667eea;
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --bg-color: #f5f7fa;
-  --card-bg: white;
-  --text-color: #333;
-  --text-secondary: #666;
-  --border-color: #e0e0e0;
+  --font-family: 'HarmonyOS Sans', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* 鸿蒙设计规范 - 色彩系统 */
+  --primary-color: #007DFF;
+  --primary-hover: #0068D9;
+  --primary-pressed: #0052B2;
+  --primary-gradient: linear-gradient(135deg, #007DFF 0%, #0068D9 100%);
+
+  /* 语义色彩 */
+  --success-color: #00BAAD;
+  --warning-color: #FFB000;
+  --error-color: #FA2A2D;
+  --info-color: #007DFF;
+
+  /* 背景色 - 日间模式 */
+  --bg-color: #F1F3F5;
+  --bg-color-1: #FFFFFF;
+  --bg-color-2: #F0F2F5;
+  --bg-color-3: #E5E8EB;
+  --bg-color-4: #D1D5DB;
+
+  /* 卡片背景 */
+  --card-bg: #FFFFFF;
+  --card-hover: #F5F7FA;
+
+  /* 文字颜色 - 日间模式 */
+  --text-color: #182431;
+  --text-color-1: #182431;
+  --text-color-2: #5D6470;
+  --text-color-3: #8E96A5;
+  --text-color-4: #B8C0CC;
+
+  /* 边框颜色 - 日间模式 */
+  --border-color: #E5E8EB;
+  --divider-color: #F0F2F5;
+
+  /* 阴影 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.12);
+
+  /* 圆角 */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+
+  /* 间距 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+
+  /* 过渡 */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* 深色模式 - 鸿蒙设计规范 */
 .dark-theme {
-  --bg-color: #1a1a2e;
-  --card-bg: #16213e;
-  --text-color: #e0e0e0;
-  --text-secondary: #a0a0a0;
-  --border-color: #2a2a4a;
+  /* 背景色 - 夜间模式 */
+  --bg-color: #000000;
+  --bg-color-1: #1E1E1E;
+  --bg-color-2: #2C2C2C;
+  --bg-color-3: #3A3A3A;
+  --bg-color-4: #484848;
+
+  /* 卡片背景 */
+  --card-bg: #1E1E1E;
+  --card-hover: #2C2C2C;
+
+  /* 文字颜色 - 夜间模式 */
+  --text-color: #FFFFFF;
+  --text-color-1: #FFFFFF;
+  --text-color-2: #D1D5DB;
+  --text-color-3: #9AA0A8;
+  --text-color-4: #6B7280;
+
+  /* 边框颜色 - 夜间模式 */
+  --border-color: #3A3A3A;
+  --divider-color: #2C2C2C;
+
+  /* 阴影 - 夜间模式 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.7);
 }
 
 * {
@@ -28,39 +110,53 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: var(--font-family);
   background: var(--bg-color);
   color: var(--text-color);
-  line-height: 1.6;
-  transition: background 0.3s, color 0.3s;
+  line-height: 1.5;
+  transition: background var(--transition-slow), color var(--transition-slow);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: var(--spacing-xl);
 }
 
 .card {
   background: var(--card-bg);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: background 0.3s;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+  transition: background var(--transition-base), box-shadow var(--transition-base);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 h2 {
-  font-size: 1.1rem;
-  margin: 0 0 15px 0;
-  color: var(--text-color);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 var(--spacing-lg) 0;
+  color: var(--text-color-1);
+  letter-spacing: -0.01em;
 }
 
+/* 鸿蒙按钮样式 */
 button {
   cursor: pointer;
   border: none;
-  font-family: inherit;
-  font-size: 0.9rem;
+  font-family: var(--font-family);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
 }
 
 button:focus {
@@ -68,42 +164,74 @@ button:focus {
 }
 
 button:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 
+/* 次要按钮 */
 .secondary {
-  background: var(--border-color) !important;
-  color: var(--text-color) !important;
+  background: var(--bg-color-2) !important;
+  color: var(--text-color-1) !important;
 }
 
+.secondary:hover {
+  background: var(--bg-color-3) !important;
+}
+
+/* 危险按钮 */
 .danger {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%) !important;
+  background: var(--error-color) !important;
 }
 
+.danger:hover {
+  background: #E52629 !important;
+}
+
+/* 小尺寸按钮 */
 .small {
-  padding: 6px 12px !important;
+  padding: var(--spacing-xs) var(--spacing-sm) !important;
   font-size: 0.75rem !important;
 }
 
+/* 链接样式 */
 a {
   color: var(--primary-color);
+  text-decoration: none;
+  transition: color var(--transition-fast);
 }
 
+a:hover {
+  color: var(--primary-hover);
+}
+
+/* 响应式布局 */
 @media (max-width: 768px) {
   .container {
-    padding: 10px;
+    padding: var(--spacing-md);
   }
-  
+
   .card {
-    padding: 15px;
-    margin-bottom: 15px;
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
   }
-  
+
   h2 {
-    font-size: 1rem;
+    font-size: 0.9375rem;
   }
 }
 
+@media (max-width: 480px) {
+  .container {
+    padding: var(--spacing-sm);
+  }
+
+  .card {
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-radius: var(--radius-sm);
+  }
+}
+
+/* 认证加载动画 */
 .auth-loading {
   position: fixed;
   top: 0;
@@ -120,7 +248,7 @@ a {
 .auth-loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid var(--border-color);
+  border: 3px solid var(--bg-color-3);
   border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: auth-spin 0.8s linear infinite;

@@ -1,7 +1,7 @@
 <template>
   <div class="modal active" @click.self="$emit('close')">
     <div class="modal-content">
-      <div class="modal-header">🗑️ 清理日志</div>
+      <div class="modal-header">清理日志</div>
       <div class="modal-body">
         <div class="form-group">
           <label>清理方式</label>
@@ -58,59 +58,93 @@ function execute() {
 }
 
 .modal-content {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
+  background: var(--card-bg);
+  padding: var(--spacing-2xl);
+  border-radius: var(--radius-md);
   max-width: 400px;
   width: 90%;
+  box-shadow: var(--shadow-xl);
 }
 
 .modal-header {
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 600;
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-xl);
+  color: var(--text-color-1);
+  letter-spacing: -0.01em;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-sm);
   font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--text-color-1);
 }
 
 .form-group input,
 .form-group select {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  font-size: 0.875rem;
+  font-family: var(--font-family);
+  background: var(--card-bg);
+  color: var(--text-color-1);
+  transition: border-color var(--transition-fast);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.form-group input::placeholder {
+  color: var(--text-color-3);
 }
 
 .modal-footer {
-  margin-top: 20px;
+  margin-top: var(--spacing-xl);
   display: flex;
-  gap: 10px;
+  gap: var(--spacing-sm);
   justify-content: flex-end;
 }
 
 .modal-footer button {
-  padding: 10px 20px;
+  padding: var(--spacing-sm) var(--spacing-lg);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all var(--transition-fast);
 }
 
 .modal-footer button.secondary {
-  background: #f0f2f5;
-  color: #333;
+  background: var(--bg-color-2);
+  color: var(--text-color-1);
+}
+
+.modal-footer button.secondary:hover {
+  background: var(--bg-color-3);
 }
 
 .modal-footer button.danger {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  background: var(--error-color);
   color: white;
+}
+
+.modal-footer button.danger:hover {
+  background: #E52629;
+}
+
+.modal-footer button:active {
+  transform: scale(0.98);
 }
 </style>

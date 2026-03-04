@@ -35,51 +35,60 @@ defineProps({
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-top: 15px;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
 }
 
 .stat-card {
-  background: linear-gradient(135deg, var(--primary-color, #667eea) 0%, #764ba2 100%);
+  background: var(--primary-color);
   color: white;
-  padding: 15px;
-  border-radius: 10px;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-sm);
   text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .stat-card .value {
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 4px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-xs);
+  letter-spacing: -0.02em;
 }
 
 .stat-card .label {
-  font-size: 12px;
+  font-size: 0.75rem;
+  font-weight: 400;
   opacity: 0.9;
 }
 
 @media (max-width: 768px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: var(--spacing-sm);
   }
-  
+
   .stat-card {
-    padding: 12px;
+    padding: var(--spacing-md);
   }
-  
+
   .stat-card .value {
-    font-size: 20px;
+    font-size: 1.25rem;
   }
-  
+
   .stat-card .label {
-    font-size: 11px;
+    font-size: 0.6875rem;
   }
 }
 
 @media (max-width: 480px) {
   .stat-card .value {
-    font-size: 18px;
+    font-size: 1.125rem;
   }
 }
 </style>

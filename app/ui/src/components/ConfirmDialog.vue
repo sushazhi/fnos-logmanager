@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div class="confirm-overlay" v-if="visible" @click.self="cancel">
       <div class="confirm-modal">
-        <div class="confirm-icon">{{ currentType === 'danger' ? '⚠️' : '❓' }}</div>
+        <div class="confirm-icon">{{ currentType === 'danger' ? '!' : '?' }}</div>
         <div class="confirm-title">{{ currentTitle }}</div>
         <div class="confirm-message">{{ currentMessage }}</div>
         <div class="confirm-actions">
@@ -72,7 +72,7 @@ defineExpose({ show })
   justify-content: center;
   align-items: center;
   z-index: 3000;
-  animation: fadeIn 0.2s ease;
+  animation: fadeIn var(--transition-base) ease;
 }
 
 @keyframes fadeIn {
@@ -81,14 +81,14 @@ defineExpose({ show })
 }
 
 .confirm-modal {
-  background: var(--card-bg, white);
-  border-radius: 16px;
-  padding: 24px;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-2xl);
   max-width: 360px;
   width: 90%;
   text-align: center;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  animation: slideUp 0.2s ease;
+  box-shadow: var(--shadow-xl);
+  animation: slideUp var(--transition-base) ease;
 }
 
 @keyframes slideUp {
@@ -103,51 +103,56 @@ defineExpose({ show })
 }
 
 .confirm-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  font-size: 3rem;
+  margin-bottom: var(--spacing-lg);
 }
 
 .confirm-title {
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 600;
-  color: var(--text-color, #333);
-  margin-bottom: 8px;
+  color: var(--text-color-1);
+  margin-bottom: var(--spacing-sm);
+  letter-spacing: -0.01em;
 }
 
 .confirm-message {
-  font-size: 14px;
-  color: var(--text-secondary, #666);
-  margin-bottom: 24px;
+  font-size: 0.875rem;
+  color: var(--text-color-2);
+  margin-bottom: var(--spacing-2xl);
   line-height: 1.5;
 }
 
 .confirm-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--spacing-md);
 }
 
 .confirm-actions button {
   flex: 1;
-  padding: 12px;
+  padding: var(--spacing-md);
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .btn-cancel {
-  background: var(--border-color, #e0e0e0);
-  color: var(--text-color, #333);
+  background: var(--bg-color-2);
+  color: var(--text-color-1);
 }
 
 .btn-cancel:hover {
-  background: var(--bg-color, #f0f0f0);
+  background: var(--bg-color-3);
+}
+
+.btn-cancel:active {
+  transform: scale(0.98);
 }
 
 .btn-confirm {
-  background: var(--primary-color, #667eea);
+  background: var(--primary-color);
   color: white;
 }
 
@@ -156,8 +161,12 @@ defineExpose({ show })
   transform: translateY(-1px);
 }
 
+.btn-confirm:active {
+  transform: scale(0.98);
+}
+
 .btn-confirm.danger {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  background: var(--error-color);
 }
 
 .btn-confirm.danger:hover {

@@ -29,6 +29,20 @@ function onShowAudit() {
   justify-content: center;
   align-items: center;
   z-index: 1200;
-  padding: 20px;
+  padding: var(--spacing-xl);
+}
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: var(--spacing-sm);
+    align-items: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
 }
 </style>

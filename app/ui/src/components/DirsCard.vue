@@ -2,8 +2,8 @@
   <div class="card">
     <div class="header-row">
       <h2>日志目录</h2>
-      <button class="config-btn" @click="showConfig = !showConfig">
-        ⚙️
+      <button class="config-btn" @click="showConfig = !showConfig" title="配置">
+        设置
       </button>
     </div>
     
@@ -144,8 +144,8 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-  gap: 10px;
+  margin-bottom: var(--spacing-sm);
+  gap: var(--spacing-sm);
 }
 
 .header-row h2 {
@@ -154,99 +154,114 @@ onMounted(() => {
 }
 
 .config-btn {
-  background: var(--border-color, #f0f2f5);
+  background: var(--bg-color-2);
   border: none;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-xs);
   cursor: pointer;
-  font-size: 14px;
-  color: var(--text-color, #333);
+  font-size: 0.875rem;
+  color: var(--text-color-1);
   flex: none;
   width: auto;
   min-width: 0;
   flex-shrink: 0;
+  transition: all var(--transition-fast);
 }
 
 .config-btn:hover {
-  background: var(--primary-color, #667eea);
+  background: var(--primary-color);
   color: white;
 }
 
+.config-btn:active {
+  transform: scale(0.95);
+}
+
 .config-panel {
-  background: var(--bg-color, #f8f9fa);
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 15px;
+  background: var(--bg-color-2);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-lg);
 }
 
 .config-hint {
-  margin: 0 0 10px 0;
-  font-size: 0.85rem;
-  color: var(--text-secondary, #666);
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 0.8125rem;
+  color: var(--text-color-2);
 }
 
 .dir-checkboxes {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--spacing-sm);
 }
 
 .dir-checkbox {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--card-bg, white);
-  border-radius: 6px;
-  font-size: 0.85rem;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--card-bg);
+  border-radius: var(--radius-xs);
+  font-size: 0.8125rem;
   cursor: pointer;
-  color: var(--text-color, #333);
+  color: var(--text-color-1);
+  transition: all var(--transition-fast);
+}
+
+.dir-checkbox:hover {
+  background: var(--bg-color-2);
 }
 
 .dir-status {
-  font-size: 0.7rem;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 0.6875rem;
+  padding: 2px var(--spacing-xs);
+  border-radius: var(--radius-xs);
+  font-weight: 500;
 }
 
 .dir-status.exists {
-  color: #4CAF50;
-  background: #e8f5e9;
+  color: var(--success-color);
+  background: rgba(0, 186, 173, 0.1);
 }
 
 .dir-status.not-exists {
-  color: #f44336;
-  background: #ffebee;
+  color: var(--error-color);
+  background: rgba(250, 42, 45, 0.1);
 }
 
 .log-dirs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
+  gap: var(--spacing-sm);
 }
 
 .log-dir-item {
-  background: var(--bg-color, #f8f9fa);
-  padding: 0.75rem;
-  border-radius: 8px;
-  border-left: 4px solid var(--primary-color, #667eea);
+  background: var(--bg-color-2);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--primary-color);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .log-dir-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
+}
+
+.log-dir-item:active {
+  transform: translateY(0);
 }
 
 .log-dir-item.active {
-  background: var(--border-color, #f0f2f5);
-  border-left-color: #764ba2;
+  background: var(--bg-color-3);
+  border-left-color: var(--primary-hover);
 }
 
 .log-dir-item.error {
-  border-left-color: #f44336;
-  background: #ffebee;
+  border-left-color: var(--error-color);
+  background: rgba(250, 42, 45, 0.1);
   cursor: not-allowed;
 }
 
@@ -256,14 +271,15 @@ onMounted(() => {
 }
 
 .log-dir-item h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.85rem;
-  color: var(--text-color, #333);
+  margin: 0 0 var(--spacing-xs) 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-color-1);
 }
 
 .log-dir-item .stats {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--spacing-sm);
 }
 
 .log-dir-item .stat {
@@ -272,71 +288,71 @@ onMounted(() => {
 
 .log-dir-item .stat-value {
   display: block;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: var(--primary-color, #667eea);
+  color: var(--primary-color);
 }
 
 .log-dir-item .stat span:last-child {
-  font-size: 0.65rem;
-  color: var(--text-secondary, #888);
+  font-size: 0.6875rem;
+  color: var(--text-color-3);
 }
 
 @media (max-width: 768px) {
   .log-dirs {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
-  
+
   .log-dir-item {
-    padding: 0.6rem;
+    padding: var(--spacing-xs);
   }
-  
+
   .log-dir-item h3 {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  
+
   .log-dir-item .stat-value {
-    font-size: 0.85rem;
+    font-size: 0.8125rem;
   }
-  
+
   .log-dir-item .stat span:last-child {
-    font-size: 0.6rem;
+    font-size: 0.625rem;
   }
-  
+
   .dir-checkboxes {
     flex-direction: column;
-    gap: 6px;
+    gap: var(--spacing-xs);
   }
 }
 
 @media (max-width: 480px) {
   .log-dirs {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    gap: 4px;
   }
-  
+
   .log-dir-item {
-    padding: 0.5rem;
+    padding: 4px;
   }
-  
+
   .log-dir-item h3 {
+    font-size: 0.6875rem;
+  }
+
+  .log-dir-item .stats {
+    gap: 4px;
+  }
+
+  .log-dir-item .stat-value {
     font-size: 0.75rem;
   }
-  
-  .log-dir-item .stats {
-    gap: 0.5rem;
-  }
-  
-  .log-dir-item .stat-value {
-    font-size: 0.8rem;
-  }
-  
+
   .log-dir-item .stat span:last-child {
-    font-size: 0.55rem;
+    font-size: 0.625rem;
   }
 }
 </style>

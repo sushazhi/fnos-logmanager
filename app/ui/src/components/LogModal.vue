@@ -25,8 +25,8 @@
           无匹配
         </span>
         <div class="jump-nav" v-if="!searchQuery">
-          <button class="jump-btn" @click="goToFirstLine" title="跳转到首行">⏫</button>
-          <button class="jump-btn" @click="goToLastLine" title="跳转到末行">⏬</button>
+          <button class="jump-btn" @click="goToFirstLine" title="跳转到首行">↑</button>
+          <button class="jump-btn" @click="goToLastLine" title="跳转到末行">↓</button>
         </div>
       </div>
       <div class="modal-body" ref="logBody" @scroll="handleScroll">
@@ -515,136 +515,250 @@ onUnmounted(() => {
   .modal {
     align-items: flex-end;
   }
-  
+
   .modal-content.large {
     width: 100%;
     max-height: 95vh;
     height: 95vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
-  
+
   .modal-header {
-    padding: 10px 12px;
+    padding: var(--spacing-sm) var(--spacing-md);
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: var(--spacing-sm);
     min-height: auto;
+    background: var(--bg-color-2);
+    border-bottom: 1px solid var(--border-color);
   }
-  
+
   .modal-header .title {
-    font-size: 13px;
+    font-size: 0.8125rem;
+    font-weight: 500;
     flex: 1;
     order: 0;
+    color: var(--text-color-1);
   }
-  
+
   .header-actions {
     width: auto;
     justify-content: flex-end;
     order: 0;
-    gap: 8px;
+    gap: var(--spacing-sm);
   }
-  
+
   .line-count {
-    font-size: 10px;
+    font-size: 0.625rem;
     padding: 2px 6px;
     white-space: nowrap;
+    background: var(--bg-color-3);
+    color: var(--text-color-2);
+    border-radius: var(--radius-xs);
   }
-  
+
   .close-btn {
-    font-size: 20px;
+    font-size: 1.25rem;
     line-height: 1;
+    color: var(--text-color-2);
+    transition: color var(--transition-fast);
   }
-  
+
+  .close-btn:hover {
+    color: var(--text-color-1);
+  }
+
   .modal-search {
-    padding: 8px 12px;
+    padding: var(--spacing-xs) var(--spacing-md);
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--spacing-xs);
+    background: var(--bg-color-2);
+    border-bottom: 1px solid var(--border-color);
   }
-  
+
   .search-input {
     flex: 1;
     min-width: 120px;
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.75rem;
+    background: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-color-1);
   }
-  
+
+  .search-input:focus {
+    border-color: var(--primary-color);
+  }
+
+  .search-input::placeholder {
+    color: var(--text-color-3);
+  }
+
   .clear-btn {
-    padding: 4px 6px;
-    font-size: 12px;
+    padding: 2px 6px;
+    font-size: 0.75rem;
     min-width: 24px;
     max-width: 24px;
+    background: var(--bg-color-3);
+    color: var(--text-color-2);
+    border-radius: var(--radius-xs);
   }
-  
+
+  .clear-btn:hover {
+    background: var(--primary-color);
+    color: white;
+  }
+
   .search-nav {
     order: 3;
     width: 100%;
     justify-content: center;
-    gap: 4px;
+    gap: var(--spacing-xs);
   }
-  
+
   .match-info {
-    font-size: 11px;
+    font-size: 0.6875rem;
     min-width: 50px;
+    color: var(--text-color-2);
   }
-  
+
   .nav-btn {
-    padding: 2px 8px;
-    font-size: 11px;
+    padding: 2px var(--spacing-sm);
+    font-size: 0.6875rem;
     min-width: 50px;
+    background: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-color-1);
+    border-radius: var(--radius-xs);
   }
-  
+
+  .nav-btn:hover:not(:disabled) {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+  }
+
   .match-count {
     order: 3;
     width: 100%;
     text-align: center;
-    font-size: 11px;
+    font-size: 0.6875rem;
+    color: var(--text-color-2);
   }
-  
+
   .jump-nav {
-    gap: 4px;
+    gap: var(--spacing-xs);
   }
-  
+
   .jump-btn {
-    padding: 2px 8px;
-    font-size: 11px;
+    padding: 2px var(--spacing-sm);
+    font-size: 0.6875rem;
+    background: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-color-1);
+    border-radius: var(--radius-xs);
   }
-  
+
+  .jump-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+  }
+
   .modal-body {
     flex: 1;
     overflow: auto;
     min-height: 0;
   }
-  
+
   .virtual-scroll-container {
     min-width: max-content;
   }
-  
+
   .virtual-scroll-content {
     min-width: max-content;
   }
-  
+
   .log-viewer {
-    font-size: 12px;
+    font-size: 0.75rem;
     min-width: max-content;
   }
-  
+
   .log-line {
-    padding: 0 10px;
+    padding: 0 var(--spacing-sm);
     min-width: max-content;
   }
-  
+
   .line-number {
     min-width: 40px;
-    padding-right: 8px;
-    margin-right: 8px;
-    font-size: 11px;
+    padding-right: var(--spacing-sm);
+    margin-right: var(--spacing-sm);
+    font-size: 0.6875rem;
+    color: var(--text-color-3);
+    border-right-color: var(--bg-color-3);
   }
-  
+
   .line-content {
-    font-size: 12px;
+    font-size: 0.75rem;
     white-space: pre;
     overflow: visible;
     text-overflow: unset;
     flex: none;
+    color: var(--text-color-2);
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content.large {
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-header {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .modal-header .title {
+    font-size: 0.75rem;
+  }
+
+  .line-count {
+    font-size: 0.625rem;
+    padding: 2px 4px;
+  }
+
+  .close-btn {
+    font-size: 1.125rem;
+  }
+
+  .modal-search {
+    padding: 4px var(--spacing-sm);
+  }
+
+  .search-input {
+    min-width: 100px;
+    font-size: 0.6875rem;
+  }
+
+  .nav-btn {
+    padding: 2px 6px;
+    font-size: 0.625rem;
+    min-width: 40px;
+  }
+
+  .log-viewer {
+    font-size: 0.6875rem;
+  }
+
+  .line-number {
+    min-width: 35px;
+    padding-right: 6px;
+    margin-right: 6px;
+    font-size: 0.625rem;
+  }
+
+  .line-content {
+    font-size: 0.6875rem;
   }
 }
 </style>

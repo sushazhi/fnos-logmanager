@@ -1,7 +1,7 @@
 <template>
   <div class="settings-panel">
     <div class="settings-header">
-      <h3>⚙️ 设置</h3>
+      <h3>设置</h3>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
     
@@ -18,18 +18,18 @@
       <div class="setting-item">
         <label>主题模式</label>
         <div class="theme-buttons">
-          <button 
-            :class="{ active: theme === 'light' }" 
+          <button
+            :class="{ active: theme === 'light' }"
             @click="setTheme('light')"
-          >☀️ 日间</button>
-          <button 
-            :class="{ active: theme === 'dark' }" 
+          >日间</button>
+          <button
+            :class="{ active: theme === 'dark' }"
             @click="setTheme('dark')"
-          >🌙 夜间</button>
-          <button 
-            :class="{ active: theme === 'auto' }" 
+          >夜间</button>
+          <button
+            :class="{ active: theme === 'auto' }"
             @click="setTheme('auto')"
-          >🔄 自动</button>
+          >自动</button>
         </div>
       </div>
       
@@ -51,7 +51,7 @@
       <div class="divider"></div>
       
       <div class="setting-item">
-        <label>🔐 安全设置</label>
+        <label>安全设置</label>
         <button class="password-toggle" @click="showPasswordForm = !showPasswordForm">
           {{ showPasswordForm ? '取消修改密码' : '修改密码' }}
         </button>
@@ -84,7 +84,7 @@
       <div class="divider"></div>
       
       <div class="setting-item">
-        <label>📋 审计日志</label>
+        <label>审计日志</label>
         <button class="audit-btn" @click="$emit('showAudit')">
           查看审计日志
         </button>
@@ -162,6 +162,29 @@ function applyTheme() {
 function applyColor() {
   const root = document.documentElement
   root.style.setProperty('--primary-color', primaryColor.value)
+
+  // 动态计算渐变色
+  const color = primaryColor.value
+  const darkerColor = adjustColor(color, -20)
+  root.style.setProperty('--primary-gradient', `linear-gradient(135deg, ${color} 0%, ${darkerColor} 100%)`)
+
+  // 计算悬停和按下状态的颜色
+  root.style.setProperty('--primary-hover', adjustColor(color, -15))
+  root.style.setProperty('--primary-pressed', adjustColor(color, -30))
+}
+
+// 颜色调整函数
+function adjustColor(hex, amount) {
+  let color = hex.replace('#', '')
+  let r = parseInt(color.substring(0, 2), 16)
+  let g = parseInt(color.substring(2, 4), 16)
+  let b = parseInt(color.substring(4, 6), 16)
+
+  r = Math.min(255, Math.max(0, r + amount))
+  g = Math.min(255, Math.max(0, g + amount))
+  b = Math.min(255, Math.max(0, b + amount))
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
 function applyFontSize() {
@@ -261,9 +284,9 @@ onMounted(() => {
 
 <style>
 .settings-panel {
-  background: var(--card-bg, white);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  background: var(--card-bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
   max-width: 400px;
   width: 100%;
 }
@@ -272,15 +295,16 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
-  gap: 15px;
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-bottom: 1px solid var(--border-color);
+  gap: var(--spacing-md);
 }
 
 .settings-header h3 {
   margin: 0;
   font-size: 1rem;
-  color: var(--text-color, #333);
+  font-weight: 500;
+  color: var(--text-color-1);
   flex: 1;
   white-space: nowrap;
 }
@@ -290,25 +314,26 @@ onMounted(() => {
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: var(--text-color, #666);
+  color: var(--text-color-2);
   padding: 0;
   line-height: 1;
   flex: none;
   flex-shrink: 0;
+  transition: color var(--transition-fast);
 }
 
 .close-btn:hover {
-  color: var(--text-color, #333);
+  color: var(--text-color-1);
 }
 
 .settings-body {
-  padding: 20px;
+  padding: var(--spacing-xl);
   max-height: 70vh;
   overflow-y: auto;
 }
 
 .setting-item {
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-xl);
 }
 
 .setting-item:last-child {
@@ -317,33 +342,39 @@ onMounted(() => {
 
 .setting-item label {
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: var(--spacing-sm);
   font-weight: 500;
-  color: var(--text-color, #333);
+  font-size: 0.875rem;
+  color: var(--text-color-1);
 }
 
 .font-size-controls {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: var(--spacing-md);
 }
 
 .font-size-controls button {
   width: 40px;
   height: 40px;
-  border: 1px solid var(--border-color, #ddd);
-  border-radius: 8px;
-  background: var(--card-bg, #f5f7fa);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-color-2);
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: bold;
-  color: var(--text-color, #333);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-color-1);
+  transition: all var(--transition-fast);
 }
 
 .font-size-controls button:hover {
-  background: var(--primary-color, #667eea);
+  background: var(--primary-color);
   color: white;
-  border-color: var(--primary-color, #667eea);
+  border-color: var(--primary-color);
+}
+
+.font-size-controls button:active {
+  transform: scale(0.95);
 }
 
 .font-size-value {
@@ -351,35 +382,43 @@ onMounted(() => {
   font-weight: 600;
   min-width: 50px;
   text-align: center;
-  color: var(--text-color, #333);
+  color: var(--text-color-1);
 }
 
 .theme-buttons {
   display: flex;
-  gap: 10px;
+  gap: var(--spacing-sm);
 }
 
 .theme-buttons button {
   flex: 1;
-  padding: 10px;
-  border: 2px solid var(--border-color, #e0e0e0);
-  border-radius: 8px;
-  background: var(--card-bg, #f5f7fa);
+  padding: var(--spacing-sm);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-color-2);
   cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s;
-  color: var(--text-color, #333);
+  font-size: 0.8125rem;
+  transition: all var(--transition-fast);
+  color: var(--text-color-1);
 }
 
 .theme-buttons button.active {
-  border-color: var(--primary-color, #667eea);
-  background: var(--primary-color, #667eea);
+  border-color: var(--primary-color);
+  background: var(--primary-color);
   color: white;
+}
+
+.theme-buttons button:hover {
+  border-color: var(--primary-hover);
+}
+
+.theme-buttons button:active {
+  transform: scale(0.98);
 }
 
 .color-options {
   display: flex;
-  gap: 10px;
+  gap: var(--spacing-sm);
   flex-wrap: wrap;
 }
 
@@ -391,7 +430,7 @@ onMounted(() => {
   border-radius: 50%;
   border: 3px solid transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
   flex-shrink: 0;
   padding: 0;
   box-sizing: border-box;
@@ -403,108 +442,170 @@ onMounted(() => {
 }
 
 .color-btn.active {
-  border-color: var(--text-color, #333);
-  box-shadow: 0 0 0 2px var(--card-bg, white), 0 0 0 4px var(--primary-color, #667eea);
+  border-color: var(--text-color-1);
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--primary-color);
 }
 
 .divider {
   height: 1px;
-  background: var(--border-color, #e0e0e0);
-  margin: 20px 0;
+  background: var(--divider-color);
+  margin: var(--spacing-xl) 0;
 }
 
 .password-toggle {
   width: 100%;
-  padding: 10px;
-  border: 1px solid var(--border-color, #e0e0e0);
-  border-radius: 8px;
-  background: var(--card-bg, #f5f7fa);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-color-2);
   cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--text-color, #333);
+  font-size: 0.8125rem;
+  color: var(--text-color-1);
   text-align: center;
+  transition: all var(--transition-fast);
 }
 
 .password-toggle:hover {
-  background: var(--border-color, #e8e8e8);
+  background: var(--bg-color-3);
+}
+
+.password-toggle:active {
+  transform: scale(0.98);
 }
 
 .password-form {
-  padding: 15px;
-  background: var(--bg-color, #f8f9fa);
-  border-radius: 8px;
-  margin-top: 10px;
+  padding: var(--spacing-md);
+  background: var(--bg-color-2);
+  border-radius: var(--radius-sm);
+  margin-top: var(--spacing-sm);
 }
 
 .password-form input {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color, #ddd);
-  border-radius: 6px;
-  font-size: 0.9rem;
-  margin-bottom: 10px;
-  background: var(--card-bg, white);
-  color: var(--text-color, #333);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-sm);
+  background: var(--card-bg);
+  color: var(--text-color-1);
   box-sizing: border-box;
+  font-family: var(--font-family);
+  transition: border-color var(--transition-fast);
 }
 
 .password-form input:focus {
   outline: none;
-  border-color: var(--primary-color, #667eea);
+  border-color: var(--primary-color);
+}
+
+.password-form input::placeholder {
+  color: var(--text-color-3);
 }
 
 .password-form .error {
-  color: #f44336;
-  font-size: 0.85rem;
-  margin-bottom: 10px;
+  color: var(--error-color);
+  font-size: 0.8125rem;
+  margin-bottom: var(--spacing-sm);
 }
 
 .password-form .success {
-  color: #4caf50;
-  font-size: 0.85rem;
-  margin-bottom: 10px;
+  color: var(--success-color);
+  font-size: 0.8125rem;
+  margin-bottom: var(--spacing-sm);
 }
 
 .password-form .btn-row {
   display: flex;
-  gap: 10px;
+  gap: var(--spacing-sm);
 }
 
 .password-form button {
   flex: 1;
-  padding: 10px;
+  padding: var(--spacing-sm);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.8125rem;
+  transition: all var(--transition-fast);
 }
 
 .password-form .cancel-btn {
-  background: var(--border-color, #e0e0e0);
-  color: var(--text-color, #333);
+  background: var(--bg-color-2);
+  color: var(--text-color-1);
+}
+
+.password-form .cancel-btn:hover {
+  background: var(--bg-color-3);
 }
 
 .password-form .submit-btn {
-  background: var(--primary-color, #667eea);
+  background: var(--primary-color);
   color: white;
+}
+
+.password-form .submit-btn:hover {
+  background: var(--primary-hover);
+}
+
+.password-form button:active {
+  transform: scale(0.98);
 }
 
 .audit-btn {
   width: 100%;
-  padding: 10px;
-  background: var(--bg-color, #f5f5f5);
-  border: 1px solid var(--border-color, #e0e0e0);
-  border-radius: 8px;
+  padding: var(--spacing-sm);
+  background: var(--bg-color-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--text-color, #333);
-  transition: all 0.2s;
+  font-size: 0.875rem;
+  color: var(--text-color-1);
+  transition: all var(--transition-fast);
 }
 
 .audit-btn:hover {
-  background: var(--primary-color, #667eea);
+  background: var(--primary-color);
   color: white;
-  border-color: var(--primary-color, #667eea);
+  border-color: var(--primary-color);
+}
+
+.audit-btn:active {
+  transform: scale(0.98);
+}
+
+@media (max-width: 768px) {
+  .settings-panel {
+    max-width: 100%;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  .settings-body {
+    padding: var(--spacing-lg);
+  }
+
+  .theme-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .theme-buttons button {
+    flex: 1;
+    min-width: 80px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.75rem;
+  }
+
+  .color-options {
+    justify-content: space-between;
+  }
+
+  .color-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    max-width: 32px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -512,32 +613,81 @@ onMounted(() => {
     max-width: 100%;
     border-radius: 0;
   }
-  
+
+  .settings-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .settings-header h3 {
+    font-size: 0.9375rem;
+  }
+
+  .close-btn {
+    font-size: 1.25rem;
+  }
+
   .settings-body {
-    padding: 15px;
+    padding: var(--spacing-md);
   }
-  
+
+  .setting-item {
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .setting-item label {
+    font-size: 0.8125rem;
+  }
+
+  .font-size-controls {
+    gap: var(--spacing-sm);
+  }
+
+  .font-size-controls button {
+    width: 36px;
+    height: 36px;
+    font-size: 0.8125rem;
+  }
+
+  .font-size-value {
+    font-size: 0.9375rem;
+  }
+
   .theme-buttons {
-    flex-direction: row;
-    flex-wrap: wrap;
+    gap: var(--spacing-xs);
   }
-  
+
   .theme-buttons button {
-    flex: 1;
-    min-width: 80px;
-    padding: 8px;
-    font-size: 0.8rem;
+    padding: var(--spacing-xs);
+    font-size: 0.75rem;
   }
-  
+
   .color-options {
-    justify-content: space-between;
+    gap: var(--spacing-xs);
   }
-  
+
   .color-btn {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    max-width: 32px;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    max-width: 30px;
+  }
+
+  .password-form {
+    padding: var(--spacing-sm);
+  }
+
+  .password-form input {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.8125rem;
+  }
+
+  .password-form .btn-row {
+    gap: var(--spacing-xs);
+  }
+
+  .password-form button {
+    padding: var(--spacing-xs);
+    font-size: 0.75rem;
   }
 }
 </style>

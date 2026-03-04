@@ -17,11 +17,12 @@ const appVersion = ref('__APP_VERSION__')
 
 <style scoped>
 header {
-  background: linear-gradient(135deg, var(--primary-color, #667eea) 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   color: white;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 20px;
+  padding: var(--spacing-2xl);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-xl);
+  box-shadow: var(--shadow-md);
 }
 
 .header-content {
@@ -35,22 +36,40 @@ header {
 }
 
 h1 {
-  margin: 0 0 5px 0;
-  font-size: 22px;
+  margin: 0 0 var(--spacing-xs) 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .version {
-  font-size: 12px;
-  opacity: 0.8;
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.85;
 }
 
 @media (max-width: 768px) {
   header {
-    padding: 15px;
+    padding: var(--spacing-xl);
+    border-radius: var(--radius-sm);
   }
-  
+
   h1 {
-    font-size: 18px;
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 480px) {
+  header {
+    padding: var(--spacing-lg);
+  }
+
+  h1 {
+    font-size: 1rem;
+  }
+
+  .version {
+    font-size: 0.6875rem;
   }
 }
 </style>

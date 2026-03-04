@@ -11,20 +11,21 @@
 
 <style scoped>
 .footer {
-  margin-top: 30px;
-  padding: 20px;
+  margin-top: var(--spacing-3xl);
+  padding: var(--spacing-xl);
   text-align: center;
-  color: #888;
-  font-size: 14px;
-  border-top: 1px solid #e0e0e0;
+  color: var(--text-color-3);
+  font-size: 0.875rem;
+  border-top: 1px solid var(--border-color);
 }
 
 .footer a {
-  color: #667eea;
+  color: var(--primary-color);
   text-decoration: none;
+  transition: color var(--transition-fast);
 }
 
 .footer a:hover {
-  text-decoration: underline;
+  color: var(--primary-hover);
 }
 </style>

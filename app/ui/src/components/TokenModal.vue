@@ -1,7 +1,7 @@
 <template>
   <div class="modal active" @click.self="$emit('close')">
     <div class="modal-content">
-      <div class="modal-header">🔐 Token认证</div>
+      <div class="modal-header">Token认证</div>
       <div class="modal-body">
         <p>请输入访问Token:</p>
         <div class="form-group">

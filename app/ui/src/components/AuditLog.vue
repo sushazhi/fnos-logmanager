@@ -2,7 +2,7 @@
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal audit-modal">
       <div class="modal-header">
-        <h3>📋 审计日志</h3>
+        <h3>审计日志</h3>
         <button class="close-btn" @click="$emit('close')">×</button>
       </div>
       <div class="filter-bar">
@@ -100,22 +100,22 @@ function getLogClass(action) {
 
 function getActionText(action) {
   const actionMap = {
-    'login_success': '✅ 登录成功',
-    'login_failed': '❌ 登录失败',
-    'login_locked': '🔒 账户锁定',
-    'logout': '🚪 登出',
-    'password_setup': '🔑 设置密码',
-    'password_changed': '🔑 密码修改',
-    'password_change_failed': '❌ 密码修改失败',
-    'log_truncate': '🗑️ 日志清空',
-    'log_delete': '🗑️ 日志删除',
-    'archive_delete': '🗑️ 归档删除',
-    'logs_clean': '🧹 批量清理',
-    'logs_backup': '📦 日志备份',
-    'backup_delete': '🗑️ 备份删除',
-    'backups_clean': '🧹 备份清理',
-    'auth_failed': '❌ 认证失败',
-    'csrf_failed': '⚠️ CSRF验证失败'
+    'login_success': '登录成功',
+    'login_failed': '登录失败',
+    'login_locked': '账户锁定',
+    'logout': '登出',
+    'password_setup': '设置密码',
+    'password_changed': '密码修改',
+    'password_change_failed': '密码修改失败',
+    'log_truncate': '日志清空',
+    'log_delete': '日志删除',
+    'archive_delete': '归档删除',
+    'logs_clean': '批量清理',
+    'logs_backup': '日志备份',
+    'backup_delete': '备份删除',
+    'backups_clean': '备份清理',
+    'auth_failed': '认证失败',
+    'csrf_failed': 'CSRF验证失败'
   }
   return actionMap[action] || action
 }
@@ -303,81 +303,211 @@ function formatDetails(details) {
 }
 
 /* 移动端适配 */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .modal-overlay {
-    padding: 10px;
+    padding: var(--spacing-sm);
     align-items: flex-end;
   }
 
   .audit-modal {
     max-width: 100%;
-    max-height: 85vh;
-    border-radius: 16px 16px 0 0;
+    max-height: 90vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 
   .modal-header {
-    padding: 14px 16px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
   }
 
   .modal-header h3 {
-    font-size: 16px;
+    font-size: 1rem;
+    font-weight: 500;
     white-space: nowrap;
+    color: var(--text-color-1);
   }
 
   .close-btn {
-    font-size: 22px;
+    font-size: 1.375rem;
+    color: var(--text-color-2);
+  }
+
+  .close-btn:hover {
+    color: var(--text-color-1);
   }
 
   .filter-bar {
-    padding: 8px 12px;
-    gap: 6px;
+    padding: var(--spacing-xs) var(--spacing-md);
+    gap: var(--spacing-xs);
+    background: var(--bg-color-2);
+    border-bottom: 1px solid var(--border-color);
   }
 
   .filter-btn {
-    padding: 5px 10px;
-    font-size: 12px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.75rem;
+    background: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-color-2);
+    border-radius: var(--radius-lg);
+  }
+
+  .filter-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
+
+  .filter-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
   }
 
   .modal-body {
-    max-height: 70vh;
+    max-height: 75vh;
   }
 
   .log-list {
-    padding: 8px;
+    padding: var(--spacing-sm);
   }
 
   .log-item {
-    padding: 10px;
-    margin-bottom: 6px;
-    border-radius: 6px;
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    background: var(--bg-color-2);
+    border-left: 4px solid var(--primary-color);
+  }
+
+  .log-item.danger {
+    border-left-color: var(--error-color);
+    background: rgba(250, 42, 45, 0.1);
+  }
+
+  .log-item.warning {
+    border-left-color: var(--warning-color);
+    background: rgba(255, 176, 0, 0.1);
+  }
+
+  .log-item.success {
+    border-left-color: var(--success-color);
+    background: rgba(0, 186, 173, 0.1);
+  }
+
+  .log-header {
+    margin-bottom: var(--spacing-xs);
   }
 
   .log-action {
-    font-size: 14px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-color-1);
   }
 
   .log-time {
-    font-size: 12px;
+    font-size: 0.6875rem;
+    color: var(--text-color-3);
   }
 
   .log-details {
-    font-size: 13px;
+    font-size: 0.75rem;
+    color: var(--text-color-2);
     flex-direction: column;
-    gap: 4px;
+    gap: var(--spacing-xs);
   }
 
   .log-ip {
-    padding: 3px 8px;
-    font-size: 13px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.75rem;
+    background: var(--card-bg);
+    border-radius: var(--radius-xs);
   }
 
   .log-extra {
-    font-size: 13px;
+    font-size: 0.75rem;
+    color: var(--text-color-3);
   }
 
   .loading, .empty {
-    padding: 30px 20px;
-    font-size: 14px;
+    padding: var(--spacing-2xl) var(--spacing-lg);
+    font-size: 0.875rem;
+    color: var(--text-color-2);
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .audit-modal {
+    max-width: 100%;
+    max-height: 95vh;
+    border-radius: 0;
+  }
+
+  .modal-header {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .modal-header h3 {
+    font-size: 0.9375rem;
+  }
+
+  .close-btn {
+    font-size: 1.25rem;
+  }
+
+  .filter-bar {
+    padding: 4px var(--spacing-sm);
+    gap: 4px;
+  }
+
+  .filter-btn {
+    padding: 4px var(--spacing-xs);
+    font-size: 0.6875rem;
+  }
+
+  .modal-body {
+    max-height: 80vh;
+  }
+
+  .log-list {
+    padding: var(--spacing-xs);
+  }
+
+  .log-item {
+    padding: var(--spacing-xs);
+    margin-bottom: var(--spacing-xs);
+    border-radius: var(--radius-xs);
+  }
+
+  .log-action {
+    font-size: 0.8125rem;
+  }
+
+  .log-time {
+    font-size: 0.625rem;
+  }
+
+  .log-details {
+    font-size: 0.6875rem;
+    gap: 2px;
+  }
+
+  .log-ip {
+    padding: 2px var(--spacing-xs);
+    font-size: 0.6875rem;
+  }
+
+  .log-extra {
+    font-size: 0.6875rem;
+  }
+
+  .loading, .empty {
+    padding: var(--spacing-xl) var(--spacing-md);
+    font-size: 0.8125rem;
   }
 }
 
@@ -388,32 +518,32 @@ function formatDetails(details) {
   }
 
   .modal-header {
-    padding: 14px 18px;
+    padding: var(--spacing-sm) var(--spacing-lg);
   }
 
   .modal-header h3 {
-    font-size: 17px;
+    font-size: 1.0625rem;
   }
 }
 
 /* 深色主题 */
 :global(.dark-theme) .log-item {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-color-2);
 }
 
 :global(.dark-theme) .log-item.danger {
-  background: rgba(244, 67, 54, 0.1);
+  background: rgba(250, 42, 45, 0.1);
 }
 
 :global(.dark-theme) .log-item.warning {
-  background: rgba(255, 152, 0, 0.1);
+  background: rgba(255, 176, 0, 0.1);
 }
 
 :global(.dark-theme) .log-item.success {
-  background: rgba(76, 175, 80, 0.1);
+  background: rgba(0, 186, 173, 0.1);
 }
 
 :global(.dark-theme) .log-ip {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-color-1);
 }
 </style>

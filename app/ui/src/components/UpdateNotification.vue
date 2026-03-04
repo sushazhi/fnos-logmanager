@@ -105,16 +105,16 @@ onMounted(() => {
 <style scoped>
 .update-notification {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  bottom: var(--spacing-xl);
+  right: var(--spacing-xl);
   z-index: 99999;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  animation: slideIn 0.3s ease-out;
+  font-family: var(--font-family);
+  animation: slideIn var(--transition-slow) ease-out;
   max-width: 450px;
 }
 
 .update-notification.closing {
-  animation: slideOut 0.3s ease-in forwards;
+  animation: slideOut var(--transition-slow) ease-in forwards;
 }
 
 @keyframes slideIn {
@@ -130,14 +130,14 @@ onMounted(() => {
 .update-notification-content {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.95);
+  gap: var(--spacing-md);
+  background: var(--card-bg);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  padding: 20px 24px;
-  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-xl);
+  padding: var(--spacing-xl) var(--spacing-2xl);
+  border-radius: var(--radius-md);
   position: relative;
 }
 
@@ -149,34 +149,34 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: var(--spacing-md);
   flex-wrap: wrap;
   padding-right: 40px;
 }
 
 .update-notification-title {
-  font-weight: 700;
-  font-size: 18px;
-  color: #2c3e50;
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: var(--text-color-1);
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .update-notification-version {
-  font-size: 14px;
-  color: #667eea;
-  margin-top: 6px;
+  font-size: 0.875rem;
+  color: var(--primary-color);
+  margin-top: var(--spacing-xs);
   font-weight: 500;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .update-notification-changelog {
-  font-size: 13px;
-  color: #34495e;
-  margin-top: 12px;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  color: var(--text-color-2);
+  margin-top: var(--spacing-sm);
+  line-height: 1.5;
   max-height: 120px;
   overflow-y: auto;
   -webkit-font-smoothing: antialiased;
@@ -185,113 +185,121 @@ onMounted(() => {
 
 .update-notification-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--spacing-sm);
   align-items: center;
 }
 
 .update-notification-btn {
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
   border: none;
-  transition: all 0.3s ease;
-  letter-spacing: 0.5px;
+  transition: all var(--transition-fast);
+  letter-spacing: -0.01em;
 }
 
 .update-notification-btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-md);
 }
 
 .update-notification-btn-primary:hover {
   opacity: 0.9;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  box-shadow: var(--shadow-lg);
+}
+
+.update-notification-btn-primary:active {
+  transform: scale(0.98);
 }
 
 .update-notification-btn-secondary {
-  background: rgba(245, 245, 245, 0.95);
-  color: #7f8c8d;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--bg-color-2);
+  color: var(--text-color-2);
+  border: 1px solid var(--border-color);
 }
 
 .update-notification-btn-secondary:hover {
-  background: rgba(232, 232, 232, 0.95);
+  background: var(--bg-color-3);
   transform: translateY(-2px);
-  color: #5a6b7d;
+  color: var(--text-color-1);
+}
+
+.update-notification-btn-secondary:active {
+  transform: scale(0.98);
 }
 
 .update-notification-close {
   background: none;
   border: none;
-  font-size: 24px;
-  color: #999999;
+  font-size: 1.5rem;
+  color: var(--text-color-3);
   cursor: pointer;
-  padding: 4px 8px;
+  padding: var(--spacing-xs) var(--spacing-sm);
   line-height: 1;
   position: absolute;
-  top: 12px;
-  right: 12px;
-  transition: all 0.3s ease;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  transition: all var(--transition-fast);
 }
 
 .update-notification-close:hover {
-  color: #333333;
+  color: var(--text-color-1);
   transform: scale(1.15);
 }
 
 /* 深色主题 */
 :global(.dark-theme) .update-notification-content {
-  background: rgba(45, 45, 45, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
 }
 
 :global(.dark-theme) .update-notification-title {
-  color: #fff;
+  color: var(--text-color-1);
 }
 
 :global(.dark-theme) .update-notification-version {
-  color: #667eea;
+  color: var(--primary-color);
 }
 
 :global(.dark-theme) .update-notification-changelog {
-  color: #ccc;
+  color: var(--text-color-2);
 }
 
 :global(.dark-theme) .update-notification-close {
-  color: #999;
+  color: var(--text-color-3);
 }
 
 :global(.dark-theme) .update-notification-close:hover {
-  color: #fff;
+  color: var(--text-color-1);
 }
 
 :global(.dark-theme) .update-notification-btn-secondary {
-  background: rgba(60, 60, 60, 0.95);
-  color: #ccc;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-color-2);
+  color: var(--text-color-2);
+  border: 1px solid var(--border-color);
 }
 
 :global(.dark-theme) .update-notification-btn-secondary:hover {
-  background: rgba(70, 70, 70, 0.95);
-  color: #fff;
+  background: var(--bg-color-3);
+  color: var(--text-color-1);
 }
 
 /* 移动端适配 */
 @media (max-width: 480px) {
   .update-notification {
-    bottom: 10px;
-    right: 10px;
-    left: 10px;
+    bottom: var(--spacing-sm);
+    right: var(--spacing-sm);
+    left: var(--spacing-sm);
     max-width: none;
   }
 
   .update-notification-content {
-    padding: 16px 40px 16px 16px;
+    padding: var(--spacing-lg) 40px var(--spacing-lg) var(--spacing-lg);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -299,25 +307,25 @@ onMounted(() => {
   .update-notification-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--spacing-sm);
     padding-right: 0;
   }
 
   .update-notification-title {
-    font-size: 16px;
+    font-size: 1rem;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   .update-notification-version {
-    font-size: 13px;
+    font-size: 0.8125rem;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   .update-notification-changelog {
-    font-size: 13px;
-    margin-top: 8px;
+    font-size: 0.8125rem;
+    margin-top: var(--spacing-sm);
     max-height: 80px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -326,12 +334,12 @@ onMounted(() => {
   .update-notification-actions {
     width: 100%;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--spacing-sm);
   }
 
   .update-notification-btn {
-    padding: 8px 12px;
-    font-size: 13px;
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: 0.8125rem;
     flex: 1;
     min-width: 80px;
     text-align: center;
@@ -341,9 +349,9 @@ onMounted(() => {
 
   .update-notification-close {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    font-size: 20px;
+    top: var(--spacing-xs);
+    right: var(--spacing-xs);
+    font-size: 1.25rem;
     width: 28px;
     height: 28px;
     display: flex;
@@ -357,30 +365,30 @@ onMounted(() => {
 /* 平板适配 */
 @media (min-width: 481px) and (max-width: 768px) {
   .update-notification {
-    bottom: 15px;
-    right: 15px;
+    bottom: var(--spacing-md);
+    right: var(--spacing-md);
     max-width: 400px;
   }
 
   .update-notification-content {
-    padding: 18px 20px;
+    padding: var(--spacing-lg) var(--spacing-xl);
   }
 
   .update-notification-title {
-    font-size: 16px;
+    font-size: 1rem;
   }
 
   .update-notification-version {
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .update-notification-btn {
-    padding: 9px 18px;
-    font-size: 13px;
+    padding: var(--spacing-xs) var(--spacing-lg);
+    font-size: 0.8125rem;
   }
 
   .update-notification-changelog {
-    font-size: 12px;
+    font-size: 0.75rem;
   }
 }
 </style>
