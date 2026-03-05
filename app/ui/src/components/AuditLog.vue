@@ -330,6 +330,11 @@ function formatDetails(details) {
   .close-btn {
     font-size: 1.375rem;
     color: var(--text-color-2);
+    min-width: 32px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .close-btn:hover {

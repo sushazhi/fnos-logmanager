@@ -101,7 +101,7 @@ const emit = defineEmits(['close', 'update', 'showAudit'])
 
 const fontSize = ref(16)
 const theme = ref('light')
-const primaryColor = ref('#667eea')
+const primaryColor = ref('#5b9bd5')
 
 const showPasswordForm = ref(false)
 const currentPassword = ref('')
@@ -111,12 +111,11 @@ const passwordError = ref('')
 const passwordSuccess = ref('')
 
 const colors = [
-  { name: '紫蓝', value: '#667eea', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-  { name: '青绿', value: '#00bcd4', gradient: 'linear-gradient(135deg, #00bcd4 0%, #009688 100%)' },
-  { name: '橙色', value: '#ff9800', gradient: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)' },
-  { name: '粉色', value: '#e91e63', gradient: 'linear-gradient(135deg, #e91e63 0%, #c2185b 100%)' },
-  { name: '蓝色', value: '#2196f3', gradient: 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)' },
-  { name: '绿色', value: '#4caf50', gradient: 'linear-gradient(135deg, #4caf50 0%, #388e3c 100%)' },
+  { name: '紫色', value: '#9b59b6', gradient: 'linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%)' },
+  { name: '蓝色', value: '#3498db', gradient: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)' },
+  { name: '青色', value: '#1abc9c', gradient: 'linear-gradient(135deg, #1abc9c 0%, #16a085 100%)' },
+  { name: '粉色', value: '#e74c8c', gradient: 'linear-gradient(135deg, #e74c8c 0%, #c0392b 100%)' },
+  { name: '莫兰迪渐变', value: '#8ec5fc', gradient: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 33%, #a8edea 66%, #fed6e3 100%)' },
 ]
 
 function increaseFontSize() {
@@ -171,6 +170,86 @@ function applyColor() {
   // 计算悬停和按下状态的颜色
   root.style.setProperty('--primary-hover', adjustColor(color, -15))
   root.style.setProperty('--primary-pressed', adjustColor(color, -30))
+  
+  // 生成基于主题色的色系
+  const hsl = hexToHSL(color)
+  const hue = hsl.h
+  
+  // 为统计卡片生成色系
+  const card1Color = hslToHex((hue + 0) % 360, Math.min(hsl.s * 0.6, 60), Math.max(hsl.l, 50))
+  const card2Color = hslToHex((hue + 60) % 360, Math.min(hsl.s * 0.6, 60), Math.max(hsl.l, 50))
+  const card3Color = hslToHex((hue + 120) % 360, Math.min(hsl.s * 0.6, 60), Math.max(hsl.l, 50))
+  const card4Color = hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.6, 60), Math.max(hsl.l, 50))
+  
+  root.style.setProperty('--card-color-1', card1Color)
+  root.style.setProperty('--card-color-1-light', hslToHex((hue + 0) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+  root.style.setProperty('--card-color-2', card2Color)
+  root.style.setProperty('--card-color-2-light', hslToHex((hue + 60) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+  root.style.setProperty('--card-color-3', card3Color)
+  root.style.setProperty('--card-color-3-light', hslToHex((hue + 120) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+  root.style.setProperty('--card-color-4', card4Color)
+  root.style.setProperty('--card-color-4-light', hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+}
+
+// HEX转HSL
+function hexToHSL(hex) {
+  let color = hex.replace('#', '')
+  let r = parseInt(color.substring(0, 2), 16) / 255
+  let g = parseInt(color.substring(2, 4), 16) / 255
+  let b = parseInt(color.substring(4, 6), 16) / 255
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let h, s, l = (max + min) / 2
+
+  if (max === min) {
+    h = s = 0
+  } else {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+      case g: h = ((b - r) / d + 2) / 6; break
+      case b: h = ((r - g) / d + 4) / 6; break
+    }
+  }
+
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100)
+  }
+}
+
+// HSL转HEX
+function hslToHex(h, s, l) {
+  s /= 100
+  l /= 100
+
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1))
+  const m = l - c / 2
+  let r = 0, g = 0, b = 0
+
+  if (0 <= h && h < 60) {
+    r = c; g = x; b = 0
+  } else if (60 <= h && h < 120) {
+    r = x; g = c; b = 0
+  } else if (120 <= h && h < 180) {
+    r = 0; g = c; b = x
+  } else if (180 <= h && h < 240) {
+    r = 0; g = x; b = c
+  } else if (240 <= h && h < 300) {
+    r = x; g = 0; b = c
+  } else if (300 <= h && h < 360) {
+    r = c; g = 0; b = x
+  }
+
+  r = Math.round((r + m) * 255)
+  g = Math.round((g + m) * 255)
+  b = Math.round((b + m) * 255)
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
 // 颜色调整函数
@@ -215,7 +294,7 @@ function loadSettings() {
       const settings = JSON.parse(saved)
       fontSize.value = settings.fontSize || 16
       theme.value = settings.theme || 'light'
-      primaryColor.value = settings.primaryColor || '#667eea'
+      primaryColor.value = settings.primaryColor || '#5b9bd5'
     }
   } catch (e) {
     console.warn('Failed to load settings:', e)
@@ -623,7 +702,10 @@ onMounted(() => {
   }
 
   .close-btn {
-    font-size: 1.25rem;
+    font-size: 1.125rem;
+    width: 18px;
+    padding: 0;
+    margin-left: auto;
   }
 
   .settings-body {

@@ -1,25 +1,42 @@
 <template>
   <div class="login-overlay">
+    <div class="login-background">
+      <div class="bg-shape bg-shape-1"></div>
+      <div class="bg-shape bg-shape-2"></div>
+      <div class="bg-shape bg-shape-3"></div>
+    </div>
+    
     <div class="login-modal">
       <div class="login-header">
         <div class="login-icon">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <path d="M24 4C12.95 4 4 12.95 4 24C4 35.05 12.95 44 24 44C35.05 44 44 35.05 44 24C44 12.95 35.05 4 24 4Z" fill="white" fill-opacity="0.2"/>
-            <path d="M24 28C26.2091 28 28 26.2091 28 24C28 21.7909 26.2091 20 24 20C21.7909 20 20 21.7909 20 24C20 26.2091 21.7909 28 24 28Z" fill="white"/>
-            <path d="M24 16C25.1046 16 26 15.1046 26 14C26 12.8954 25.1046 12 24 12C22.8954 12 22 12.8954 22 14C22 15.1046 22.8954 16 24 16Z" fill="white"/>
-            <path d="M24 36C25.1046 36 26 35.1046 26 34C26 32.8954 25.1046 32 24 32C22.8954 32 22 32.8954 22 34C22 35.1046 22.8954 36 24 36Z" fill="white"/>
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="28" fill="white" fill-opacity="0.15"/>
+            <circle cx="32" cy="32" r="20" fill="white" fill-opacity="0.2"/>
+            <path d="M32 38C35.3137 38 38 35.3137 38 32C38 28.6863 35.3137 26 32 26C28.6863 26 26 28.6863 26 32C26 35.3137 28.6863 38 32 38Z" fill="white"/>
+            <path d="M32 22C33.1046 22 34 21.1046 34 20C34 18.8954 33.1046 18 32 18C30.8954 18 30 18.8954 30 20C30 21.1046 30.8954 22 32 22Z" fill="white" fill-opacity="0.8"/>
+            <path d="M32 46C33.1046 46 34 45.1046 34 44C34 42.8954 33.1046 42 32 42C30.8954 42 30 42.8954 30 44C30 45.1046 30.8954 46 32 46Z" fill="white" fill-opacity="0.8"/>
           </svg>
         </div>
-        <h2>登录</h2>
+        <h2>飞牛应用日志管理</h2>
+        <p class="login-subtitle">请输入密码以继续</p>
       </div>
+      
       <form @submit.prevent="handleLogin">
         <div class="form-group">
-          <label>密码</label>
+          <label>访问密码</label>
           <div class="password-input">
-            <input 
-              :type="showPassword ? 'text' : 'password'" 
-              v-model="password" 
-              placeholder="请输入密码"
+            <div class="input-icon">
+              <!-- 鸿蒙6图标: 锁 -->
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M8 11V7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="12" cy="16" r="1.5" fill="currentColor"/>
+              </svg>
+            </div>
+            <input
+              :type="showPassword ? 'text' : 'password'"
+              v-model="password"
+              placeholder="请输入访问密码"
               :disabled="loading"
               autocomplete="current-password"
               autocapitalize="off"
@@ -28,25 +45,51 @@
               inputmode="text"
               ref="passwordInput"
             >
-            <button type="button" class="toggle-password-btn" @click="showPassword = !showPassword">
-              <svg v-if="!showPassword" width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M12.9833 10C12.9833 11.6569 11.6402 13 9.9833 13C8.32645 13 6.9833 11.6569 6.9833 10C6.9833 8.34315 8.32645 7 9.9833 7C11.6402 7 12.9833 8.34315 12.9833 10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M9.9833 15C7.23273 15 4.72309 13.9059 2.98328 12.1716C1.24888 10.4321 0.149902 7.92211 0.149902 5.17146C0.149902 2.4208 1.24888 -0.0891528 2.98328 -1.82863C4.72309 -3.56295 7.23273 -4.65698 9.9833 -4.65698C12.7339 -4.65698 15.2435 -3.56295 16.9833 -1.82863C18.7177 -0.0891528 19.8167 2.4208 19.8167 5.17146C19.8167 7.92211 18.7177 10.4321 16.9833 12.1716C15.2435 13.9059 12.7339 15 9.9833 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <svg v-else width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M2.91667 9.99996C2.91667 6.09538 6.09538 2.91663 10 2.91663C13.9046 2.91663 17.0833 6.09538 17.0833 9.99996C17.0833 13.9045 13.9046 17.0833 10 17.0833C6.09538 17.0833 2.91667 13.9045 2.91667 9.99996Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M10 6.66663V8.33329" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M10 11.6666V13.3333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
+            <div class="password-toggle-wrapper">
+              <button type="button" class="toggle-password-btn" @click="showPassword = !showPassword" tabindex="-1">
+                <!-- 鸿蒙6图标: 显示密码(眼睛) -->
+                <svg v-if="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 4.5C7 4.5 2.73 7.61 1 12C2.73 16.39 7 19.5 12 19.5C17 19.5 21.27 16.39 23 12C21.27 7.61 17 4.5 12 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M12 15.5C13.933 15.5 15.5 13.933 15.5 12C15.5 10.067 13.933 8.5 12 8.5C10.067 8.5 8.5 10.067 8.5 12C8.5 13.933 10.067 15.5 12 15.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <!-- 鸿蒙6图标: 隐藏密码(眼睛关闭) -->
+                <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 3L21 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M10.5 10.5C10.181 10.819 9.983 11.247 9.983 11.72C9.983 12.669 10.753 13.439 11.702 13.439C12.175 13.439 12.603 13.241 12.922 12.922" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M6.17 6.17C4.27 7.49 2.78 9.46 2 12C3.73 16.39 8 19.5 13 19.5C14.55 19.5 16.03 19.17 17.37 18.58" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M19.42 15.54C20.47 14.53 21.33 13.35 22 12C20.27 7.61 16 4.5 11 4.5C10.29 4.5 9.6 4.57 8.93 4.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-        <div class="error" v-if="error">{{ error }}</div>
+        
+        <div class="error" v-if="error">
+          <!-- 鸿蒙6图标: 错误提示 -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16" r="1" fill="currentColor"/>
+          </svg>
+          {{ error }}
+        </div>
+        
         <div class="hint" v-if="remaining !== null && remaining > 0">
+          <!-- 鸿蒙6图标: 警告提示 -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16" r="1" fill="currentColor"/>
+          </svg>
           剩余尝试次数: {{ remaining }}
         </div>
-        <button type="submit" :disabled="loading || !password">
-          {{ loading ? '登录中...' : '登录' }}
+        
+        <button type="submit" :disabled="loading || !password" class="login-btn">
+          <span v-if="!loading">登录</span>
+          <span v-else class="loading-text">
+            <span class="spinner"></span>
+            登录中...
+          </span>
         </button>
       </form>
     </div>
@@ -103,15 +146,84 @@ async function handleLogin() {
   justify-content: center;
   align-items: center;
   z-index: 2000;
+  overflow: hidden;
+}
+
+.login-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg-shape {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  animation: float 20s ease-in-out infinite;
+}
+
+.bg-shape-1 {
+  width: 400px;
+  height: 400px;
+  top: -200px;
+  left: -100px;
+  animation-delay: 0s;
+}
+
+.bg-shape-2 {
+  width: 300px;
+  height: 300px;
+  bottom: -150px;
+  right: -50px;
+  animation-delay: -5s;
+}
+
+.bg-shape-3 {
+  width: 200px;
+  height: 200px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation-delay: -10s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -30px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
 }
 
 .login-modal {
+  position: relative;
   background: var(--card-bg);
   padding: var(--spacing-3xl);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   width: 100%;
-  max-width: 360px;
+  max-width: 400px;
+  animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .login-header {
@@ -122,20 +234,39 @@ async function handleLogin() {
 }
 
 .login-icon {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 .login-icon svg {
   display: block;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
 }
 
 .login-modal h2 {
-  margin: 0;
+  margin: 0 0 var(--spacing-xs) 0;
   text-align: center;
   color: var(--text-color-1);
   font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+}
+
+.login-subtitle {
+  margin: 0;
+  text-align: center;
+  color: var(--text-color-3);
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 .form-group {
@@ -153,40 +284,67 @@ async function handleLogin() {
 .password-input {
   display: flex;
   align-items: stretch;
+  position: relative;
+}
+
+.input-icon {
+  position: absolute;
+  left: var(--spacing-md);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-color-3);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .password-input input {
-  flex: 4;
+  flex: 1;
   min-width: 0;
   padding: var(--spacing-md) var(--spacing-lg);
+  padding-left: 48px;
+  padding-right: 12px;
   border: 2px solid var(--border-color);
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  border-radius: var(--radius-sm);
   font-size: 1rem;
   font-family: var(--font-family);
-  transition: border-color var(--transition-fast);
+  transition: all var(--transition-fast);
   pointer-events: auto;
   -webkit-user-select: text;
   user-select: text;
   touch-action: manipulation;
+  background: var(--card-bg);
+  color: var(--text-color-1);
 }
 
 .password-input input:focus {
   outline: none;
   border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 125, 255, 0.1);
 }
 
 .password-input input::placeholder {
   color: var(--text-color-3);
 }
 
+.password-toggle-wrapper {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
 .toggle-password-btn {
-  flex: 1;
-  min-width: 0;
+  width: 44px;
+  height: 100%;
   padding: 0;
-  background: var(--card-bg);
-  border: 2px solid var(--border-color);
-  border-left: none;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
   font-size: 0.8rem;
   cursor: pointer;
   display: flex;
@@ -194,6 +352,7 @@ async function handleLogin() {
   justify-content: center;
   transition: all var(--transition-fast);
   color: var(--text-color-2);
+  pointer-events: auto;
 }
 
 .toggle-password-btn:hover {
@@ -206,22 +365,43 @@ async function handleLogin() {
 }
 
 .error {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   color: var(--error-color);
   font-size: 0.875rem;
   margin-bottom: var(--spacing-lg);
-  text-align: center;
-  font-weight: 400;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(250, 42, 45, 0.1);
+  border-radius: var(--radius-sm);
+  animation: shake 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
 }
 
 .hint {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   color: var(--warning-color);
   font-size: 0.8125rem;
   margin-bottom: var(--spacing-lg);
-  text-align: center;
-  font-weight: 400;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(255, 176, 0, 0.1);
+  border-radius: var(--radius-sm);
 }
 
-button[type="submit"] {
+.login-btn {
   width: 100%;
   padding: var(--spacing-lg);
   background: var(--primary-gradient);
@@ -232,37 +412,84 @@ button[type="submit"] {
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 12px rgba(0, 125, 255, 0.3);
+  position: relative;
+  overflow: hidden;
 }
 
-button[type="submit"]:hover:not(:disabled) {
+.login-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.login-btn:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.login-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 6px 20px rgba(0, 125, 255, 0.4);
 }
 
-button[type="submit"]:active:not(:disabled) {
+.login-btn:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-button[type="submit"]:disabled {
+.login-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.loading-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 480px) {
   .login-modal {
     margin: var(--spacing-xl);
     padding: var(--spacing-2xl) var(--spacing-xl);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
   }
 
   .login-icon svg {
-    width: 40px;
-    height: 40px;
+    width: 56px;
+    height: 56px;
   }
 
   .login-modal h2 {
     font-size: 1.25rem;
+  }
+
+  .login-subtitle {
+    font-size: 0.8125rem;
+  }
+
+  .password-input input {
+    font-size: 16px;
   }
 }
 
@@ -276,6 +503,11 @@ button[type="submit"]:disabled {
 
   .login-modal h2 {
     font-size: 1.125rem;
+  }
+
+  .login-icon svg {
+    width: 48px;
+    height: 48px;
   }
 }
 </style>

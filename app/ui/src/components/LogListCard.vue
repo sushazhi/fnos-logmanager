@@ -174,8 +174,8 @@ function escapeRegex(string) {
 }
 
 .drawer {
-  width: 600px;
-  max-width: 90%;
+  width: 900px;
+  max-width: 95%;
   height: 100%;
   background: var(--card-bg);
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
@@ -290,6 +290,7 @@ function escapeRegex(string) {
   align-items: center;
   font-size: 0.8125rem;
   transition: background var(--transition-fast);
+  gap: var(--spacing-md);
 }
 
 .log-item:hover {
@@ -305,32 +306,38 @@ function escapeRegex(string) {
   color: var(--text-color-1);
 }
 
+.log-item.header .path {
+  white-space: nowrap;
+}
+
 .log-item .path {
-  font-family: 'Monaco', 'Menlo', monospace;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   color: var(--text-color-1);
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  word-break: break-all;
+  white-space: normal;
+  line-height: 1.4;
 }
 
 .log-item .size {
   color: var(--primary-color);
   font-weight: 600;
-  margin-left: var(--spacing-md);
-  min-width: 80px;
+  min-width: 90px;
   text-align: right;
+  flex-shrink: 0;
 }
 
 .action-col {
-  width: 100px;
+  min-width: 120px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .log-item .actions {
   display: flex;
   gap: var(--spacing-xs);
-  margin-left: var(--spacing-md);
+  flex-shrink: 0;
 }
 
 .log-item button {
@@ -373,7 +380,11 @@ function escapeRegex(string) {
   }
 
   .close-btn {
-    font-size: 1.375rem;
+    font-size: 1.125rem;
+    width: 18px;
+    padding: 0;
+    margin-left: auto;
+    overflow: hidden;
   }
 
   .drawer-search {

@@ -161,6 +161,9 @@ setConfirmFn(showConfirm)
 
 function handleLogin(csrfToken) {
   isLoggedIn.value = true
+  if (csrfToken) {
+    api.setCSRFToken(csrfToken)
+  }
   loadFilterStatus()
   refreshAll()
   checkForUpdates()

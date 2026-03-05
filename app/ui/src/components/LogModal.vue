@@ -561,6 +561,11 @@ onUnmounted(() => {
     line-height: 1;
     color: var(--text-color-2);
     transition: color var(--transition-fast);
+    min-width: 32px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .close-btn:hover {

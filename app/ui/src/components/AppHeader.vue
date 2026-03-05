@@ -17,8 +17,13 @@ const appVersion = ref('__APP_VERSION__')
 
 <style scoped>
 header {
-  background: var(--primary-gradient);
-  color: white;
+  background: linear-gradient(135deg,
+    var(--card-color-1, #9b59b6) 0%,
+    var(--card-color-2, #3498db) 33%,
+    var(--card-color-3, #1abc9c) 66%,
+    var(--card-color-4, #e74c8c) 100%
+  );
+  color: #4a4a4a;
   padding: var(--spacing-2xl);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-xl);

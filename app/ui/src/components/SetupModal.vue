@@ -26,14 +26,17 @@
               ref="passwordInput"
             >
             <button type="button" class="toggle-password-btn" @click="showPassword = !showPassword">
-              <svg v-if="!showPassword" width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M12.9833 10C12.9833 11.6569 11.6402 13 9.9833 13C8.32645 13 6.9833 11.6569 6.9833 10C6.9833 8.34315 8.32645 7 9.9833 7C11.6402 7 12.9833 8.34315 12.9833 10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M9.9833 15C7.23273 15 4.72309 13.9059 2.98328 12.1716C1.24888 10.4321 0.149902 7.92211 0.149902 5.17146C0.149902 2.4208 1.24888 -0.0891528 2.98328 -1.82863C4.72309 -3.56295 7.23273 -4.65698 9.9833 -4.65698C12.7339 -4.65698 15.2435 -3.56295 16.9833 -1.82863C18.7177 -0.0891528 19.8167 2.4208 19.8167 5.17146C19.8167 7.92211 18.7177 10.4321 16.9833 12.1716C15.2435 13.9059 12.7339 15 9.9833 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- 鸿蒙6图标: 显示密码(眼睛) -->
+              <svg v-if="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12C2.73 16.39 7 19.5 12 19.5C17 19.5 21.27 16.39 23 12C21.27 7.61 17 4.5 12 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 15.5C13.933 15.5 15.5 13.933 15.5 12C15.5 10.067 13.933 8.5 12 8.5C10.067 8.5 8.5 10.067 8.5 12C8.5 13.933 10.067 15.5 12 15.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <svg v-else width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M2.91667 9.99996C2.91667 6.09538 6.09538 2.91663 10 2.91663C13.9046 2.91663 17.0833 6.09538 17.0833 9.99996C17.0833 13.9045 13.9046 17.0833 10 17.0833C6.09538 17.0833 2.91667 13.9045 2.91667 9.99996Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M10 6.66663V8.33329" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M10 11.6666V13.3333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- 鸿蒙6图标: 隐藏密码(眼睛关闭) -->
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M3 3L21 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M10.5 10.5C10.181 10.819 9.983 11.247 9.983 11.72C9.983 12.669 10.753 13.439 11.702 13.439C12.175 13.439 12.603 13.241 12.922 12.922" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6.17 6.17C4.27 7.49 2.78 9.46 2 12C3.73 16.39 8 19.5 13 19.5C14.55 19.5 16.03 19.17 17.37 18.58" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M19.42 15.54C20.47 14.53 21.33 13.35 22 12C20.27 7.61 16 4.5 11 4.5C10.29 4.5 9.6 4.57 8.93 4.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
           </div>
@@ -49,14 +52,17 @@
               autocomplete="new-password"
             >
             <button type="button" class="toggle-password-btn" @click="showConfirmPassword = !showConfirmPassword">
-              <svg v-if="!showConfirmPassword" width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M12.9833 10C12.9833 11.6569 11.6402 13 9.9833 13C8.32645 13 6.9833 11.6569 6.9833 10C6.9833 8.34315 8.32645 7 9.9833 7C11.6402 7 12.9833 8.34315 12.9833 10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M9.9833 15C7.23273 15 4.72309 13.9059 2.98328 12.1716C1.24888 10.4321 0.149902 7.92211 0.149902 5.17146C0.149902 2.4208 1.24888 -0.0891528 2.98328 -1.82863C4.72309 -3.56295 7.23273 -4.65698 9.9833 -4.65698C12.7339 -4.65698 15.2435 -3.56295 16.9833 -1.82863C18.7177 -0.0891528 19.8167 2.4208 19.8167 5.17146C19.8167 7.92211 18.7177 10.4321 16.9833 12.1716C15.2435 13.9059 12.7339 15 9.9833 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- 鸿蒙6图标: 显示密码(眼睛) -->
+              <svg v-if="!showConfirmPassword" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12C2.73 16.39 7 19.5 12 19.5C17 19.5 21.27 16.39 23 12C21.27 7.61 17 4.5 12 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 15.5C13.933 15.5 15.5 13.933 15.5 12C15.5 10.067 13.933 8.5 12 8.5C10.067 8.5 8.5 10.067 8.5 12C8.5 13.933 10.067 15.5 12 15.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <svg v-else width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M2.91667 9.99996C2.91667 6.09538 6.09538 2.91663 10 2.91663C13.9046 2.91663 17.0833 6.09538 17.0833 9.99996C17.0833 13.9045 13.9046 17.0833 10 17.0833C6.09538 17.0833 2.91667 13.9045 2.91667 9.99996Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M10 6.66663V8.33329" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M10 11.6666V13.3333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- 鸿蒙6图标: 隐藏密码(眼睛关闭) -->
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M3 3L21 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M10.5 10.5C10.181 10.819 9.983 11.247 9.983 11.72C9.983 12.669 10.753 13.439 11.702 13.439C12.175 13.439 12.603 13.241 12.922 12.922" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6.17 6.17C4.27 7.49 2.78 9.46 2 12C3.73 16.39 8 19.5 13 19.5C14.55 19.5 16.03 19.17 17.37 18.58" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M19.42 15.54C20.47 14.53 21.33 13.35 22 12C20.27 7.61 16 4.5 11 4.5C10.29 4.5 9.6 4.57 8.93 4.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
           </div>

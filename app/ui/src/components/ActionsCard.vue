@@ -104,10 +104,14 @@ button {
   justify-content: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-md) var(--spacing-sm);
-  background: var(--primary-gradient);
-  color: white;
+  background: linear-gradient(135deg,
+    var(--card-color-1, #9b59b6) 0%,
+    var(--card-color-1-light, #b07cc6) 50%,
+    var(--card-color-2, #3498db) 100%
+  );
+  color: #4a4a4a;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -124,11 +128,20 @@ button:active {
 }
 
 button.danger {
-  background: var(--error-color);
+  background: linear-gradient(135deg,
+    var(--card-color-4, #e74c8c) 0%,
+    var(--card-color-4-light, #ec6a9d) 50%,
+    var(--card-color-3, #1abc9c) 100%
+  );
+  color: #4a4a4a;
 }
 
 button.danger:hover {
-  background: #E52629;
+  background: linear-gradient(135deg,
+    var(--card-color-4-light, #ec6a9d) 0%,
+    var(--card-color-4, #e74c8c) 50%,
+    var(--card-color-3-light, #48c9b0) 100%
+  );
 }
 
 .filter-section {
