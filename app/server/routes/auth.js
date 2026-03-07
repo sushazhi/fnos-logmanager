@@ -14,12 +14,12 @@ const { RateLimitError } = require('../utils/errors');
 
 // Cookie配置 - 安全最佳实践
 // httpOnly: 防止XSS访问cookie
-// secure: 所有环境强制HTTPS（如果可用）
-// sameSite: 'lax' 平衡CSRF保护和iframe支持
+// secure: 生产环境强制HTTPS
+// sameSite: 'strict' 最严格的CSRF保护
 const COOKIE_OPTIONS = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production' || process.env.FORCE_HTTPS === 'true',
-    sameSite: 'lax',
+    sameSite: 'strict',
     maxAge: 24 * 60 * 60 * 1000,
     path: '/',
     domain: process.env.COOKIE_DOMAIN || undefined
@@ -27,7 +27,7 @@ const COOKIE_OPTIONS = {
 
 /**
  * @route POST /api/auth/setup
- * @description 设置初始密码（仅安装时调用，无认证要求）
+ * @description 设置初始密码（仅限内网IP，系统启动30分钟内）
  */
 router.post('/setup', validate([
     require('express-validator').body('password').isLength({ min: 8 }).withMessage('密码至少8位')
@@ -36,6 +36,36 @@ router.post('/setup', validate([
         const { password } = req.body;
         const ip = getClientIP(req);
         req.clientIP = ip;
+        
+        // 安全检查1：只允许内网IP访问
+        const isPrivateIP = (ipAddr) => {
+            if (ipAddr.startsWith('10.')) return true;
+            if (ipAddr.startsWith('172.')) {
+                const second = parseInt(ipAddr.split('.')[1]);
+                if (second >= 16 && second <= 31) return true;
+            }
+            if (ipAddr.startsWith('192.168.')) return true;
+            if (ipAddr === '127.0.0.1' || ipAddr === '::1') return true;
+            return false;
+        };
+        
+        if (!isPrivateIP(ip)) {
+            return res.status(403).json({
+                success: false,
+                error: '仅允许内网访问'
+            });
+        }
+        
+        // 安全检查2：系统启动后30分钟内允许设置
+        const uptime = process.uptime();
+        const maxSetupTime = 30 * 60;
+        
+        if (uptime > maxSetupTime) {
+            return res.status(403).json({
+                success: false,
+                error: '初始设置时间已过'
+            });
+        }
         
         const result = await passwordService.setupPassword(password);
         
@@ -83,6 +113,14 @@ router.post('/login', validate(loginValidationRules), async (req, res, next) => 
         }
         
         recordLoginAttempt(ip, true);
+        
+        // 删除旧会话（防止会话固定攻击）
+        const oldToken = getSessionToken(req);
+        if (oldToken) {
+            sessionService.deleteSession(oldToken);
+        }
+        
+        // 创建新会话
         const token = sessionService.createSession('admin');
         const csrfToken = sessionService.getCSRFToken(token);
         auditService.addAuditLog('login_success', { ip }, req);
@@ -91,7 +129,6 @@ router.post('/login', validate(loginValidationRules), async (req, res, next) => 
         
         res.json({
             success: true,
-            token: token,
             csrfToken: csrfToken,
             expiresIn: 24 * 60 * 60 * 1000
         });
@@ -102,9 +139,9 @@ router.post('/login', validate(loginValidationRules), async (req, res, next) => 
 
 /**
  * @route POST /api/auth/logout
- * @description 用户登出（无认证要求，允许清理状态）
+ * @description 用户登出
  */
-router.post('/logout', (req, res) => {
+router.post('/logout', validateCSRF, (req, res) => {
     const token = getSessionToken(req);
     if (token) {
         sessionService.deleteSession(token);
@@ -161,11 +198,10 @@ router.get('/csrf-token', (req, res) => {
     if (sessionToken && sessionService.validateSession(sessionToken)) {
         const csrfToken = sessionService.getCSRFToken(sessionToken);
         res.json({ 
-            csrfToken: csrfToken,
-            token: sessionToken  // 也返回token供前端使用
+            csrfToken: csrfToken
         });
     } else {
-        res.json({ csrfToken: null, token: null });
+        res.json({ csrfToken: null });
     }
 });
 

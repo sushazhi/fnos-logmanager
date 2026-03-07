@@ -15,20 +15,35 @@ function safePath(inputPath) {
     
     // 检查危险字符
     if (inputPath.includes('\0') || 
-        inputPath.includes('\\') ||
         inputPath.includes('\r') ||
         inputPath.includes('\n')) {
         return null;
     }
     
+    // 根据操作系统处理路径分隔符
+    const isWindows = process.platform === 'win32';
+    const separator = isWindows ? '\\' : '/';
+    
+    // 统一使用正斜杠进行处理
+    let normalized = inputPath.replace(/\\/g, '/');
+    
     // 规范化路径
-    const normalized = path.normalize(inputPath);
+    normalized = path.normalize(normalized);
     
     // 检查路径遍历尝试
     if (normalized.includes('..')) return null;
     
     // 确保是绝对路径
-    if (!normalized.startsWith('/')) return null;
+    if (!normalized.startsWith('/') && !(isWindows && /^[A-Za-z]:/.test(normalized))) {
+        return null;
+    }
+    
+    // 使用 path.resolve() 进行最终规范化
+    try {
+        normalized = path.resolve(normalized);
+    } catch (e) {
+        return null;
+    }
     
     return normalized;
 }

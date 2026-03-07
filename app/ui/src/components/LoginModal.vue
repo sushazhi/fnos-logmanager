@@ -84,6 +84,14 @@
           剩余尝试次数: {{ remaining }}
         </div>
         
+        <div class="remember-me">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="rememberMe" :disabled="loading">
+            <span class="checkbox-custom"></span>
+            <span class="checkbox-text">记住密码</span>
+          </label>
+        </div>
+        
         <button type="submit" :disabled="loading || !password" class="login-btn">
           <span v-if="!loading">登录</span>
           <span v-else class="loading-text">
@@ -97,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import api from '../services/api'
 
 const emit = defineEmits(['login'])
@@ -108,6 +116,97 @@ const loading = ref(false)
 const remaining = ref(null)
 const showPassword = ref(false)
 const passwordInput = ref(null)
+const rememberMe = ref(false)
+
+// 使用 Web Crypto API 进行真正的加密
+const ENCRYPTION_KEY_NAME = 'logmanager_key'
+
+// 生成加密密钥
+async function getOrCreateKey() {
+  // 尝试从 localStorage 获取已保存的密钥
+  const savedKey = localStorage.getItem(ENCRYPTION_KEY_NAME)
+  if (savedKey) {
+    const keyData = Uint8Array.from(atob(savedKey), c => c.charCodeAt(0))
+    return await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'AES-GCM', length: 256 },
+      true,
+      ['encrypt', 'decrypt']
+    )
+  }
+  
+  // 生成新密钥
+  const key = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  )
+  
+  // 导出并保存密钥
+  const exportedKey = await crypto.subtle.exportKey('raw', key)
+  const keyBase64 = btoa(String.fromCharCode(...new Uint8Array(exportedKey)))
+  localStorage.setItem(ENCRYPTION_KEY_NAME, keyBase64)
+  
+  return key
+}
+
+// 加密密码
+async function encryptPassword(pwd) {
+  try {
+    const key = await getOrCreateKey()
+    const encoder = new TextEncoder()
+    const data = encoder.encode(pwd)
+    
+    // 生成随机 IV
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+    
+    // 加密
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      data
+    )
+    
+    // 合并 IV 和加密数据
+    const combined = new Uint8Array(iv.length + encrypted.byteLength)
+    combined.set(iv)
+    combined.set(new Uint8Array(encrypted), iv.length)
+    
+    // 转换为 Base64
+    return btoa(String.fromCharCode(...combined))
+  } catch (e) {
+    console.error('加密失败:', e)
+    return ''
+  }
+}
+
+// 解密密码
+async function decryptPassword(encrypted) {
+  try {
+    const key = await getOrCreateKey()
+    
+    // 从 Base64 解码
+    const combined = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0))
+    
+    // 分离 IV 和加密数据
+    const iv = combined.slice(0, 12)
+    const data = combined.slice(12)
+    
+    // 解密
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      data
+    )
+    
+    const decoder = new TextDecoder()
+    return decoder.decode(decrypted)
+  } catch (e) {
+    console.error('解密失败:', e)
+    return ''
+  }
+}
 
 async function handleLogin() {
   if (!password.value) return
@@ -116,12 +215,26 @@ async function handleLogin() {
   error.value = ''
   
   try {
-    const data = await api.post('/api/auth/login', { password: password.value })
+    const data = await api.post('/api/auth/login', { 
+      password: password.value
+    })
     if (data.success) {
       if (data.csrfToken) {
         api.setCSRFToken(data.csrfToken)
       }
-      // 移除localStorage token存储，仅依赖httpOnly cookie
+      
+      // 如果勾选了记住密码，使用 Web Crypto API 加密存储
+      if (rememberMe.value) {
+        const encrypted = await encryptPassword(password.value)
+        if (encrypted) {
+          localStorage.setItem('logmanager_saved_pwd', encrypted)
+          localStorage.setItem('logmanager_remember', 'true')
+        }
+      } else {
+        localStorage.removeItem('logmanager_saved_pwd')
+        localStorage.removeItem('logmanager_remember')
+      }
+      
       emit('login', data.csrfToken)
     }
   } catch (e) {
@@ -132,6 +245,19 @@ async function handleLogin() {
     loading.value = false
   }
 }
+
+// 组件挂载时，检查是否有保存的密码
+onMounted(async () => {
+  const savedPwd = localStorage.getItem('logmanager_saved_pwd')
+  const savedRemember = localStorage.getItem('logmanager_remember')
+  
+  if (savedPwd && savedRemember === 'true') {
+    password.value = await decryptPassword(savedPwd)
+    rememberMe.value = true
+  }
+  
+  passwordInput.value?.focus()
+})
 </script>
 
 <style scoped>
@@ -399,6 +525,68 @@ async function handleLogin() {
   padding: var(--spacing-sm) var(--spacing-md);
   background: rgba(255, 176, 0, 0.1);
   border-radius: var(--radius-sm);
+}
+
+.remember-me {
+  margin-bottom: var(--spacing-lg);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.875rem;
+  color: var(--text-color-2);
+}
+
+.checkbox-label input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.checkbox-custom {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: var(--card-bg);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkbox-custom::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.checkbox-label input[type="checkbox"]:disabled + .checkbox-custom {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-label:hover .checkbox-custom {
+  border-color: var(--primary-color);
+}
+
+.checkbox-text {
+  line-height: 1.4;
 }
 
 .login-btn {

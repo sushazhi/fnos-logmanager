@@ -442,6 +442,7 @@ onUnmounted(() => {
 .virtual-scroll-container {
   position: relative;
   width: 100%;
+  min-width: max-content;
 }
 
 .virtual-scroll-content {
@@ -449,6 +450,7 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
+  min-width: max-content;
 }
 
 .log-viewer {
@@ -458,12 +460,14 @@ onUnmounted(() => {
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 12px;
   line-height: 24px;
+  min-width: max-content;
 }
 
 .log-line {
   display: flex;
   padding: 0 15px;
   height: 24px;
+  min-width: max-content;
 }
 
 .log-line:hover {
@@ -486,14 +490,13 @@ onUnmounted(() => {
   user-select: none;
   border-right: 1px solid #333;
   margin-right: 15px;
+  flex-shrink: 0;
 }
 
 .line-content {
   color: #d4d4d4;
   white-space: pre;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
+  flex: none;
 }
 
 :deep(.highlight) {

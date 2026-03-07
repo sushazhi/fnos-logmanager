@@ -2,25 +2,39 @@
   <div class="update-notification" :class="{ closing: isClosing }">
     <div class="update-notification-content">
       <div class="update-notification-text">
-        <div class="update-notification-header">
-          <div class="update-notification-title">发现新版本</div>
-          <div class="update-notification-actions">
-            <a :href="updateInfo.url" target="_blank" class="update-notification-btn update-notification-btn-primary">前往下载</a>
-            <button class="update-notification-btn update-notification-btn-secondary" @click="ignoreVersion">忽略此版本</button>
+        <!-- 更新中显示进度 -->
+        <div v-if="updateStatus.updating" class="update-progress">
+          <div class="update-notification-title">正在更新...</div>
+          <div class="progress-bar">
+            <div class="progress" :style="{ width: updateStatus.progress + '%' }"></div>
           </div>
+          <div class="progress-text">{{ updateStatus.progress }}%</div>
+          <div class="progress-message">{{ updateStatus.message }}</div>
         </div>
-        <div class="update-notification-version">
-          当前: v{{ currentVersion }} → 最新: v{{ updateInfo.version }}
-        </div>
-        <div v-if="changelogHtml" class="update-notification-changelog" v-html="changelogHtml"></div>
+        
+        <!-- 正常显示 -->
+        <template v-else>
+          <div class="update-notification-header">
+            <div class="update-notification-title">发现新版本</div>
+            <div class="update-notification-actions">
+              <button class="update-notification-btn update-notification-btn-primary" @click="startUpdate">立即更新</button>
+              <button class="update-notification-btn update-notification-btn-secondary" @click="ignoreVersion">忽略此版本</button>
+            </div>
+          </div>
+          <div class="update-notification-version">
+            当前: v{{ currentVersion }} → 最新: v{{ updateInfo.version }}
+          </div>
+          <div v-if="changelogHtml" class="update-notification-changelog" v-html="changelogHtml"></div>
+        </template>
       </div>
-      <button class="update-notification-close" @click="closeNotification">&times;</button>
+      <button v-if="!updateStatus.updating" class="update-notification-close" @click="closeNotification">&times;</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useUpdate } from '../composables/useUpdate'
 
 const props = defineProps({
   updateInfo: {
@@ -34,6 +48,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
+
+const { installUpdate, updateStatus } = useUpdate()
 
 const IGNORE_KEY = 'logmanager_ignore_version'
 const CLOSE_TIME_KEY = 'logmanager_update_close_time'
@@ -95,6 +111,20 @@ function ignoreVersion() {
   setTimeout(() => emit('close'), 300)
 }
 
+async function startUpdate() {
+  try {
+    // 开始更新（不关闭通知，让用户看到进度）
+    await installUpdate()
+    
+    // 更新完成后关闭通知
+    closeNotification()
+  } catch (error) {
+    console.error('更新失败:', error)
+    // 更新失败也要关闭通知
+    closeNotification()
+  }
+}
+
 onMounted(() => {
   if (getIgnoredVersion() === props.updateInfo.version) {
     emit('close')
@@ -110,7 +140,8 @@ onMounted(() => {
   z-index: 99999;
   font-family: var(--font-family);
   animation: slideIn var(--transition-slow) ease-out;
-  max-width: 450px;
+  min-width: 480px;
+  max-width: 520px;
 }
 
 .update-notification.closing {
@@ -199,16 +230,18 @@ onMounted(() => {
   border: none;
   transition: all var(--transition-fast);
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .update-notification-btn-primary {
-  background: var(--primary-gradient);
+  background: #3b82f6;
   color: white;
   box-shadow: var(--shadow-md);
 }
 
 .update-notification-btn-primary:hover {
-  opacity: 0.9;
+  background: #2563eb;
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
@@ -231,6 +264,39 @@ onMounted(() => {
 
 .update-notification-btn-secondary:active {
   transform: scale(0.98);
+}
+
+/* 更新进度样式 */
+.update-progress {
+  text-align: center;
+  padding: var(--spacing-md) 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-color-3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: var(--spacing-md) 0;
+}
+
+.progress {
+  height: 100%;
+  background: #3b82f6;
+  transition: width 0.3s;
+}
+
+.progress-text {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #3b82f6;
+  margin: var(--spacing-sm) 0;
+}
+
+.progress-message {
+  font-size: 0.875rem;
+  color: var(--text-color-2);
 }
 
 .update-notification-close {
@@ -295,6 +361,7 @@ onMounted(() => {
     bottom: var(--spacing-sm);
     right: var(--spacing-sm);
     left: var(--spacing-sm);
+    min-width: auto;
     max-width: none;
   }
 
@@ -367,7 +434,8 @@ onMounted(() => {
   .update-notification {
     bottom: var(--spacing-md);
     right: var(--spacing-md);
-    max-width: 400px;
+    min-width: auto;
+    max-width: 450px;
   }
 
   .update-notification-content {

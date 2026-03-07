@@ -53,7 +53,7 @@ start_process() {
         echo "  端口: $PORT"
         echo "  访问地址: http://<IP>:$PORT/"
         echo "  数据目录: ${TRIM_PKGVAR}"
-        echo "  首次启动请查看日志获取初始密码"
+        echo "  首次启动时请设置密码"
         echo "  日志: cat ${TRIM_PKGVAR}/info.log"
         echo "=========================================="
         echo ""

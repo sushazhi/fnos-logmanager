@@ -26,16 +26,33 @@ let installedAppsCacheTime = 0;
 const INSTALLED_APPS_CACHE_TTL = 60000; // 缓存60秒
 
 /**
- * 执行命令
+ * 执行命令（使用spawn替代exec，更安全）
  * @param {string} cmd - 命令
+ * @param {string[]} args - 参数
  * @param {number} [timeout=30000] - 超时时间
  * @returns {Promise<{stdout: string, stderr: string}>}
  */
-function execCommand(cmd, timeout = 30000) {
+function execCommand(cmd, args = [], timeout = 30000) {
     return new Promise((resolve) => {
-        const { exec } = require('child_process');
-        exec(cmd, { timeout, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
-            resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
+        const { spawn } = require('child_process');
+        const proc = spawn(cmd, args, { timeout });
+        let stdout = '';
+        let stderr = '';
+        
+        proc.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+        
+        proc.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+        
+        proc.on('close', () => {
+            resolve({ stdout, stderr });
+        });
+        
+        proc.on('error', () => {
+            resolve({ stdout, stderr });
         });
     });
 }
@@ -53,7 +70,7 @@ async function getInstalledApps() {
     const apps = new Set();
     
     try {
-        const { stdout } = await execCommand('appcenter-cli list 2>/dev/null', 10000);
+        const { stdout } = await execCommand('appcenter-cli', ['list'], 10000);
         if (stdout && stdout.trim()) {
             const lines = stdout.trim().split('\n');
             for (const line of lines) {

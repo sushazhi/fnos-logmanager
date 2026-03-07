@@ -15,6 +15,7 @@ const rateLimitMiddleware = require('./middleware/rateLimit');
 const authRoutes = require('./routes/auth');
 const logRoutes = require('./routes/logs');
 const dockerRoutes = require('./routes/docker');
+const updateRoutes = require('./routes/update');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use(express.static(path.join(__dirname, '../ui')));
 app.use('/api/auth', authRoutes);
 app.use('/api', logRoutes);
 app.use('/api', dockerRoutes);
+app.use('/api/update', updateRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
