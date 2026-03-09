@@ -62,13 +62,12 @@
   </div>
 </template>
 
-<script setup>
-defineProps({
-  stats: {
-    type: Object,
-    required: true
-  }
-})
+<script setup lang="ts">
+import type { Stats } from '../types'
+
+defineProps<{
+  stats: Stats
+}>()
 </script>
 
 <style>

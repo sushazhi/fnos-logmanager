@@ -60,6 +60,27 @@ jobs:
           echo "Vue build complete"
           ls -la app/ui/dist/
 
+      - name: Install server dependencies
+        run: |
+          cd app/server
+          npm install
+          echo "Server dependencies installed"
+
+      - name: Compile TypeScript
+        run: |
+          cd app/server
+          npx tsc
+          echo "TypeScript compiled"
+
+      - name: Verify TypeScript build
+        run: |
+          if [ ! -f "app/server/dist/server.js" ]; then
+            echo "ERROR: TypeScript build output not found"
+            exit 1
+          fi
+          echo "TypeScript build complete"
+          ls -la app/server/dist/
+
       - name: Download fnpack
         run: |
           FNPACK_URL="https://static2.fnnas.com/fnpack/fnpack-1.2.1-linux-amd64"
@@ -100,16 +121,16 @@ jobs:
           cp -r app/ui/config build/app/ui/
           if [ -d "app/ui/images" ]; then cp -r app/ui/images build/app/ui/; fi
           
-          # Copy server files
+          # Copy compiled server files from dist
           mkdir -p build/app/server
-          cp app/server/server.js build/app/server/
+          cp app/server/dist/server.js build/app/server/
           cp app/server/package.json build/app/server/
           
-          # Copy server subdirectories
-          for subdir in utils middleware services routes; do
-            if [ -d "app/server/$subdir" ]; then
+          # Copy compiled server subdirectories
+          for subdir in utils middleware services routes types; do
+            if [ -d "app/server/dist/$subdir" ]; then
               mkdir -p "build/app/server/$subdir"
-              cp app/server/$subdir/*.js "build/app/server/$subdir/" 2>/dev/null || true
+              cp -r app/server/dist/$subdir/* "build/app/server/$subdir/"
               echo "  Copied $subdir/"
             fi
           done

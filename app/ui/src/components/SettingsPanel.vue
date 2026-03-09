@@ -93,24 +93,46 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import api from '../services/api'
 
-const emit = defineEmits(['close', 'update', 'showAudit'])
+interface ThemeSettings {
+  fontSize: number
+  theme: string
+  primaryColor: string
+}
 
-const fontSize = ref(16)
-const theme = ref('light')
-const primaryColor = ref('#5b9bd5')
+interface ColorOption {
+  name: string
+  value: string
+  gradient: string
+}
 
-const showPasswordForm = ref(false)
-const currentPassword = ref('')
-const newPassword = ref('')
-const confirmPassword = ref('')
-const passwordError = ref('')
-const passwordSuccess = ref('')
+interface HSL {
+  h: number
+  s: number
+  l: number
+}
 
-const colors = [
+const emit = defineEmits<{
+  close: []
+  update: [settings: ThemeSettings]
+  showAudit: []
+}>()
+
+const fontSize = ref<number>(16)
+const theme = ref<'light' | 'dark' | 'auto'>('light')
+const primaryColor = ref<string>('#5b9bd5')
+
+const showPasswordForm = ref<boolean>(false)
+const currentPassword = ref<string>('')
+const newPassword = ref<string>('')
+const confirmPassword = ref<string>('')
+const passwordError = ref<string>('')
+const passwordSuccess = ref<string>('')
+
+const colors: ColorOption[] = [
   { name: '紫色', value: '#9b59b6', gradient: 'linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%)' },
   { name: '蓝色', value: '#3498db', gradient: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)' },
   { name: '青色', value: '#1abc9c', gradient: 'linear-gradient(135deg, #1abc9c 0%, #16a085 100%)' },
@@ -118,7 +140,7 @@ const colors = [
   { name: '莫兰迪渐变', value: '#8ec5fc', gradient: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 33%, #a8edea 66%, #fed6e3 100%)' },
 ]
 
-function increaseFontSize() {
+function increaseFontSize(): void {
   if (fontSize.value < 24) {
     fontSize.value += 2
     applyFontSize()
@@ -126,7 +148,7 @@ function increaseFontSize() {
   }
 }
 
-function decreaseFontSize() {
+function decreaseFontSize(): void {
   if (fontSize.value > 12) {
     fontSize.value -= 2
     applyFontSize()
@@ -134,13 +156,13 @@ function decreaseFontSize() {
   }
 }
 
-function setTheme(newTheme) {
+function setTheme(newTheme: 'light' | 'dark' | 'auto'): void {
   theme.value = newTheme
   applyTheme()
   saveSettings()
 }
 
-function setColor(color) {
+function setColor(color: string): void {
   primaryColor.value = color
   applyColor()
   saveSettings()
@@ -192,7 +214,7 @@ function applyColor() {
 }
 
 // HEX转HSL
-function hexToHSL(hex) {
+function hexToHSL(hex: string): HSL {
   let color = hex.replace('#', '')
   let r = parseInt(color.substring(0, 2), 16) / 255
   let g = parseInt(color.substring(2, 4), 16) / 255
@@ -200,11 +222,10 @@ function hexToHSL(hex) {
 
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
-  let h, s, l = (max + min) / 2
+  let h = 0, s = 0
+  const l = (max + min) / 2
 
-  if (max === min) {
-    h = s = 0
-  } else {
+  if (max !== min) {
     const d = max - min
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
     switch (max) {
@@ -222,7 +243,7 @@ function hexToHSL(hex) {
 }
 
 // HSL转HEX
-function hslToHex(h, s, l) {
+function hslToHex(h: number, s: number, l: number): string {
   s /= 100
   l /= 100
 
@@ -253,7 +274,7 @@ function hslToHex(h, s, l) {
 }
 
 // 颜色调整函数
-function adjustColor(hex, amount) {
+function adjustColor(hex: string, amount: number): string {
   let color = hex.replace('#', '')
   let r = parseInt(color.substring(0, 2), 16)
   let g = parseInt(color.substring(2, 4), 16)
@@ -266,19 +287,19 @@ function adjustColor(hex, amount) {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-function applyFontSize() {
+function applyFontSize(): void {
   const root = document.documentElement
   root.style.setProperty('--base-font-size', `${fontSize.value}px`)
 }
 
-function applyAll() {
+function applyAll(): void {
   applyTheme()
   applyColor()
   applyFontSize()
 }
 
-function saveSettings() {
-  const settings = {
+function saveSettings(): void {
+  const settings: ThemeSettings = {
     fontSize: fontSize.value,
     theme: theme.value,
     primaryColor: primaryColor.value
@@ -287,13 +308,13 @@ function saveSettings() {
   emit('update', settings)
 }
 
-function loadSettings() {
+function loadSettings(): void {
   try {
     const saved = localStorage.getItem('logmanager_settings')
     if (saved) {
-      const settings = JSON.parse(saved)
+      const settings = JSON.parse(saved) as ThemeSettings
       fontSize.value = settings.fontSize || 16
-      theme.value = settings.theme || 'light'
+      theme.value = (settings.theme as 'light' | 'dark' | 'auto') || 'light'
       primaryColor.value = settings.primaryColor || '#5b9bd5'
     }
   } catch (e) {
@@ -304,7 +325,7 @@ function loadSettings() {
   applyAll()
 }
 
-function cancelPasswordChange() {
+function cancelPasswordChange(): void {
   showPasswordForm.value = false
   currentPassword.value = ''
   newPassword.value = ''
@@ -313,7 +334,7 @@ function cancelPasswordChange() {
   passwordSuccess.value = ''
 }
 
-async function changePassword() {
+async function changePassword(): Promise<void> {
   passwordError.value = ''
   passwordSuccess.value = ''
   
@@ -346,7 +367,8 @@ async function changePassword() {
       passwordSuccess.value = ''
     }, 2000)
   } catch (e) {
-    passwordError.value = e.message || '修改失败'
+    const err = e as { message?: string }
+    passwordError.value = err.message || '修改失败'
   }
 }
 

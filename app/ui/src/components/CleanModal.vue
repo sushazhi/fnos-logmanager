@@ -29,16 +29,19 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 
-const emit = defineEmits(['close', 'execute'])
+const emit = defineEmits<{
+  close: []
+  execute: [type: string, threshold: string, days: number]
+}>()
 
-const cleanType = ref('truncate')
+const cleanType = ref<'truncate' | 'deleteOld'>('truncate')
 const threshold = ref('100M')
 const days = ref(7)
 
-function execute() {
+function execute(): void {
   emit('execute', cleanType.value, threshold.value, days.value)
 }
 </script>

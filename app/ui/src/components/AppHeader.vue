@@ -9,10 +9,10 @@
   </header>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 
-const appVersion = ref('__APP_VERSION__')
+const appVersion = ref<string>('0.3.4')
 </script>
 
 <style scoped>

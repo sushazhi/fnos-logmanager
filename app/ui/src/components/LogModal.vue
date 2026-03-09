@@ -45,30 +45,37 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+<script setup lang="ts">
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 
-const props = defineProps({
-  title: {
-    type: String,
-    default: ''
-  },
-  content: {
-    type: String,
-    default: ''
-  }
+interface Props {
+  title?: string
+  content?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  title: '',
+  content: ''
 })
 
-defineEmits(['close'])
+defineEmits<{
+  close: []
+}>()
 
 const searchQuery = ref('')
 const currentMatchIndex = ref(0)
-const logBody = ref(null)
+const logBody = ref<HTMLElement | null>(null)
 const currentLineIndex = ref(-1)
 
 const LINE_HEIGHT = 24
 const BUFFER_SIZE = 10
-const visibleRange = ref({ start: 0, end: 50 })
+
+interface VisibleRange {
+  start: number
+  end: number
+}
+
+const visibleRange = ref<VisibleRange>({ start: 0, end: 50 })
 
 const allLines = computed(() => {
   const content = props.content || ''
@@ -82,9 +89,14 @@ const totalHeight = computed(() => Math.max(totalLines.value * LINE_HEIGHT, 100)
 
 const offsetY = computed(() => visibleRange.value.start * LINE_HEIGHT)
 
+interface VisibleLine {
+  index: number
+  line: string
+}
+
 const visibleLines = computed(() => {
   const { start, end } = visibleRange.value
-  const lines = []
+  const lines: VisibleLine[] = []
   const maxEnd = Math.min(end, allLines.value.length - 1)
   for (let i = start; i <= maxEnd && i < allLines.value.length; i++) {
     if (allLines.value[i] !== undefined) {
@@ -97,10 +109,15 @@ const visibleLines = computed(() => {
   return lines
 })
 
+interface MatchPosition {
+  lineIndex: number
+  charIndex: number
+}
+
 const matchPositions = computed(() => {
   if (!searchQuery.value.trim()) return []
   const query = searchQuery.value.toLowerCase()
-  const positions = []
+  const positions: MatchPosition[] = []
   allLines.value.forEach((line, lineIndex) => {
     let searchPos = 0
     let pos = line.toLowerCase().indexOf(query, searchPos)
@@ -129,7 +146,7 @@ watch(() => props.content, () => {
   })
 }, { immediate: true })
 
-function handleScroll() {
+function handleScroll(): void {
   if (!logBody.value) return
   
   const scrollTop = logBody.value.scrollTop
@@ -144,16 +161,16 @@ function handleScroll() {
   visibleRange.value = { start: startLine, end: endLine }
 }
 
-function clearSearch() {
+function clearSearch(): void {
   searchQuery.value = ''
   currentLineIndex.value = -1
 }
 
-function lineHasMatch(index) {
+function lineHasMatch(index: number): boolean {
   return matchPositions.value.some(p => p.lineIndex === index)
 }
 
-function formatLine(line, lineIndex) {
+function formatLine(line: string, lineIndex: number): string {
   if (!searchQuery.value || !line) return escapeHtml(line)
   const query = searchQuery.value
   const regex = new RegExp(`(${escapeRegex(query)})`, 'gi')
@@ -177,7 +194,7 @@ function formatLine(line, lineIndex) {
   return html.replace(regex, '<mark class="highlight">$1</mark>')
 }
 
-function escapeHtml(text) {
+function escapeHtml(text: string): string {
   if (!text) return ''
   // 移除 ANSI 转义码（颜色代码等）
   const ansiRegex = /\x1b\[[0-9;]*m/g
@@ -188,11 +205,11 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
 }
 
-function escapeRegex(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function scrollToLine(lineIndex) {
+function scrollToLine(lineIndex: number): void {
   if (!logBody.value) return
   
   const targetTop = lineIndex * LINE_HEIGHT
@@ -202,7 +219,7 @@ function scrollToLine(lineIndex) {
   })
 }
 
-function nextMatch() {
+function nextMatch(): void {
   if (currentMatchIndex.value < matchPositions.value.length - 1) {
     currentMatchIndex.value++
     currentLineIndex.value = matchPositions.value[currentMatchIndex.value].lineIndex
@@ -210,7 +227,7 @@ function nextMatch() {
   }
 }
 
-function prevMatch() {
+function prevMatch(): void {
   if (currentMatchIndex.value > 0) {
     currentMatchIndex.value--
     currentLineIndex.value = matchPositions.value[currentMatchIndex.value].lineIndex
@@ -218,12 +235,12 @@ function prevMatch() {
   }
 }
 
-function goToFirstLine() {
+function goToFirstLine(): void {
   if (!logBody.value || allLines.value.length === 0) return
   visibleRange.value = { start: 0, end: 50 }
   requestAnimationFrame(() => {
     setTimeout(() => {
-      logBody.value.scrollTo({
+      logBody.value?.scrollTo({
         top: 0,
         behavior: 'auto'
       })
@@ -231,7 +248,7 @@ function goToFirstLine() {
   })
 }
 
-function goToLastLine() {
+function goToLastLine(): void {
   if (!logBody.value || allLines.value.length === 0) return
   const lastLineIndex = allLines.value.length - 1
   visibleRange.value = { 
@@ -240,7 +257,7 @@ function goToLastLine() {
   }
   requestAnimationFrame(() => {
     setTimeout(() => {
-      logBody.value.scrollTo({
+      logBody.value?.scrollTo({
         top: logBody.value.scrollHeight,
         behavior: 'auto'
       })
@@ -250,9 +267,6 @@ function goToLastLine() {
 
 onMounted(() => {
   handleScroll()
-})
-
-onUnmounted(() => {
 })
 </script>
 

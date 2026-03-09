@@ -76,11 +76,13 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import api from '../services/api'
 
-const emit = defineEmits(['setup'])
+const emit = defineEmits<{
+  setup: []
+}>()
 
 const password = ref('')
 const confirmPassword = ref('')
@@ -88,9 +90,9 @@ const error = ref('')
 const loading = ref(false)
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
-const passwordInput = ref(null)
+const passwordInput = ref<HTMLInputElement | null>(null)
 
-async function handleSetup() {
+async function handleSetup(): Promise<void> {
   if (!password.value || !confirmPassword.value) return
   
   if (password.value.length < 8) {
@@ -107,14 +109,15 @@ async function handleSetup() {
   error.value = ''
   
   try {
-    const data = await api.post('/api/auth/setup', { password: password.value })
+    const data = await api.post<{ success: boolean; message?: string }>('/api/auth/setup', { password: password.value })
     if (data.success) {
       emit('setup')
     } else {
       error.value = data.message || '设置失败'
     }
   } catch (e) {
-    error.value = e.message || '设置失败'
+    const err = e as { message?: string }
+    error.value = err.message || '设置失败'
   } finally {
     loading.value = false
   }

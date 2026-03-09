@@ -155,8 +155,10 @@ if (-not $SkipVueBuild) {
         }
         
         Write-Host "  Building Vue app..." -ForegroundColor Yellow
-        $npmBuild = npm run build 2>&1
+        $ErrorActionPreference = "Continue"
+        npm run build 2>&1 | Out-Null
         $buildExitCode = $LASTEXITCODE
+        $ErrorActionPreference = "Stop"
         
         Pop-Location
         
@@ -171,8 +173,7 @@ if (-not $SkipVueBuild) {
         }
         
         if ($buildExitCode -ne 0) {
-            Write-Host "  Error: Vue build failed" -ForegroundColor Red
-            Write-Host $npmBuild
+            Write-Host "  Error: Vue build failed (exit code: $buildExitCode)" -ForegroundColor Red
             exit 1
         }
         
@@ -216,24 +217,58 @@ if (Test-Path $UI_DIST) {
 Write-Host "[4/5] Prepare server files..." -ForegroundColor Yellow
 
 $serverDir = Join-Path $BUILD_DIR "app\server"
+$serverSrcDir = Join-Path $PROJECT_DIR "app\server"
 New-Item -ItemType Directory -Force -Path $serverDir | Out-Null
 
-if (Test-Path "$PROJECT_DIR\app\server\server.js") {
-    Copy-Item "$PROJECT_DIR\app\server\server.js" "$serverDir\server.js" -Force
-    Copy-Item "$PROJECT_DIR\app\server\package.json" "$serverDir\package.json" -Force
+if (Test-Path "$serverSrcDir\server.ts") {
+    Write-Host "  Compiling TypeScript..." -ForegroundColor Yellow
     
-    $subdirs = @("utils", "middleware", "services", "routes")
-    foreach ($subdir in $subdirs) {
-        $srcPath = Join-Path "$PROJECT_DIR\app\server" $subdir
-        $dstPath = Join-Path $serverDir $subdir
-        if (Test-Path $srcPath) {
-            New-Item -ItemType Directory -Force -Path $dstPath | Out-Null
-            Copy-Item "$srcPath\*.js" $dstPath -Force
-            Write-Host "  Copied $subdir/" -ForegroundColor Green
+    Push-Location $serverSrcDir
+    
+    if (-not (Test-Path "node_modules")) {
+        Write-Host "  Installing server dependencies..." -ForegroundColor Yellow
+        $npmInstall = npm install 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  Error: npm install failed" -ForegroundColor Red
+            Write-Host $npmInstall
+            Pop-Location
+            exit 1
         }
     }
     
-    Write-Host "  Server files copied" -ForegroundColor Green
+    $tscOutput = npx tsc 2>&1
+    $tscExitCode = $LASTEXITCODE
+    Pop-Location
+    
+    if ($tscExitCode -ne 0) {
+        Write-Host "  Error: TypeScript compilation failed" -ForegroundColor Red
+        Write-Host $tscOutput
+        exit 1
+    }
+    
+    Write-Host "  TypeScript compiled" -ForegroundColor Green
+    
+    $distDir = Join-Path $serverSrcDir "dist"
+    if (Test-Path "$distDir\server.js") {
+        Copy-Item "$distDir\server.js" "$serverDir\server.js" -Force
+        Copy-Item "$serverSrcDir\package.json" "$serverDir\package.json" -Force
+        
+        $subdirs = @("utils", "middleware", "services", "routes", "types")
+        foreach ($subdir in $subdirs) {
+            $srcPath = Join-Path $distDir $subdir
+            $dstPath = Join-Path $serverDir $subdir
+            if (Test-Path $srcPath) {
+                New-Item -ItemType Directory -Force -Path $dstPath | Out-Null
+                Copy-Item "$srcPath\*" $dstPath -Recurse -Force
+                Write-Host "  Copied $subdir/" -ForegroundColor Green
+            }
+        }
+        
+        Write-Host "  Server files copied" -ForegroundColor Green
+    } else {
+        Write-Host "  Error: Compiled server.js not found" -ForegroundColor Red
+        exit 1
+    }
 }
 
 Write-Host "[5/5] Build package..." -ForegroundColor Yellow

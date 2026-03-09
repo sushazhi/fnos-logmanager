@@ -54,35 +54,32 @@
   </div>
 </template>
 
-<script setup>
-defineProps({
-  status: {
-    type: Object,
-    required: true
-  },
-  filterEnabled: {
-    type: Boolean,
-    default: true
-  }
-})
+<script setup lang="ts">
+import type { Status, StatusType } from '../types'
 
-defineEmits([
-  'refresh',
-  'listLogs',
-  'showSearch',
-  'showClean',
-  'backup',
-  'listArchives',
-  'listDocker',
-  'toggleFilter',
-  'openSettings'
-])
+defineProps<{
+  status: Status
+  filterEnabled: boolean
+}>()
 
-const statusIcons = {
+const emit = defineEmits<{
+  refresh: []
+  listLogs: []
+  showSearch: []
+  showClean: []
+  backup: []
+  listArchives: []
+  listDocker: []
+  toggleFilter: []
+  openSettings: []
+}>()
+
+const statusIcons: Record<StatusType, string> = {
   success: '✓',
   error: '✗',
   warning: '⚠',
-  loading: '⟳'
+  loading: '⟳',
+  info: 'ℹ'
 }
 </script>
 

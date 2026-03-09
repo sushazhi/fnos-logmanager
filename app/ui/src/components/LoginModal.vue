@@ -104,18 +104,20 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import api from '../services/api'
 
-const emit = defineEmits(['login'])
+const emit = defineEmits<{
+  login: [csrfToken: string]
+}>()
 
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
-const remaining = ref(null)
+const remaining = ref<number | null>(null)
 const showPassword = ref(false)
-const passwordInput = ref(null)
+const passwordInput = ref<HTMLInputElement | null>(null)
 const rememberMe = ref(false)
 
 // 存储键名
@@ -124,7 +126,7 @@ const PERSIST_KEY = 'logmanager_remembered_password'
 
 // 简单的编码/解码函数（非加密，仅混淆）
 // 注意：这不是真正的加密，只是增加一层混淆，防止明文存储
-function encodePassword(pwd) {
+function encodePassword(pwd: string): string {
   try {
     // 使用 base64 编码 + 简单的字符替换
     const encoded = btoa(encodeURIComponent(pwd))
@@ -135,7 +137,7 @@ function encodePassword(pwd) {
   }
 }
 
-function decodePassword(encoded) {
+function decodePassword(encoded: string): string {
   try {
     // 反向字符替换
     const decoded = encoded.split('').map(c => String.fromCharCode(c.charCodeAt(0) - 1)).join('')
@@ -146,20 +148,20 @@ function decodePassword(encoded) {
 }
 
 // 保存密码
-function savePassword(pwd) {
+function savePassword(pwd: string): void {
   const encoded = encodePassword(pwd)
   sessionStorage.setItem(SESSION_KEY, encoded)
   localStorage.setItem(PERSIST_KEY, encoded)
 }
 
 // 清除保存的密码
-function clearSavedPassword() {
+function clearSavedPassword(): void {
   sessionStorage.removeItem(SESSION_KEY)
   localStorage.removeItem(PERSIST_KEY)
 }
 
 // 加载保存的密码
-function loadSavedPassword() {
+function loadSavedPassword(): string {
   // 优先从 sessionStorage 读取（当前会话）
   const sessionPassword = sessionStorage.getItem(SESSION_KEY)
   if (sessionPassword) {
@@ -181,14 +183,14 @@ function loadSavedPassword() {
   return ''
 }
 
-async function handleLogin() {
+async function handleLogin(): Promise<void> {
   if (!password.value) return
 
   loading.value = true
   error.value = ''
 
   try {
-    const data = await api.post('/api/auth/login', {
+    const data = await api.post<{ success: boolean; csrfToken?: string; error?: string; message?: string }>('/api/auth/login', {
       password: password.value
     })
     if (data.success) {
@@ -203,12 +205,13 @@ async function handleLogin() {
         clearSavedPassword()
       }
 
-      emit('login', data.csrfToken)
+      emit('login', data.csrfToken || '')
     }
   } catch (e) {
-    const msg = e.message || '登录失败'
+    const err = e as { message?: string; remaining?: number }
+    const msg = err.message || '登录失败'
     error.value = msg
-    remaining.value = e.remaining || null
+    remaining.value = err.remaining || null
   } finally {
     loading.value = false
   }

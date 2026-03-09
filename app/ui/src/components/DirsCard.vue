@@ -52,34 +52,38 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import type { Dir } from '../types'
 
-const props = defineProps({
-  dirs: {
-    type: Array,
-    default: () => []
-  },
-  selectedDir: {
-    type: String,
-    default: null
-  }
-})
+interface Props {
+  dirs: Dir[]
+  selectedDir: string | null
+}
 
-const emit = defineEmits(['selectDir'])
+const props = defineProps<Props>()
+
+const emit = defineEmits<{
+  selectDir: [dirPath: string]
+}>()
 
 const STORAGE_KEY = 'logmanager_visible_dirs'
 
 const showConfig = ref(false)
-const visibleDirs = ref([])
+const visibleDirs = ref<string[]>([])
 
-const dirNames = {
+const dirNames: Record<string, string> = {
   '/vol1/@appdata': '@appdata',
   '/vol1/@appconf': '@appconf',
   '/vol1/@apphome': '@apphome',
   '/vol1/@apptemp': '@apptemp',
   '/vol1/@appshare': '@appshare',
   '/var/log/apps': '/var/log/apps'
+}
+
+interface DirWithDisplay extends Dir {
+  displayName: string
+  exists?: boolean
 }
 
 const allDirs = computed(() => {
@@ -100,7 +104,7 @@ const displayedDirs = computed(() => {
   return dirs.filter(d => d && visibleDirs.value.includes(d.path))
 })
 
-function toggleDir(path) {
+function toggleDir(path: string): void {
   if (!path) return
   const index = visibleDirs.value.indexOf(path)
   if (index > -1) {
@@ -111,18 +115,20 @@ function toggleDir(path) {
   saveVisibleDirs()
 }
 
-function handleDirClick(dir) {
-  if (!dir || !dir.exists) return
+function handleDirClick(dir: DirWithDisplay): void {
+  if (!dir || !(dir as any).exists) return
   emit('selectDir', dir.path)
 }
 
-function saveVisibleDirs() {
+function saveVisibleDirs(): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleDirs.value))
-  } catch (e) {}
+  } catch (e) {
+    // ignore
+  }
 }
 
-function loadVisibleDirs() {
+function loadVisibleDirs(): void {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
@@ -134,9 +140,7 @@ function loadVisibleDirs() {
   }
 }
 
-onMounted(() => {
-  loadVisibleDirs()
-})
+loadVisibleDirs()
 </script>
 
 <style>

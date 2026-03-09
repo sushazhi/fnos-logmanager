@@ -4,15 +4,19 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import SettingsPanel from './SettingsPanel.vue'
 
-const emit = defineEmits(['close', 'showAudit'])
+const emit = defineEmits<{
+  close: []
+  showAudit: []
+}>()
 
-function onUpdate(settings) {
+function onUpdate(_settings: unknown): void {
+  // 设置更新处理
 }
 
-function onShowAudit() {
+function onShowAudit(): void {
   emit('showAudit')
 }
 </script>

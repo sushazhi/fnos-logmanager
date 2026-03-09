@@ -31,16 +31,19 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 
-const emit = defineEmits(['close', 'execute'])
+const emit = defineEmits<{
+  close: []
+  execute: [type: 'size' | 'name', threshold: string, pattern: string]
+}>()
 
-const searchType = ref('size')
+const searchType = ref<'size' | 'name'>('size')
 const threshold = ref('10M')
 const pattern = ref('')
 
-function execute() {
+function execute(): void {
   emit('execute', searchType.value, threshold.value, pattern.value)
 }
 </script>
