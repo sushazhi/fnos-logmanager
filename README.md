@@ -67,7 +67,7 @@
 
 ### 前置要求
 
-- Node.js 22+
+- Node.js 24+
 - PowerShell (Windows) 或 Bash (Linux)
 
 ### 构建步骤

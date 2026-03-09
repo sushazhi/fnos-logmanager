@@ -84,9 +84,9 @@
       <div class="divider"></div>
       
       <div class="setting-item">
-        <label>审计日志</label>
+        <label>应用日志</label>
         <button class="audit-btn" @click="$emit('showAudit')">
-          查看审计日志
+          查看应用日志
         </button>
       </div>
     </div>

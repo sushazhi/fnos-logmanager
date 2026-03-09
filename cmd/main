@@ -5,7 +5,7 @@ LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 SERVER_DIR="${TRIM_APPDEST}/server"
 
-export PATH=/var/apps/nodejs_v22/target/bin:$PATH
+export PATH=/var/apps/nodejs_v24/target/bin:$PATH
 PORT="${wizard_app_port:-${TRIM_SERVICE_PORT:-8090}}"
 
 log_msg() {

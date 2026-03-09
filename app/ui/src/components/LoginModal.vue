@@ -5,7 +5,7 @@
       <div class="bg-shape bg-shape-2"></div>
       <div class="bg-shape bg-shape-3"></div>
     </div>
-    
+
     <div class="login-modal">
       <div class="login-header">
         <div class="login-icon">
@@ -20,7 +20,7 @@
         <h2>飞牛应用日志管理</h2>
         <p class="login-subtitle">请输入密码以继续</p>
       </div>
-      
+
       <form @submit.prevent="handleLogin">
         <div class="form-group">
           <label>访问密码</label>
@@ -63,7 +63,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="error" v-if="error">
           <!-- 鸿蒙6图标: 错误提示 -->
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -73,7 +73,7 @@
           </svg>
           {{ error }}
         </div>
-        
+
         <div class="hint" v-if="remaining !== null && remaining > 0">
           <!-- 鸿蒙6图标: 警告提示 -->
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -83,7 +83,7 @@
           </svg>
           剩余尝试次数: {{ remaining }}
         </div>
-        
+
         <div class="remember-me">
           <label class="checkbox-label">
             <input type="checkbox" v-model="rememberMe" :disabled="loading">
@@ -91,7 +91,7 @@
             <span class="checkbox-text">记住密码</span>
           </label>
         </div>
-        
+
         <button type="submit" :disabled="loading || !password" class="login-btn">
           <span v-if="!loading">登录</span>
           <span v-else class="loading-text">
@@ -118,123 +118,91 @@ const showPassword = ref(false)
 const passwordInput = ref(null)
 const rememberMe = ref(false)
 
-// 使用 Web Crypto API 进行真正的加密
-const ENCRYPTION_KEY_NAME = 'logmanager_key'
+// 存储键名
+const SESSION_KEY = 'logmanager_session_password'
+const PERSIST_KEY = 'logmanager_remembered_password'
 
-// 生成加密密钥
-async function getOrCreateKey() {
-  // 尝试从 localStorage 获取已保存的密钥
-  const savedKey = localStorage.getItem(ENCRYPTION_KEY_NAME)
-  if (savedKey) {
-    const keyData = Uint8Array.from(atob(savedKey), c => c.charCodeAt(0))
-    return await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    )
-  }
-  
-  // 生成新密钥
-  const key = await crypto.subtle.generateKey(
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['encrypt', 'decrypt']
-  )
-  
-  // 导出并保存密钥
-  const exportedKey = await crypto.subtle.exportKey('raw', key)
-  const keyBase64 = btoa(String.fromCharCode(...new Uint8Array(exportedKey)))
-  localStorage.setItem(ENCRYPTION_KEY_NAME, keyBase64)
-  
-  return key
-}
-
-// 加密密码
-async function encryptPassword(pwd) {
+// 简单的编码/解码函数（非加密，仅混淆）
+// 注意：这不是真正的加密，只是增加一层混淆，防止明文存储
+function encodePassword(pwd) {
   try {
-    const key = await getOrCreateKey()
-    const encoder = new TextEncoder()
-    const data = encoder.encode(pwd)
-    
-    // 生成随机 IV
-    const iv = crypto.getRandomValues(new Uint8Array(12))
-    
-    // 加密
-    const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      data
-    )
-    
-    // 合并 IV 和加密数据
-    const combined = new Uint8Array(iv.length + encrypted.byteLength)
-    combined.set(iv)
-    combined.set(new Uint8Array(encrypted), iv.length)
-    
-    // 转换为 Base64
-    return btoa(String.fromCharCode(...combined))
-  } catch (e) {
-    console.error('加密失败:', e)
+    // 使用 base64 编码 + 简单的字符替换
+    const encoded = btoa(encodeURIComponent(pwd))
+    // 字符替换增加混淆
+    return encoded.split('').map(c => String.fromCharCode(c.charCodeAt(0) + 1)).join('')
+  } catch {
     return ''
   }
 }
 
-// 解密密码
-async function decryptPassword(encrypted) {
+function decodePassword(encoded) {
   try {
-    const key = await getOrCreateKey()
-    
-    // 从 Base64 解码
-    const combined = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0))
-    
-    // 分离 IV 和加密数据
-    const iv = combined.slice(0, 12)
-    const data = combined.slice(12)
-    
-    // 解密
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      data
-    )
-    
-    const decoder = new TextDecoder()
-    return decoder.decode(decrypted)
-  } catch (e) {
-    console.error('解密失败:', e)
+    // 反向字符替换
+    const decoded = encoded.split('').map(c => String.fromCharCode(c.charCodeAt(0) - 1)).join('')
+    return decodeURIComponent(atob(decoded))
+  } catch {
     return ''
   }
+}
+
+// 保存密码
+function savePassword(pwd) {
+  const encoded = encodePassword(pwd)
+  sessionStorage.setItem(SESSION_KEY, encoded)
+  localStorage.setItem(PERSIST_KEY, encoded)
+}
+
+// 清除保存的密码
+function clearSavedPassword() {
+  sessionStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(PERSIST_KEY)
+}
+
+// 加载保存的密码
+function loadSavedPassword() {
+  // 优先从 sessionStorage 读取（当前会话）
+  const sessionPassword = sessionStorage.getItem(SESSION_KEY)
+  if (sessionPassword) {
+    const decoded = decodePassword(sessionPassword)
+    if (decoded) {
+      return decoded
+    }
+  }
+
+  // 如果 sessionStorage 没有，尝试从 localStorage 读取（持久存储）
+  const savedPassword = localStorage.getItem(PERSIST_KEY)
+  if (savedPassword) {
+    const decoded = decodePassword(savedPassword)
+    if (decoded) {
+      return decoded
+    }
+  }
+
+  return ''
 }
 
 async function handleLogin() {
   if (!password.value) return
-  
+
   loading.value = true
   error.value = ''
-  
+
   try {
-    const data = await api.post('/api/auth/login', { 
+    const data = await api.post('/api/auth/login', {
       password: password.value
     })
     if (data.success) {
       if (data.csrfToken) {
         api.setCSRFToken(data.csrfToken)
       }
-      
-      // 如果勾选了记住密码，使用 Web Crypto API 加密存储
+
+      // 保存或清除密码
       if (rememberMe.value) {
-        const encrypted = await encryptPassword(password.value)
-        if (encrypted) {
-          localStorage.setItem('logmanager_saved_pwd', encrypted)
-          localStorage.setItem('logmanager_remember', 'true')
-        }
+        savePassword(password.value)
       } else {
-        localStorage.removeItem('logmanager_saved_pwd')
-        localStorage.removeItem('logmanager_remember')
+        clearSavedPassword()
       }
-      
+
       emit('login', data.csrfToken)
     }
   } catch (e) {
@@ -247,15 +215,12 @@ async function handleLogin() {
 }
 
 // 组件挂载时，检查是否有保存的密码
-onMounted(async () => {
-  const savedPwd = localStorage.getItem('logmanager_saved_pwd')
-  const savedRemember = localStorage.getItem('logmanager_remember')
-  
-  if (savedPwd && savedRemember === 'true') {
-    password.value = await decryptPassword(savedPwd)
+onMounted(() => {
+  const savedPassword = loadSavedPassword()
+  if (savedPassword) {
+    password.value = savedPassword
     rememberMe.value = true
   }
-  
   passwordInput.value?.focus()
 })
 </script>
