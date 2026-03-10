@@ -5,14 +5,32 @@
 echo "正在初始化飞牛日志管理安装..."
 
 # 创建必要目录
-mkdir -p "${TRIM_PKGVAR}"
-mkdir -p "${TRIM_PKGTMP}"
-mkdir -p "/vol1/@appshare/log-backup"
+if ! mkdir -p "${TRIM_PKGVAR}"; then
+    echo "Error: 无法创建数据目录 ${TRIM_PKGVAR}" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
+
+if ! mkdir -p "${TRIM_PKGTMP}"; then
+    echo "Error: 无法创建临时目录 ${TRIM_PKGTMP}" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
+
+if ! mkdir -p "/vol1/@appshare/log-backup"; then
+    echo "Error: 无法创建备份目录 /vol1/@appshare/log-backup" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
 
 # 检查端口
 PORT="${wizard_app_port:-8090}"
 if netstat -tuln 2>/dev/null | grep -q ":$PORT " || ss -tuln 2>/dev/null | grep -q ":$PORT "; then
-    echo "Error: Port $PORT is already in use" > "$TRIM_TEMP_LOGFILE"
+    echo "Error: 端口 $PORT 已被占用，请选择其他端口" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
+
+# 检查Node.js环境
+NODE_PATH="/var/apps/nodejs_v24/target/bin/node"
+if [ ! -f "$NODE_PATH" ]; then
+    echo "Error: 未找到 Node.js 环境，请先安装 Node.js v24" > "$TRIM_TEMP_LOGFILE"
     exit 1
 fi
 

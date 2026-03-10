@@ -12,6 +12,13 @@ log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
 }
 
+error_exit() {
+    local msg="$1"
+    echo "Error: $msg" > "$TRIM_TEMP_LOGFILE"
+    log_msg "ERROR: $msg"
+    exit 1
+}
+
 start_process() {
     if status; then
         log_msg "$APP_NAME is already running"
@@ -20,8 +27,13 @@ start_process() {
     
     log_msg "Starting $APP_NAME on port $PORT..."
     
-    mkdir -p "${TRIM_PKGVAR}"
-    mkdir -p "/vol1/@appshare/log-backup"
+    if ! mkdir -p "${TRIM_PKGVAR}"; then
+        error_exit "无法创建数据目录 ${TRIM_PKGVAR}"
+    fi
+    
+    if ! mkdir -p "/vol1/@appshare/log-backup"; then
+        error_exit "无法创建备份目录 /vol1/@appshare/log-backup"
+    fi
     
     FILTER_FILE="${TRIM_PKGVAR}/.filter_sensitive"
     
@@ -31,21 +43,32 @@ start_process() {
         FILTER_SENSITIVE="true"
     fi
     
-    cd "$SERVER_DIR"
+    if [ ! -d "$SERVER_DIR" ]; then
+        error_exit "服务器目录不存在: $SERVER_DIR"
+    fi
+    
+    cd "$SERVER_DIR" || error_exit "无法进入服务器目录: $SERVER_DIR"
     
     if [ ! -d "$SERVER_DIR/node_modules" ]; then
         log_msg "Installing dependencies..."
-        npm install --production >> ${LOG_FILE} 2>&1
+        if ! npm install --production >> ${LOG_FILE} 2>&1; then
+            error_exit "依赖安装失败，请检查网络连接"
+        fi
     else
         log_msg "Dependencies already installed"
     fi
     
+    if [ ! -f "$SERVER_DIR/server.js" ]; then
+        error_exit "服务器文件不存在: $SERVER_DIR/server.js"
+    fi
+    
     PORT=$PORT LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" FILTER_SENSITIVE="$FILTER_SENSITIVE" node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
-    printf "%s" "$!" > "$PID_FILE"
+    local pid=$!
+    printf "%s" "$pid" > "$PID_FILE"
     
     sleep 2
     
-    if check_process "$(cat $PID_FILE 2>/dev/null)"; then
+    if check_process "$pid"; then
         log_msg "$APP_NAME started successfully on port $PORT"
         echo ""
         echo "=========================================="
@@ -59,8 +82,7 @@ start_process() {
         echo ""
         return 0
     else
-        log_msg "Failed to start $APP_NAME"
-        return 1
+        error_exit "服务启动失败，请查看日志: ${LOG_FILE}"
     fi
 }
 

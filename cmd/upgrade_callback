@@ -8,23 +8,31 @@ APP_NAME="logmanager"
 DATA_DIR="${TRIM_PKGVAR}"
 BACKUP_DIR="/vol1/@appshare/log-backup/.upgrade-backup"
 MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
-BIN_DIR="${TRIM_APPDEST}/app/bin"
 
 # 恢复数据
 if [ -d "$BACKUP_DIR" ]; then
-    cp -a "$BACKUP_DIR"/* "$DATA_DIR/" 2>/dev/null || true
-    rm -rf "$BACKUP_DIR"
+    if ! cp -a "$BACKUP_DIR"/* "$DATA_DIR/" 2>/dev/null; then
+        echo "Error: 数据恢复失败，请检查备份目录" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    fi
+    
+    rm -rf "$BACKUP_DIR" 2>/dev/null
     echo "数据已恢复"
 fi
 
-# 设置权限
-if [ -f "$BIN_DIR/logmanager.sh" ]; then
-    chmod +x "$BIN_DIR/logmanager.sh"
+# 验证服务器文件
+SERVER_DIR="${TRIM_APPDEST}/app/server"
+if [ ! -f "$SERVER_DIR/server.js" ]; then
+    echo "Error: 服务器文件不存在，升级可能不完整" > "$TRIM_TEMP_LOGFILE"
+    exit 1
 fi
 
 # 启动服务
 if [ -f "$MAIN_SCRIPT" ]; then
-    "$MAIN_SCRIPT" start
+    if ! "$MAIN_SCRIPT" start; then
+        echo "Error: 服务启动失败，请检查日志" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    fi
 fi
 
 echo "升级完成"

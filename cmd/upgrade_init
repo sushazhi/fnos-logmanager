@@ -11,17 +11,25 @@ MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
 
 # 停止服务
 if [ -f "$MAIN_SCRIPT" ]; then
-    "$MAIN_SCRIPT" stop
+    if ! "$MAIN_SCRIPT" stop; then
+        echo "Error: 无法停止服务，请手动停止后重试" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    fi
 fi
 
 # 备份数据（如果用户选择）
 BACKUP_ACTION="${wizard_backup_before_upgrade:-yes}"
-if [ "$BACKUP_ACTION" = "yes" ]; then
-    if [ -d "$DATA_DIR" ]; then
-        mkdir -p "$BACKUP_DIR"
-        cp -a "$DATA_DIR"/* "$BACKUP_DIR/" 2>/dev/null || true
-        echo "数据已备份到 $BACKUP_DIR"
+if [ "$BACKUP_ACTION" = "yes" ] && [ -d "$DATA_DIR" ]; then
+    if ! mkdir -p "$BACKUP_DIR"; then
+        echo "Error: 无法创建备份目录 $BACKUP_DIR" > "$TRIM_TEMP_LOGFILE"
+        exit 1
     fi
+    
+    if ! cp -a "$DATA_DIR"/* "$BACKUP_DIR/" 2>/dev/null; then
+        echo "Error: 数据备份失败" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    fi
+    echo "数据已备份到 $BACKUP_DIR"
 fi
 
 echo "升级准备完成"

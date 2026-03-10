@@ -6,9 +6,13 @@ APP_NAME="logmanager"
 SERVER_DIR="${TRIM_APPDEST}/app/server"
 CONFIG_DIR="${TRIM_PKGVAR}/config"
 
-mkdir -p "$CONFIG_DIR"
-mkdir -p "${TRIM_PKGVAR}"
+# 创建配置目录
+if ! mkdir -p "$CONFIG_DIR"; then
+    echo "Error: 无法创建配置目录 $CONFIG_DIR" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
 
+# 创建配置文件
 cat > "$CONFIG_DIR/config.json" << EOF
 {
     "log_dirs": [
@@ -30,8 +34,16 @@ cat > "$CONFIG_DIR/config.json" << EOF
 }
 EOF
 
+if [ $? -ne 0 ]; then
+    echo "Error: 无法创建配置文件" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
+
 FILTER_SENSITIVE="${wizard_filter_sensitive:-true}"
-echo "$FILTER_SENSITIVE" > "${TRIM_PKGVAR}/.filter_sensitive"
+if ! echo "$FILTER_SENSITIVE" > "${TRIM_PKGVAR}/.filter_sensitive"; then
+    echo "Error: 无法保存过滤设置" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
 
 cat > "${TRIM_PKGVAR}/env.sh" << EOF
 APP_NAME="$APP_NAME"
@@ -39,7 +51,16 @@ LOG_BACKUP_DIR="/vol1/@appshare/log-backup"
 FILTER_SENSITIVE="$FILTER_SENSITIVE"
 EOF
 
-mkdir -p "/vol1/@appshare/log-backup"
+if [ $? -ne 0 ]; then
+    echo "Error: 无法创建环境配置文件" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
+
+# 验证服务器文件
+if [ ! -f "$SERVER_DIR/server.js" ]; then
+    echo "Error: 服务器文件不存在，安装可能不完整" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
 
 echo "飞牛应用日志管理配置完成"
 echo "请首次访问时设置登录密码"
