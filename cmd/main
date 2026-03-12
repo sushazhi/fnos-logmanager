@@ -44,6 +44,16 @@ start_process() {
     fi
     
     if [ ! -d "$SERVER_DIR" ]; then
+        # 调试信息
+        log_msg "TRIM_APPDEST=$TRIM_APPDEST"
+        log_msg "SERVER_DIR=$SERVER_DIR"
+        log_msg "检查目录结构:"
+        ls -la "$TRIM_APPDEST" 2>&1 | head -20 >> ${LOG_FILE} || log_msg "无法列出 TRIM_APPDEST 目录"
+        if [ -d "$TRIM_APPDEST/app" ]; then
+            ls -la "$TRIM_APPDEST/app" 2>&1 >> ${LOG_FILE}
+        else
+            log_msg "TRIM_APPDEST/app 目录不存在"
+        fi
         error_exit "服务器目录不存在: $SERVER_DIR"
     fi
     

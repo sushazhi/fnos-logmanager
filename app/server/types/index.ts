@@ -111,6 +111,10 @@ export interface AppConfig {
         windowMs: number;
         maxRequests: number;
     };
+    auth: {
+        allowQueryToken: boolean;
+        queryTokenPaths: string[];
+    };
     login: {
         maxAttempts: number;
         lockoutTime: number;
@@ -120,6 +124,43 @@ export interface AppConfig {
     };
     csrf: {
         expiry: number;
+    };
+    logging: {
+        redactQuery: boolean;
+    };
+    update: {
+        checkCacheMs: number;
+        checkRateLimit: {
+            windowMs: number;
+            maxRequests: number;
+        };
+        downloadTimeoutMs: number;
+        maxDownloadBytes: number;
+        maxAssetBytes: number;
+        maxRedirects: number;
+        allowedHosts: string[];
+        allowedUpdateDirs: string[];
+    };
+    docker: {
+        listTimeoutMs: number;
+        logsTimeoutMs: number;
+        maxLogLines: number;
+        maxOutputBytes: number;
+    };
+    archive: {
+        maxPreviewLines: number;
+        maxArchiveBytes: number;
+        maxOutputBytes: number;
+    };
+    logFile: {
+        maxPreviewLines: number;
+        maxPreviewBytes: number;
+    };
+    backup: {
+        baseDir: string;
+        maxFiles: number;
+        maxFileSizeBytes: number;
+        maxTotalBytes: number;
     };
     logDirs: string[];
     sensitivePatterns: RegExp[];

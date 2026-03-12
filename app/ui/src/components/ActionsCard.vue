@@ -62,7 +62,7 @@ defineProps<{
   filterEnabled: boolean
 }>()
 
-const emit = defineEmits<{
+defineEmits<{
   refresh: []
   listLogs: []
   showSearch: []

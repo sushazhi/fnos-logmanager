@@ -35,9 +35,21 @@ if (!depsCheck.valid) {
 
 const app = express();
 
+const getLogUrl = (req: express.Request) => {
+    if (!config.logging.redactQuery) return req.originalUrl;
+    return req.path;
+};
+
 app.set('trust proxy', true);
 
-app.use(morgan('combined'));
+app.use(morgan((tokens, req, res) => {
+    const status = tokens.status(req, res);
+    const length = tokens.res(req, res, 'content-length') || '-';
+    const referrer = tokens.referrer(req, res) || '-';
+    const userAgent = tokens['user-agent'](req, res) || '-';
+    const url = getLogUrl(req);
+    return `${tokens['remote-addr'](req, res)} - ${tokens['remote-user'](req, res) || '-'} ${tokens.date(req, res, 'clf')} "${tokens.method(req, res)} ${url} HTTP/${tokens['http-version'](req, res)}" ${status} ${length} "${referrer}" "${userAgent}"`;
+}));
 app.use(securityHeaders);
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));

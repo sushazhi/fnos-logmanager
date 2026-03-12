@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/no-v-html -->
 <template>
   <div class="modal active" @click.self="$emit('close')">
     <div class="modal-content large">
@@ -33,8 +34,8 @@
         <div class="virtual-scroll-container" :style="{ height: totalHeight }">
           <div class="virtual-scroll-content" :style="{ transform: `translateY(${offsetY}px)` }">
             <pre class="log-viewer"><div 
-              v-for="item in visibleLines" 
-              :key="item.index" 
+              v-for="item in visibleLines"
+              :key="item.index"
               class="log-line"
               :class="{ 'has-match': lineHasMatch(item.index), 'current-match': currentLineIndex === item.index }"
             ><span class="line-number">{{ item.index + 1 }}</span><span class="line-content" v-html="formatLine(item.line, item.index)"></span></div></pre>

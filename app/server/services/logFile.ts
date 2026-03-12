@@ -15,8 +15,8 @@ const unlink = promisify(fs.unlink);
 
 const LOG_EXTENSIONS = ['.log', '.log.'];
 const ARCHIVE_EXTENSIONS = ['.gz', '.bz2', '.xz', '.zip', '.tar', '.tar.gz', '.tar.bz2', '.tar.xz', '.7z', '.rar'];
-const MAX_PREVIEW_LINES = 5000;
-const MAX_PREVIEW_SIZE = 10 * 1024 * 1024;
+const MAX_PREVIEW_LINES = config.logFile.maxPreviewLines;
+const MAX_PREVIEW_SIZE = config.logFile.maxPreviewBytes;
 
 let cachedInstalledApps: Set<string> | null = null;
 let installedAppsCacheTime = 0;

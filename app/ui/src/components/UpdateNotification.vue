@@ -24,6 +24,7 @@
           <div class="update-notification-version">
             当前: v{{ currentVersion }} → 最新: v{{ updateInfo.version }}
           </div>
+          <!-- eslint-disable-next-line vue/no-v-html -->
           <div v-if="changelogHtml" class="update-notification-changelog" v-html="changelogHtml"></div>
         </template>
       </div>
@@ -32,44 +33,40 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useUpdate } from '../composables/useUpdate'
+import type { UpdateInfo } from '../types'
 
-const props = defineProps({
-  updateInfo: {
-    type: Object,
-    required: true
-  },
-  currentVersion: {
-    type: String,
-    default: ''
-  }
-})
+const props = defineProps<{
+  updateInfo: UpdateInfo
+  currentVersion: string
+}>()
 
-const emit = defineEmits(['close'])
+const emit = defineEmits<{
+  close: []
+}>()
 
 const { installUpdate, updateStatus } = useUpdate()
 
 const IGNORE_KEY = 'logmanager_ignore_version'
 const CLOSE_TIME_KEY = 'logmanager_update_close_time'
-const CLOSE_DURATION = 24 * 60 * 60 * 1000
 
 const isClosing = ref(false)
 
 const changelogHtml = computed(() => {
   if (!props.updateInfo.changelog) return ''
-  let text = props.updateInfo.changelog.substring(0, 500)
-  text = text.split('\n').filter(line => line.trim().length > 0)
-  text = text.map(line => escapeHtml(line.replace(/^-\s*/, '• ')))
-  const result = text.join('<br>')
+  let text: string | string[] = props.updateInfo.changelog.substring(0, 500)
+  text = text.split('\n').filter((line: string) => line.trim().length > 0)
+  text = text.map((line: string) => escapeHtml(line.replace(/^-\s*/, '• ')))
+  const result = (text as string[]).join('<br>')
   if (props.updateInfo.changelog.length > 500) {
     return result + '...'
   }
   return result
 })
 
-function escapeHtml(text) {
+function escapeHtml(text: string): string {
   if (!text) return ''
   return text
     .replace(/&/g, '&amp;')
@@ -82,21 +79,25 @@ function escapeHtml(text) {
 function getIgnoredVersion() {
   try {
     return localStorage.getItem(IGNORE_KEY) || ''
-  } catch (e) {
+  } catch {
     return ''
   }
 }
 
-function setIgnoredVersion(version) {
+function setIgnoredVersion(version: string) {
   try {
     localStorage.setItem(IGNORE_KEY, version)
-  } catch (e) {}
+  } catch {
+    // ignore
+  }
 }
 
 function setCloseTime() {
   try {
     localStorage.setItem(CLOSE_TIME_KEY, Date.now().toString())
-  } catch (e) {}
+  } catch {
+    // ignore
+  }
 }
 
 function closeNotification() {

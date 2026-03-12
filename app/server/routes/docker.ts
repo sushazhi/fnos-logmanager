@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { spawn } from 'child_process';
 import { query } from 'express-validator';
 import { validateToken } from '../middleware/auth';
-import { isValidNumber, isValidContainerName } from '../utils/validation';
+import { isValidContainerName } from '../utils/validation';
 import config from '../utils/config';
 import { DockerContainer } from '../types';
 
@@ -20,7 +20,7 @@ function filterSensitiveInfo(content: string): string {
     return filtered;
 }
 
-function execDocker(args: string[], timeout: number = 60000): Promise<string> {
+function execDocker(args: string[], timeout: number = 60000, maxBytes: number = config.docker.maxOutputBytes): Promise<string> {
     return new Promise((resolve, reject) => {
         const proc = spawn('docker', args, {
             timeout: timeout
@@ -28,13 +28,28 @@ function execDocker(args: string[], timeout: number = 60000): Promise<string> {
 
         let stdout = '';
         let stderr = '';
+        let totalBytes = 0;
+
+        const appendOutput = (buffer: Buffer, target: 'stdout' | 'stderr') => {
+            totalBytes += buffer.length;
+            if (totalBytes > maxBytes) {
+                proc.kill();
+                reject(new Error('Docker 输出过大'));
+                return;
+            }
+            if (target === 'stdout') {
+                stdout += buffer.toString();
+            } else {
+                stderr += buffer.toString();
+            }
+        };
 
         proc.stdout.on('data', (data) => {
-            stdout += data.toString();
+            appendOutput(data as Buffer, 'stdout');
         });
 
         proc.stderr.on('data', (data) => {
-            stderr += data.toString();
+            appendOutput(data as Buffer, 'stderr');
         });
 
         const timer = setTimeout(() => {
@@ -60,7 +75,7 @@ function execDocker(args: string[], timeout: number = 60000): Promise<string> {
 
 router.get('/docker/containers', validateToken, async (_req: Request, res: Response, _next: NextFunction) => {
     try {
-        const stdout = await execDocker(['ps', '--format', '{{.Names}}\t{{.Status}}\t{{.Image}}'], 10000);
+        const stdout = await execDocker(['ps', '--format', '{{.Names}}\t{{.Status}}\t{{.Image}}'], config.docker.listTimeoutMs, config.docker.maxOutputBytes);
         const containers: DockerContainer[] = stdout.trim().split('\n').filter(line => line).map(line => {
             const parts = line.split('\t');
             const name = parts[0] || '';
@@ -79,7 +94,7 @@ router.get('/docker/containers', validateToken, async (_req: Request, res: Respo
 
 router.get('/docker/logs', validateToken, [
     query('container').notEmpty().isString(),
-    query('lines').optional().isInt({ min: 1, max: 50000 })
+    query('lines').optional().isInt({ min: 1, max: config.docker.maxLogLines })
 ], async (req: Request, res: Response, _next: NextFunction) => {
     try {
         const { container, lines } = req.query;
@@ -96,13 +111,13 @@ router.get('/docker/logs', validateToken, [
 
         let args: string[];
         if (lines && parseInt(lines as string) > 0) {
-            const linesNum = Math.min(parseInt(lines as string), 50000);
+            const linesNum = Math.min(parseInt(lines as string), config.docker.maxLogLines);
             args = ['logs', container as string, '--tail', String(linesNum)];
         } else {
             args = ['logs', container as string];
         }
 
-        const stdout = await execDocker(args, 120000);
+        const stdout = await execDocker(args, config.docker.logsTimeoutMs, config.docker.maxOutputBytes);
         res.json({ logs: filterSensitiveInfo(stdout) });
     } catch (e) {
         res.status(500).json({ error: (e as Error).message });

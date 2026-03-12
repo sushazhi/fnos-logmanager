@@ -3,7 +3,7 @@
 echo "正在配置飞牛应用日志管理..."
 
 APP_NAME="logmanager"
-SERVER_DIR="${TRIM_APPDEST}/app/server"
+SERVER_DIR="${TRIM_APPDEST}/server"
 CONFIG_DIR="${TRIM_PKGVAR}/config"
 
 # 创建配置目录
@@ -57,10 +57,10 @@ if [ $? -ne 0 ]; then
 fi
 
 # 验证服务器文件
-if [ ! -f "$SERVER_DIR/server.js" ]; then
-    echo "Error: 服务器文件不存在，安装可能不完整" > "$TRIM_TEMP_LOGFILE"
-    exit 1
-fi
+# 注意：install_callback 在 install-local 过程中执行
+# 此时新文件可能还未完全移动到 TRIM_APPDEST
+# 因此跳过严格的文件验证，依赖 install-local 的完整性检查
+echo "安装回调执行完成，依赖系统完成文件安装" >> "$TRIM_TEMP_LOGFILE"
 
 echo "飞牛应用日志管理配置完成"
 echo "请首次访问时设置登录密码"

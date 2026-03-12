@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+﻿import { ref } from 'vue'
 import type { Ref } from 'vue'
 import type { UpdateInfo, UpdateStatus } from '../types'
 
@@ -26,7 +26,7 @@ export function useUpdate() {
   function getIgnoredVersion(): string {
     try {
       return localStorage.getItem(IGNORE_KEY) || ''
-    } catch (e) {
+    } catch {
       return ''
     }
   }
@@ -35,7 +35,7 @@ export function useUpdate() {
     try {
       const closeTime = localStorage.getItem(CLOSE_TIME_KEY)
       return closeTime ? parseInt(closeTime, 10) : 0
-    } catch (e) {
+    } catch {
       return 0
     }
   }
@@ -47,7 +47,7 @@ export function useUpdate() {
   function ignoreVersion(version: string): void {
     try {
       localStorage.setItem(IGNORE_KEY, version)
-    } catch (e) {
+    } catch {
       // ignore
     }
   }
@@ -55,23 +55,9 @@ export function useUpdate() {
   function setCloseTime(): void {
     try {
       localStorage.setItem(CLOSE_TIME_KEY, Date.now().toString())
-    } catch (e) {
+    } catch {
       // ignore
     }
-  }
-
-  // 版本比较函数，预留给未来使用
-  function _compareVersions(v1: string, v2: string): number {
-    const parts1 = v1.split('.').map(Number)
-    const parts2 = v2.split('.').map(Number)
-
-    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-      const n1 = parts1[i] || 0
-      const n2 = parts2[i] || 0
-      if (n1 > n2) return 1
-      if (n1 < n2) return -1
-    }
-    return 0
   }
 
   async function checkForUpdates(): Promise<UpdateInfo | null> {
@@ -138,7 +124,7 @@ export function useUpdate() {
           pollUpdateStatus()
           return
         }
-      } catch (statusError) {
+      } catch {
         // 服务器可能正在重启，开始轮询
         pollUpdateStatus()
         return
@@ -152,11 +138,11 @@ export function useUpdate() {
       } else {
         throw new Error(data.error || '安装更新失败')
       }
-    } catch (e) {
-      console.error('安装更新失败:', e)
+    } catch (err) {
+      console.error('安装更新失败:', err)
 
       // 如果是连接错误，说明服务器正在重启
-      if (e instanceof Error && (e.message === 'Failed to fetch' || e.name === 'TypeError')) {
+      if (err instanceof Error && (err.message === 'Failed to fetch' || err.name === 'TypeError')) {
         updateStatus.value = {
           updating: true,
           progress: 90,
@@ -165,11 +151,11 @@ export function useUpdate() {
         // 开始轮询，等待服务器重启
         pollUpdateStatus()
       } else {
-        const error = e as Error
+        const errorObj = err as Error
         updateStatus.value = {
           updating: false,
           progress: 0,
-          message: '更新失败: ' + error.message
+          message: '更新失败: ' + errorObj.message
         }
       }
     }
@@ -209,12 +195,12 @@ export function useUpdate() {
         if (status.success) {
           updateStatus.value = {
             updating: status.updating,
-            progress: (status as any).progress ?? (status as any).updateProgress ?? 0,
-            message: (status as any).message ?? (status as any).updateMessage ?? ''
+            progress: status.progress ?? status.updateProgress ?? 0,
+            message: status.message ?? status.updateMessage ?? ''
           }
 
           // 如果更新完成，停止轮询
-          if (!status.updating && ((status as any).progress ?? (status as any).updateProgress ?? 0) === 100) {
+          if (!status.updating && (status.progress ?? status.updateProgress ?? 0) === 100) {
             clearInterval(timer)
             updateStatus.value.message = '更新完成，正在重启应用...'
             setTimeout(() => {
@@ -222,7 +208,7 @@ export function useUpdate() {
             }, 2000)
           }
         }
-      } catch (error) {
+      } catch {
         consecutiveErrors++
 
         // 如果连续错误次数达到上限，说明服务器正在重启

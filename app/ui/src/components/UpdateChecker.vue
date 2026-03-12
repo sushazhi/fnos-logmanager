@@ -29,6 +29,7 @@
             </div>
             <div v-if="updateInfo.changelog" class="changelog">
               <h4>更新内容：</h4>
+              <!-- eslint-disable-next-line vue/no-v-html -->
               <div class="changelog-content" v-html="updateInfo.changelog"></div>
             </div>
             <div class="update-actions">
@@ -66,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useUpdate } from '../composables/useUpdate'
 import { showNotification } from '../utils/notification'
 
@@ -91,7 +92,7 @@ async function check() {
     if (result) {
       showDialog.value = true
     }
-  } catch (error) {
+  } catch {
     showNotification('检查更新失败', 'error')
   } finally {
     checking.value = false
@@ -102,7 +103,7 @@ async function check() {
 async function startUpdate() {
   try {
     await installUpdate()
-  } catch (error) {
+  } catch {
     showNotification('安装更新失败', 'error')
   }
 }

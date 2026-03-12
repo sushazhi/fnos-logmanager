@@ -6,7 +6,7 @@ import { safePath, isAllowedPath } from '../utils/validation';
 
 const stat = promisify(fs.stat);
 
-function execDecompress(cmd: string, args: string[], lines: number): Promise<string> {
+function execDecompress(cmd: string, args: string[], lines: number, maxBytes: number): Promise<{ content: string; truncated: boolean }> {
     return new Promise((resolve, reject) => {
         const proc = spawn(cmd, args, {
             stdio: ['ignore', 'pipe', 'pipe']
@@ -16,11 +16,21 @@ function execDecompress(cmd: string, args: string[], lines: number): Promise<str
         let stderr = '';
         let lineCount = 0;
         const maxLines = lines || 50;
+        let truncated = false;
+        let totalBytes = 0;
 
         proc.stdout.on('data', (data) => {
+            if (truncated) return;
+            totalBytes += data.length;
+            if (totalBytes > maxBytes) {
+                truncated = true;
+                proc.kill();
+                return;
+            }
             if (lineCount < maxLines * 2) {
-                stdout += data.toString();
-                lineCount += data.toString().split('\n').length - 1;
+                const chunk = data.toString();
+                stdout += chunk;
+                lineCount += chunk.split('\n').length - 1;
             }
         });
 
@@ -33,7 +43,8 @@ function execDecompress(cmd: string, args: string[], lines: number): Promise<str
                 reject(new Error(`解压失败: ${stderr || `退出码 ${code}`}`));
             } else {
                 const outputLines = stdout.split('\n').slice(0, maxLines);
-                resolve(outputLines.join('\n'));
+                const content = outputLines.join('\n');
+                resolve({ content, truncated: truncated || outputLines.length >= maxLines });
             }
         });
 
@@ -64,38 +75,46 @@ export async function readArchiveContent(archivePath: string, lines: number = 50
         throw new Error('不是有效的文件');
     }
 
+    if (stats.size > config.archive.maxArchiveBytes) {
+        throw new Error('归档文件过大');
+    }
+
+    const maxLines = Math.max(1, Math.min(lines, config.archive.maxPreviewLines));
+
     const lowerPath = safeArchivePath.toLowerCase();
     let content: string;
 
     try {
+        let result: { content: string; truncated: boolean };
         if (lowerPath.endsWith('.tar.gz') || lowerPath.endsWith('.tgz')) {
-            content = await execDecompress('tar', ['-xzf', safeArchivePath, '-O'], lines);
+            result = await execDecompress('tar', ['-xzf', safeArchivePath, '-O'], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.tar.bz2') || lowerPath.endsWith('.tbz2')) {
-            content = await execDecompress('tar', ['-xjf', safeArchivePath, '-O'], lines);
+            result = await execDecompress('tar', ['-xjf', safeArchivePath, '-O'], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.tar.xz') || lowerPath.endsWith('.txz')) {
-            content = await execDecompress('tar', ['-xJf', safeArchivePath, '-O'], lines);
+            result = await execDecompress('tar', ['-xJf', safeArchivePath, '-O'], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.tar')) {
-            content = await execDecompress('tar', ['-xf', safeArchivePath, '-O'], lines);
+            result = await execDecompress('tar', ['-xf', safeArchivePath, '-O'], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.gz')) {
-            content = await execDecompress('zcat', [safeArchivePath], lines);
+            result = await execDecompress('zcat', [safeArchivePath], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.bz2')) {
-            content = await execDecompress('bzcat', [safeArchivePath], lines);
+            result = await execDecompress('bzcat', [safeArchivePath], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.xz')) {
-            content = await execDecompress('xzcat', [safeArchivePath], lines);
+            result = await execDecompress('xzcat', [safeArchivePath], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.zip')) {
-            content = await execDecompress('unzip', ['-p', safeArchivePath], lines);
+            result = await execDecompress('unzip', ['-p', safeArchivePath], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.7z')) {
-            content = await execDecompress('7z', ['x', '-so', safeArchivePath], lines);
+            result = await execDecompress('7z', ['x', '-so', safeArchivePath], maxLines, config.archive.maxOutputBytes);
         } else if (lowerPath.endsWith('.rar')) {
-            content = await execDecompress('unrar', ['p', '-inul', safeArchivePath], lines);
+            result = await execDecompress('unrar', ['p', '-inul', safeArchivePath], maxLines, config.archive.maxOutputBytes);
         } else {
             throw new Error('不支持的压缩格式');
         }
 
+        content = result.content;
         const contentLines = content.split('\n');
         return {
             content: content,
-            truncated: contentLines.length >= lines
+            truncated: result.truncated || contentLines.length >= maxLines
         };
     } catch (e) {
         throw new Error(`读取归档文件失败: ${(e as Error).message}`);

@@ -21,10 +21,10 @@ import { ref } from 'vue'
 
 const visible = ref(false)
 let resolvePromise = null
-let currentTitle = ref('确认')
-let currentMessage = ref('')
-let currentType = ref('info')
-let currentConfirmText = ref('确定')
+const currentTitle = ref('确认')
+const currentMessage = ref('')
+const currentType = ref('info')
+const currentConfirmText = ref('确定')
 
 function show(options = {}) {
   if (typeof options === 'string') {

@@ -1,11 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import https from 'https';
-import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import { validateToken, validateCSRF } from '../middleware/auth';
-import { sensitiveActionRateLimit } from '../middleware/rateLimit';
+import { sensitiveActionRateLimit, apiRateLimit } from '../middleware/rateLimit';
 import * as auditService from '../services/audit';
 import config from '../utils/config';
 import { isValidGitHubUrl } from '../utils/validation';
@@ -25,6 +24,37 @@ const systemStatus: UpdateStatus = {
     updateProgress: 0,
     updateMessage: ''
 };
+
+let cachedCheck: { expiresAt: number; payload: Record<string, unknown> } | null = null;
+
+function isHttpsUrl(url: string): boolean {
+    try {
+        return new URL(url).protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+function isAllowedHost(url: string): boolean {
+    try {
+        const host = new URL(url).hostname;
+        return config.update.allowedHosts.includes(host);
+    } catch {
+        return false;
+    }
+}
+
+function normalizeUpdatePath(updateDir: string): string {
+    return updateDir.replace(/\\/g, '/');
+}
+
+function ensureSafeUpdateDir(updateDir: string): void {
+    const normalized = normalizeUpdatePath(updateDir);
+    const safeBase = config.update.allowedUpdateDirs.find(dir => normalized.startsWith(dir + '/'));
+    if (!safeBase) {
+        throw new Error('更新目录不安全');
+    }
+}
 
 function compareVersion(v1: string, v2: string): number {
     const parts1 = v1.toString().split('.').map(Number);
@@ -70,8 +100,13 @@ router.get('/version', validateToken, (_req: Request, res: Response) => {
     }
 });
 
-router.get('/check', validateToken, async (_req: Request, res: Response) => {
+router.get('/check', validateToken, apiRateLimit(config.update.checkRateLimit.maxRequests, config.update.checkRateLimit.windowMs), async (_req: Request, res: Response) => {
     try {
+        if (cachedCheck && cachedCheck.expiresAt > Date.now()) {
+            res.json(cachedCheck.payload);
+            return;
+        }
+
         const currentVersion = process.env.TRIM_APPVER || '0.0.0';
 
         const latestRelease = await new Promise<GitHubRelease>((resolve, reject) => {
@@ -116,7 +151,7 @@ router.get('/check', validateToken, async (_req: Request, res: Response) => {
 
         const hasUpdate = compareVersion(latestRelease.version, currentVersion) > 0;
 
-        res.json({
+        const payload = {
             success: true,
             currentVersion,
             latestVersion: latestRelease.version,
@@ -124,7 +159,14 @@ router.get('/check', validateToken, async (_req: Request, res: Response) => {
             changelog: latestRelease.changelog,
             publishedAt: latestRelease.publishedAt,
             message: hasUpdate ? '发现新版本' : '已是最新版本'
-        });
+        };
+
+        cachedCheck = {
+            payload,
+            expiresAt: Date.now() + config.update.checkCacheMs
+        };
+
+        res.json(payload);
     } catch (error) {
         console.error('检查更新失败:', error);
         res.status(500).json({
@@ -221,6 +263,14 @@ async function performUpdate(): Promise<void> {
             throw new Error('更新包来源不安全');
         }
 
+        if (!isHttpsUrl(asset.browser_download_url) || !isAllowedHost(asset.browser_download_url)) {
+            throw new Error('更新包链接不安全');
+        }
+
+        if (asset.size && asset.size > config.update.maxAssetBytes) {
+            throw new Error('更新包大小超过限制');
+        }
+
         systemStatus.updateMessage = '正在准备更新目录...';
         systemStatus.updateProgress = 15;
 
@@ -230,6 +280,8 @@ async function performUpdate(): Promise<void> {
             process.env.TRIM_APPNAME || 'logmanager',
             'update'
         );
+
+        ensureSafeUpdateDir(updateDir);
 
         if (!fs.existsSync(updateDir)) {
             fs.mkdirSync(updateDir, { recursive: true });
@@ -243,6 +295,10 @@ async function performUpdate(): Promise<void> {
 
         const downloadUrl = `${BINARY_PROXY}${asset.browser_download_url}`;
 
+        if (!isHttpsUrl(downloadUrl) || !isAllowedHost(downloadUrl)) {
+            throw new Error('更新代理链接不安全');
+        }
+
         await downloadFileWithProgress(downloadUrl, fpkFile, (progress) => {
             systemStatus.updateProgress = 20 + Math.floor(progress * 0.4);
         });
@@ -251,6 +307,10 @@ async function performUpdate(): Promise<void> {
         if (stats.size === 0) {
             fs.unlinkSync(fpkFile);
             throw new Error('下载的文件为空');
+        }
+        if (stats.size > config.update.maxDownloadBytes) {
+            fs.unlinkSync(fpkFile);
+            throw new Error('下载的文件过大');
         }
         if (asset.size && Math.abs(stats.size - asset.size) > 1024) {
             fs.unlinkSync(fpkFile);
@@ -294,13 +354,12 @@ wizard_data_action=keep
         systemStatus.updateMessage = '正在安装更新...';
         systemStatus.updateProgress = 80;
 
-        const volume = updateDir.match(/\/vol(\d+)\//);
+        const volume = normalizeUpdatePath(updateDir).match(/\/vol(\d+)\//);
         const volumeNum = volume ? volume[1] : '1';
 
         await new Promise<void>((resolve, reject) => {
             const proc = spawn('appcenter-cli', ['default-volume', volumeNum], {
                 cwd: updateDir,
-                shell: true,
                 timeout: 60000
             });
 
@@ -318,8 +377,7 @@ wizard_data_action=keep
         const installProc = spawn('appcenter-cli', ['install-local', '--env', 'config.env'], {
             cwd: updateDir,
             detached: true,
-            stdio: 'ignore',
-            shell: true
+            stdio: 'ignore'
         });
 
         installProc.unref();
@@ -349,12 +407,35 @@ wizard_data_action=keep
 
 function downloadFileWithProgress(url: string, dest: string, onProgress: (progress: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
-        const protocol = url.startsWith('https') ? https : http;
-        const file = fs.createWriteStream(dest);
-        const timeout = 300000;
+        if (!isHttpsUrl(url)) {
+            reject(new Error('仅允许HTTPS下载'));
+            return;
+        }
+        if (!isAllowedHost(url)) {
+            reject(new Error('下载地址不在允许列表'));
+            return;
+        }
+
+        const protocol = https;
+        let file: fs.WriteStream | null = null;
+        let cleaned = false;
+
+        const cleanup = () => {
+            if (cleaned) return;
+            cleaned = true;
+            if (file) {
+                try {
+                    file.close();
+                } catch {
+                    // ignore
+                }
+            }
+            fs.unlink(dest, () => {});
+        };
+        const timeout = config.update.downloadTimeoutMs;
 
         const request = (requestUrl: string, redirectCount: number = 0) => {
-            if (redirectCount > 5) {
+            if (redirectCount > config.update.maxRedirects) {
                 reject(new Error('重定向次数过多'));
                 return;
             }
@@ -365,6 +446,10 @@ function downloadFileWithProgress(url: string, dest: string, onProgress: (progre
                 if (response.statusCode === 301 || response.statusCode === 302) {
                     const redirectUrl = response.headers.location;
                     if (redirectUrl) {
+                        if (!isHttpsUrl(redirectUrl) || !isAllowedHost(redirectUrl)) {
+                            reject(new Error('重定向地址不安全'));
+                            return;
+                        }
                         request(redirectUrl, redirectCount + 1);
                         return;
                     }
@@ -375,11 +460,24 @@ function downloadFileWithProgress(url: string, dest: string, onProgress: (progre
                     return;
                 }
 
+                file = fs.createWriteStream(dest);
+
                 const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+                if (totalSize && totalSize > config.update.maxDownloadBytes) {
+                    cleanup();
+                    reject(new Error('下载内容超过大小限制'));
+                    return;
+                }
                 let downloadedSize = 0;
 
                 response.on('data', (chunk) => {
                     downloadedSize += chunk.length;
+                    if (downloadedSize > config.update.maxDownloadBytes) {
+                        req.destroy();
+                        cleanup();
+                        reject(new Error('下载内容超过大小限制'));
+                        return;
+                    }
                     if (totalSize && onProgress) {
                         onProgress(downloadedSize / totalSize);
                     }
@@ -388,24 +486,27 @@ function downloadFileWithProgress(url: string, dest: string, onProgress: (progre
                 response.pipe(file);
 
                 file.on('finish', () => {
-                    file.close();
+                    const currentFile = file;
+                    if (currentFile) {
+                        currentFile.close();
+                    }
                     resolve();
                 });
 
                 file.on('error', (err) => {
-                    fs.unlink(dest, () => {});
+                    cleanup();
                     reject(err);
                 });
             });
 
             req.on('error', (err) => {
-                fs.unlink(dest, () => {});
+                cleanup();
                 reject(err);
             });
 
             req.on('timeout', () => {
                 req.destroy();
-                fs.unlink(dest, () => {});
+                cleanup();
                 reject(new Error('下载超时'));
             });
         };

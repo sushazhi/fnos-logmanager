@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-const appVersion = ref<string>('0.3.4')
+const appVersion = ref<string>('__APP_VERSION__')
 </script>
 
 <style scoped>

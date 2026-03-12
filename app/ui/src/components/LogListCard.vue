@@ -32,6 +32,7 @@
             >
               <span class="path" :title="log.path">
                 <template v-if="searchQuery">
+                  <!-- eslint-disable-next-line vue/no-v-html -->
                   <span v-html="highlightText(log.path, searchQuery)"></span>
                 </template>
                 <template v-else>{{ log.path }}</template>

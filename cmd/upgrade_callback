@@ -20,13 +20,6 @@ if [ -d "$BACKUP_DIR" ]; then
     echo "数据已恢复"
 fi
 
-# 验证服务器文件
-SERVER_DIR="${TRIM_APPDEST}/app/server"
-if [ ! -f "$SERVER_DIR/server.js" ]; then
-    echo "Error: 服务器文件不存在，升级可能不完整" > "$TRIM_TEMP_LOGFILE"
-    exit 1
-fi
-
 # 启动服务
 if [ -f "$MAIN_SCRIPT" ]; then
     if ! "$MAIN_SCRIPT" start; then

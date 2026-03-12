@@ -46,6 +46,47 @@ function getActionName(action: string): string {
     return ACTION_NAMES[action] || action;
 }
 
+function redactSensitiveDetails(details: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(details || {})) {
+        if (typeof value === 'string') {
+            let sanitized = value;
+            for (const pattern of config.sensitivePatterns) {
+                sanitized = sanitized.replace(pattern, '[FILTERED]');
+            }
+            result[key] = sanitized;
+            continue;
+        }
+
+        if (Array.isArray(value)) {
+            result[key] = value.map((item) => {
+                if (typeof item === 'string') {
+                    let sanitized = item;
+                    for (const pattern of config.sensitivePatterns) {
+                        sanitized = sanitized.replace(pattern, '[FILTERED]');
+                    }
+                    return sanitized;
+                }
+                if (item && typeof item === 'object') {
+                    return redactSensitiveDetails(item as Record<string, unknown>);
+                }
+                return item;
+            });
+            continue;
+        }
+
+        if (value && typeof value === 'object') {
+            result[key] = redactSensitiveDetails(value as Record<string, unknown>);
+            continue;
+        }
+
+        result[key] = value;
+    }
+
+    return result;
+}
+
 export async function addAuditLog(action: string, details: Record<string, unknown>, req?: Request): Promise<void> {
     let ip = '系统';
     let userAgent = '系统';
@@ -63,7 +104,7 @@ export async function addAuditLog(action: string, details: Record<string, unknow
         timestamp: new Date().toISOString(),
         action: getActionName(action),
         details: {
-            ...details,
+            ...redactSensitiveDetails(details),
             method,
             path: requestPath,
             originalAction: action

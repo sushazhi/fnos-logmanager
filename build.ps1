@@ -112,7 +112,7 @@ Write-Host "[2/5] Build Vue frontend..." -ForegroundColor Yellow
 $UI_DIR = Join-Path $PROJECT_DIR "app\ui"
 $VERSION_PLACEHOLDER = "__APP_VERSION__"
 $appHeaderPath = Join-Path $UI_DIR "src\components\AppHeader.vue"
-$useUpdatePath = Join-Path $UI_DIR "src\composables\useUpdate.js"
+$useUpdatePath = Join-Path $UI_DIR "src\composables\useUpdate.ts"
 $originalAppHeaderContent = $null
 $originalUseUpdateContent = $null
 

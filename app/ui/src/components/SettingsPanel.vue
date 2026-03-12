@@ -215,10 +215,10 @@ function applyColor() {
 
 // HEX转HSL
 function hexToHSL(hex: string): HSL {
-  let color = hex.replace('#', '')
-  let r = parseInt(color.substring(0, 2), 16) / 255
-  let g = parseInt(color.substring(2, 4), 16) / 255
-  let b = parseInt(color.substring(4, 6), 16) / 255
+  const color = hex.replace('#', '')
+  const r = parseInt(color.substring(0, 2), 16) / 255
+  const g = parseInt(color.substring(2, 4), 16) / 255
+  const b = parseInt(color.substring(4, 6), 16) / 255
 
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
@@ -275,7 +275,7 @@ function hslToHex(h: number, s: number, l: number): string {
 
 // 颜色调整函数
 function adjustColor(hex: string, amount: number): string {
-  let color = hex.replace('#', '')
+  const color = hex.replace('#', '')
   let r = parseInt(color.substring(0, 2), 16)
   let g = parseInt(color.substring(2, 4), 16)
   let b = parseInt(color.substring(4, 6), 16)

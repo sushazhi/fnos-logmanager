@@ -20,7 +20,7 @@ export function useLogs() {
     try {
       const data = await api.get<{ enabled: boolean }>('/api/settings/filter')
       filterEnabled.value = data.enabled !== false
-    } catch (e) {
+    } catch {
       filterEnabled.value = true
     }
   }

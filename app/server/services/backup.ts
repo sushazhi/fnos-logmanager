@@ -3,7 +3,7 @@ import path from 'path';
 import { promisify } from 'util';
 import { spawn } from 'child_process';
 import config from '../utils/config';
-import { safePath, formatBytes } from '../utils/validation';
+import { safePath, formatBytes, isAllowedPath } from '../utils/validation';
 import { BackupInfo, BackupResult } from '../types';
 
 const readdir = promisify(fs.readdir);
@@ -13,7 +13,7 @@ const copyFile = promisify(fs.copyFile);
 const unlink = promisify(fs.unlink);
 const rmdir = promisify(fs.rmdir);
 
-export const BACKUP_BASE_DIR = '/vol1/@appshare/log-backup';
+export const BACKUP_BASE_DIR = config.backup.baseDir;
 
 async function ensureDir(dir: string): Promise<void> {
     try {
@@ -21,6 +21,12 @@ async function ensureDir(dir: string): Promise<void> {
     } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
     }
+}
+
+function isSafeBackupBase(dir: string): boolean {
+    const normalized = safePath(dir);
+    if (!normalized) return false;
+    return normalized.startsWith('/vol') && normalized.includes('/@appshare');
 }
 
 function isLogFile(filename: string): boolean {
@@ -36,7 +42,7 @@ interface CollectedFile {
     relativePath: string;
 }
 
-async function collectLogFiles(dir: string, baseDir: string, maxFiles: number = 500): Promise<CollectedFile[]> {
+async function collectLogFiles(dir: string, baseDir: string, maxFiles: number = 500, maxFileSize: number = config.backup.maxFileSizeBytes): Promise<CollectedFile[]> {
     const files: CollectedFile[] = [];
 
     async function walk(currentDir: string): Promise<void> {
@@ -52,6 +58,12 @@ async function collectLogFiles(dir: string, baseDir: string, maxFiles: number = 
                 if (entry.isDirectory()) {
                     await walk(fullPath);
                 } else if (entry.isFile() && isLogFile(entry.name)) {
+                    try {
+                        const stats = await stat(fullPath);
+                        if (stats.size > maxFileSize) continue;
+                    } catch {
+                        continue;
+                    }
                     const relativePath = path.relative(baseDir, fullPath);
                     files.push({ fullPath, relativePath });
                 }
@@ -151,6 +163,14 @@ async function removeDir(dir: string): Promise<void> {
 }
 
 export async function performBackup(): Promise<BackupResult> {
+    if (!isSafeBackupBase(BACKUP_BASE_DIR)) {
+        return {
+            backupPath: '',
+            files: 0,
+            backupSize: '0B',
+            errors: ['备份目录不安全']
+        };
+    }
     const timestamp = new Date().toISOString()
         .replace(/[:.]/g, '-')
         .slice(0, 19)
@@ -170,9 +190,12 @@ export async function performBackup(): Promise<BackupResult> {
         await ensureDir(BACKUP_BASE_DIR);
         await ensureDir(backupDir);
 
+        let totalBytes = 0;
+
         for (const logDir of config.logDirs) {
             const normalizedDir = safePath(logDir);
             if (!normalizedDir) continue;
+            if (!isAllowedPath(normalizedDir, config.logDirs)) continue;
 
             try {
                 const stats = await stat(normalizedDir).catch(() => null);
@@ -181,16 +204,26 @@ export async function performBackup(): Promise<BackupResult> {
                 const dirName = path.basename(normalizedDir);
                 const targetDir = path.join(backupDir, dirName);
 
-                const files = await collectLogFiles(normalizedDir, normalizedDir, 500);
+                const files = await collectLogFiles(normalizedDir, normalizedDir, config.backup.maxFiles, config.backup.maxFileSizeBytes);
 
                 for (const file of files) {
                     try {
+                        const srcStats = await stat(file.fullPath);
+                        if (totalBytes + srcStats.size > config.backup.maxTotalBytes) {
+                            results.errors.push('备份内容超过大小限制');
+                            break;
+                        }
                         const targetPath = path.join(targetDir, file.relativePath);
                         await copyFileToBackup(file.fullPath, targetPath);
                         results.files++;
+                        totalBytes += srcStats.size;
                     } catch (e) {
                         results.errors.push(`复制失败: ${file.fullPath} - ${(e as Error).message}`);
                     }
+                }
+
+                if (totalBytes >= config.backup.maxTotalBytes) {
+                    break;
                 }
             } catch (e) {
                 results.errors.push(`处理目录失败: ${logDir} - ${(e as Error).message}`);
@@ -203,6 +236,10 @@ export async function performBackup(): Promise<BackupResult> {
             await removeDir(backupDir);
 
             const stats = await stat(backupFile);
+            if (stats.size > config.backup.maxTotalBytes) {
+                await unlink(backupFile);
+                throw new Error('备份文件超过大小限制');
+            }
             results.backupSize = formatBytes(stats.size);
         } else {
             await removeDir(backupDir);

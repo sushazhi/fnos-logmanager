@@ -5,6 +5,7 @@ import { getClientIP } from '../utils/ip';
 import { AuthenticationError, CSRFError, ValidationError } from '../utils/errors';
 import * as auditService from '../services/audit';
 import { AuthenticatedRequest } from '../types';
+import config from '../utils/config';
 
 function getSessionToken(req: Request): string {
     const cookieToken = req.cookies?.session_token;
@@ -15,7 +16,15 @@ function getSessionToken(req: Request): string {
         return authHeader.slice(7);
     }
 
-    return (req.query.token as string) || '';
+    const queryToken = (req.query.token as string) || '';
+    if (!queryToken) return '';
+
+    const allowedPath = config.auth.queryTokenPaths.includes(req.path);
+    if (config.auth.allowQueryToken && allowedPath) {
+        return queryToken;
+    }
+
+    return '';
 }
 
 export function validateToken(req: Request, res: Response, next: NextFunction): void {

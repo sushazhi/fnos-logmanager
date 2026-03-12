@@ -116,14 +116,14 @@ function toggleDir(path: string): void {
 }
 
 function handleDirClick(dir: DirWithDisplay): void {
-  if (!dir || !(dir as any).exists) return
+  if (!dir || !('exists' in dir) || !dir.exists) return
   emit('selectDir', dir.path)
 }
 
 function saveVisibleDirs(): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleDirs.value))
-  } catch (e) {
+  } catch {
     // ignore
   }
 }

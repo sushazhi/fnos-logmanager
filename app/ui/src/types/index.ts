@@ -140,6 +140,8 @@ export interface UpdateStatus {
   updating: boolean
   progress: number
   message: string
+  updateProgress?: number
+  updateMessage?: string
 }
 
 // ==================== 设置类型 ====================
