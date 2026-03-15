@@ -1,7 +1,7 @@
 appname = logmanager
 version = 0.3.0
 display_name = 日志管理
-desc = <b>飞牛日志管理工具</b>，集中管理飞牛三方应用散落在各个文件夹的日志文件。<br><br>📁 <b>支持的日志目录：</b><br>- 存储空间应用日志 (@appdata/@appshare等)<br>- /var/log/apps/ (系统应用日志)<br>- Docker容器日志<br>- 归档日志文件(.gz, .bz2, .xz, .zip等)<br><br>⚙️ <b>功能特点：</b><br>- 集中查看所有应用日志<br>- 日志文件大小统计与管理<br>- 日志清理与压缩功能<br>- 日志备份与归档<br>- 支持查看归档日志内容<br>- 应用自更新功能<br><br>🐛 <b>问题反馈：</b><a href="https://github.com/sushazhi/fnos-logmanager/issues" target="_blank">GitHub Issues</a>
+desc = <b>飞牛日志管理工具</b>，集中管理飞牛三方应用散落在各个文件夹的日志文件。<br><br>📁 <b>支持的日志目录：</b><br>- 存储空间应用日志 (@appdata/@appshare等)<br>- /var/log/apps/ (系统应用日志)<br>- Docker容器日志<br>- 归档日志文件(.gz, .bz2, .xz, .zip等)<br><br>🔔 <b>通知推送：</b><br>- 支持Bark、钉钉、飞书、企业微信、Telegram、QQ机器人等多种通知渠道<br>- 自定义监控规则，关键词匹配（支持正则表达式）<br>- 日志级别过滤，冷却时间设置<br><br>📊 <b>系统日志监控：</b><br>- 实时监控系统事件日志<br>- 多级别事件过滤<br>- 事件统计与历史记录<br><br>⚙️ <b>功能特点：</b><br>- 集中查看所有应用日志<br>- 日志文件大小统计与管理<br>- 日志清理与压缩功能<br>- 日志备份与归档<br>- 支持查看归档日志内容<br>- 应用自更新功能<br><br>🐛 <b>问题反馈：</b><a href="https://github.com/sushazhi/fnos-logmanager/issues" target="_blank">GitHub Issues</a>
 
 # 系统要求
 platform = all
@@ -30,4 +30,4 @@ desktop_uidir = ui
 desktop_applaunchname = logmanager.Application
 
 # 更新日志
-changelog = v0.3.0<br>1. 新增应用自更新功能<br>2. 完整的安全加固<br>3. 优化密码存储加密<br>4. 优化 CSRF 保护<br>5. 加强路径验证<br>6. 修复命令注入风险<br>7. 优化错误信息显示
+changelog = v0.3.0<br>1. 新增通知推送功能，支持多种通知渠道<br>2. 新增系统日志监控功能<br>3. 关键词匹配支持正则表达式<br>4. 新增企业微信智能机器人(WebSocket长连接)<br>5. 修复数组参数处理问题<br>6. 优化UI显示<br><br>v0.3.0<br>1. 新增应用自更新功能<br>2. 完整的安全加固<br>3. 优化密码存储加密<br>4. 优化 CSRF 保护<br>5. 加强路径验证<br>6. 修复命令注入风险<br>7. 优化错误信息显示

@@ -11,6 +11,7 @@ export function notFoundHandler(req: Request, res: Response, _next: NextFunction
 
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
     console.error('[LogManager] Error:', err.message);
+    console.error('[LogManager] Stack:', err.stack);
 
     if (err instanceof AppError) {
         const response: {
@@ -40,8 +41,10 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
 
     console.error('[LogManager] Unexpected error:', err.stack || err);
 
+    // 返回详细错误信息便于调试
     res.status(500).json({
-        error: '服务器内部错误',
-        code: 'INTERNAL_ERROR'
+        error: err.message || '服务器内部错误',
+        code: 'INTERNAL_ERROR',
+        details: process.env.NODE_ENV === 'production' ? undefined : err.stack
     });
 }

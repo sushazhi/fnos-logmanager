@@ -675,6 +675,28 @@ onMounted(() => {
   transform: scale(0.98);
 }
 
+.notification-btn {
+  width: 100%;
+  padding: var(--spacing-sm);
+  background: var(--bg-color-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-color-1);
+  transition: all var(--transition-fast);
+}
+
+.notification-btn:hover {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.notification-btn:active {
+  transform: scale(0.98);
+}
+
 @media (max-width: 768px) {
   .settings-panel {
     max-width: 100%;

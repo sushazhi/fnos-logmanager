@@ -61,6 +61,8 @@ start_process() {
     
     if [ ! -d "$SERVER_DIR/node_modules" ]; then
         log_msg "Installing dependencies..."
+        # 使用淘宝镜像加速
+        npm config set registry https://registry.npmmirror.com --location=project 2>/dev/null || true
         if ! npm install --production >> ${LOG_FILE} 2>&1; then
             error_exit "依赖安装失败，请检查网络连接"
         fi

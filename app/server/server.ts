@@ -20,6 +20,10 @@ import authRoutes from './routes/auth';
 import logRoutes from './routes/logs';
 import dockerRoutes from './routes/docker';
 import updateRoutes from './routes/update';
+import notificationRoutes from './routes/notifications';
+import eventLoggerRoutes from './routes/eventLogger';
+import * as logMonitor from './services/logMonitor';
+import * as eventLoggerService from './services/eventLogger';
 
 const envValidation = validateEnv();
 if (!envValidation.valid) {
@@ -65,13 +69,29 @@ app.use('/api/auth', authRoutes);
 app.use('/api', logRoutes);
 app.use('/api', dockerRoutes);
 app.use('/api/update', updateRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/eventlogger', eventLoggerRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-const server = app.listen(config.port, '0.0.0.0', () => {
+const server = app.listen(config.port, '0.0.0.0', async () => {
     console.log(`飞牛日志管理服务已启动，端口: ${config.port}`);
     auditService.addAuditLog('SERVER_START', { port: config.port }).catch(() => {});
+
+    // 初始化日志监控服务
+    try {
+        await logMonitor.init();
+    } catch (err) {
+        console.error('[LogManager] 日志监控服务初始化失败:', err);
+    }
+
+    // 初始化事件日志监控服务
+    try {
+        await eventLoggerService.init(config.eventLogger);
+    } catch (err) {
+        console.error('[LogManager] 事件日志监控服务初始化失败:', err);
+    }
 });
 
 server.setTimeout(120000);

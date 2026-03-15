@@ -9,15 +9,13 @@ const writeFile = promisify(fs.writeFile);
 const stat = promisify(fs.stat);
 
 interface Argon2Module {
-    hash: (password: string, options: {
-        type: number;
-        memoryCost: number;
-        timeCost: number;
-        parallelism: number;
-        hashLength: number;
+    hash: (password: string | Buffer, options?: {
+        memoryCost?: number;
+        timeCost?: number;
+        parallelism?: number;
+        outputLength?: number;
     }) => Promise<string>;
-    verify: (hash: string, password: string) => Promise<boolean>;
-    argon2id: number;
+    verify: (hash: string, password: string | Buffer) => Promise<boolean>;
 }
 
 let argon2: Argon2Module | null = null;
@@ -25,22 +23,22 @@ let argon2: Argon2Module | null = null;
 async function initArgon2(): Promise<Argon2Module> {
     if (argon2) return argon2;
     try {
-        const module = require('argon2');
+        // 使用 @node-rs/argon2 (Rust 实现，无原生依赖问题)
+        const module = require('@node-rs/argon2');
         argon2 = module;
         return argon2!;
     } catch (e) {
-        throw new Error('Argon2 模块加载失败，请确保已安装 argon2 依赖: ' + (e as Error).message);
+        throw new Error('Argon2 模块加载失败，请确保已安装 @node-rs/argon2 依赖: ' + (e as Error).message);
     }
 }
 
 async function hashPassword(password: string): Promise<string> {
     const a2 = await initArgon2();
     const hash = await a2.hash(password, {
-        type: a2.argon2id,
         memoryCost: 65536,
         timeCost: 3,
         parallelism: 4,
-        hashLength: 64
+        outputLength: 64
     });
     return `argon2$$${hash}`;
 }

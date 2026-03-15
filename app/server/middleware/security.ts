@@ -96,6 +96,19 @@ function sanitizeObject(obj: Record<string, unknown>): Record<string, unknown> {
                 .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
                 .replace(/javascript:/gi, '')
                 .replace(/on\w+\s*=/gi, '');
+        } else if (Array.isArray(value)) {
+            // 处理数组：递归处理每个元素，保持数组结构
+            sanitized[key] = value.map(item => {
+                if (typeof item === 'string') {
+                    return item
+                        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                        .replace(/javascript:/gi, '')
+                        .replace(/on\w+\s*=/gi, '');
+                } else if (typeof item === 'object' && item !== null) {
+                    return sanitizeObject(item as Record<string, unknown>);
+                }
+                return item;
+            });
         } else if (typeof value === 'object' && value !== null) {
             sanitized[key] = sanitizeObject(value as Record<string, unknown>);
         } else {
@@ -133,7 +146,7 @@ export function validateEnv(): { valid: boolean; errors: string[] } {
 export function checkDependencies(): { valid: boolean; missing: string[] } {
     const missing: string[] = [];
 
-    const requiredDeps = ['express', 'argon2', 'express-validator', 'morgan', 'cookie-parser'];
+    const requiredDeps = ['express', '@node-rs/argon2', 'express-validator', 'morgan', 'cookie-parser'];
 
     for (const dep of requiredDeps) {
         try {

@@ -169,4 +169,80 @@ export const api = {
   fetchCSRFToken
 }
 
+// 事件日志相关 API
+export interface EventLoggerConfig {
+  dbPath: string
+  enabled: boolean
+  checkInterval: number
+  eventTypes: string[]
+  minSeverity: string
+  notificationChannels: string[]
+  appFilter?: string[]
+  excludeSources?: string[]
+}
+
+export interface EventLoggerStatus {
+  isRunning: boolean
+  lastCheckTime: string | null
+  lastEventTime: string | null
+  totalEventsProcessed: number
+  lastError: string | null
+  dbAccessible: boolean
+  dbPath: string
+}
+
+export interface EventLogEntry {
+  id: number
+  timestamp: string
+  source: string
+  eventType: string
+  severity: string
+  message: string
+  metadata?: string
+  user?: string
+}
+
+export interface EventLoggerStats {
+  totalEvents: number
+  eventsBySeverity: Record<string, number>
+  eventsBySource: Record<string, number>
+  eventsByType: Record<string, number>
+  timeRange: {
+    earliest: string | null
+    latest: string | null
+  }
+}
+
+export const eventLoggerApi = {
+  getStatus: () => api.get<EventLoggerStatus>('/api/eventlogger/status'),
+  
+  getConfig: () => api.get<EventLoggerConfig>('/api/eventlogger/config'),
+  
+  updateConfig: (config: Partial<EventLoggerConfig>) => 
+    api.put<EventLoggerConfig>('/api/eventlogger/config', config),
+  
+  getStats: () => api.get<EventLoggerStats>('/api/eventlogger/stats'),
+  
+  getEvents: (params: {
+    limit?: number
+    offset?: number
+    startTime?: string
+    endTime?: string
+    severity?: string
+    source?: string
+    eventType?: string
+    search?: string
+  }) => api.get<{ events: EventLogEntry[]; total: number; hasMore: boolean }>(
+    '/api/eventlogger/events?' + new URLSearchParams(params as any).toString()
+  ),
+  
+  start: () => api.post<EventLoggerStatus>('/api/eventlogger/start'),
+  
+  stop: () => api.post<EventLoggerStatus>('/api/eventlogger/stop'),
+  
+  restart: () => api.post<EventLoggerStatus>('/api/eventlogger/restart'),
+  
+  check: () => api.post<{ success: boolean }>('/api/eventlogger/check')
+}
+
 export default api

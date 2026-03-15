@@ -7,7 +7,7 @@ import { useDocker } from './useDocker'
 import { useArchive } from './useArchive'
 import { useBackup } from './useBackup'
 import { useUpdate } from './useUpdate'
-import { setCSRFToken } from '../services/api'
+import { setCSRFToken, fetchCSRFToken } from '../services/api'
 
 export { setConfirmFn }
 
@@ -158,7 +158,7 @@ export function useStore() {
     backupLogs: handleBackupLogs,
     executeClean,
     saveCSRFToken,
-    fetchCSRFToken: () => import('../services/api').then(m => m.fetchCSRFToken()),
+    fetchCSRFToken,
     checkForUpdates,
     clearList
   }

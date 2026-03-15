@@ -31,6 +31,15 @@
         设置
       </button>
     </div>
+
+    <div class="actions-row">
+      <button @click="$emit('showNotification')" title="配置日志通知规则">
+        通知设置
+      </button>
+      <button @click="$emit('showEventLogger')" title="配置系统日志监控">
+        系统日志
+      </button>
+    </div>
     
     <div class="filter-section">
       <div class="filter-toggle">
@@ -72,6 +81,8 @@ defineEmits<{
   listDocker: []
   toggleFilter: []
   openSettings: []
+  showNotification: []
+  showEventLogger: []
 }>()
 
 const statusIcons: Record<StatusType, string> = {

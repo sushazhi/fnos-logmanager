@@ -135,53 +135,49 @@ if (-not $SkipVueBuild) {
             Write-Host "  Version $APP_VERSION injected into useUpdate.js" -ForegroundColor Green
         }
         
-        Push-Location $UI_DIR
-        
-        if (-not (Test-Path "node_modules")) {
-            Write-Host "  Installing npm dependencies..." -ForegroundColor Yellow
-            $npmInstall = npm install 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "  Error: npm install failed" -ForegroundColor Red
-                Write-Host $npmInstall
-                Pop-Location
-                if ($null -ne $originalAppHeaderContent) {
-                    [System.IO.File]::WriteAllText($appHeaderPath, $originalAppHeaderContent, [System.Text.Encoding]::UTF8)
+        try {
+            Push-Location $UI_DIR
+            
+            if (-not (Test-Path "node_modules")) {
+                Write-Host "  Installing npm dependencies..." -ForegroundColor Yellow
+                $npmInstall = npm install 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "  Error: npm install failed" -ForegroundColor Red
+                    Write-Host $npmInstall
+                    exit 1
                 }
-                if ($null -ne $originalUseUpdateContent) {
-                    [System.IO.File]::WriteAllText($useUpdatePath, $originalUseUpdateContent, [System.Text.Encoding]::UTF8)
-                }
+            }
+            
+            Write-Host "  Building Vue app..." -ForegroundColor Yellow
+            $ErrorActionPreference = "Continue"
+            $buildOutput = npm run build 2>&1
+            $buildExitCode = $LASTEXITCODE
+            $ErrorActionPreference = "Stop"
+            
+            if ($buildExitCode -ne 0) {
+                Write-Host "  Error: Vue build failed (exit code: $buildExitCode)" -ForegroundColor Red
+                Write-Host $buildOutput
                 exit 1
             }
-        }
-        
-        Write-Host "  Building Vue app..." -ForegroundColor Yellow
-        $ErrorActionPreference = "Continue"
-        npm run build 2>&1 | Out-Null
-        $buildExitCode = $LASTEXITCODE
-        $ErrorActionPreference = "Stop"
-        
-        Pop-Location
-        
-        # Restore original file contents
-        if ($null -ne $originalAppHeaderContent) {
-            [System.IO.File]::WriteAllText($appHeaderPath, $originalAppHeaderContent, [System.Text.Encoding]::UTF8)
-            Write-Host "  Restored original AppHeader.vue" -ForegroundColor Green
-        }
-        if ($null -ne $originalUseUpdateContent) {
-            [System.IO.File]::WriteAllText($useUpdatePath, $originalUseUpdateContent, [System.Text.Encoding]::UTF8)
-            Write-Host "  Restored original useUpdate.js" -ForegroundColor Green
-        }
-        
-        if ($buildExitCode -ne 0) {
-            Write-Host "  Error: Vue build failed (exit code: $buildExitCode)" -ForegroundColor Red
-            exit 1
-        }
-        
-        if (Test-Path "$UI_DIR\dist") {
-            Write-Host "  Vue build complete" -ForegroundColor Green
-        } else {
-            Write-Host "  Error: Vue build output not found" -ForegroundColor Red
-            exit 1
+            
+            if (Test-Path "$UI_DIR\dist") {
+                Write-Host "  Vue build complete" -ForegroundColor Green
+            } else {
+                Write-Host "  Error: Vue build output not found" -ForegroundColor Red
+                exit 1
+            }
+        } finally {
+            Pop-Location
+            
+            # Restore original file contents
+            if ($null -ne $originalAppHeaderContent) {
+                [System.IO.File]::WriteAllText($appHeaderPath, $originalAppHeaderContent, [System.Text.Encoding]::UTF8)
+                Write-Host "  Restored original AppHeader.vue" -ForegroundColor Green
+            }
+            if ($null -ne $originalUseUpdateContent) {
+                [System.IO.File]::WriteAllText($useUpdatePath, $originalUseUpdateContent, [System.Text.Encoding]::UTF8)
+                Write-Host "  Restored original useUpdate.js" -ForegroundColor Green
+            }
         }
     }
 } else {
@@ -263,7 +259,13 @@ if (Test-Path "$serverSrcDir\server.ts") {
                 Write-Host "  Copied $subdir/" -ForegroundColor Green
             }
         }
-        
+
+        # 复制 sendNotify.js（从 server 目录）
+        $scriptPath = $PSScriptRoot
+        if (-not $scriptPath) { $scriptPath = Get-Location }
+        Copy-Item (Join-Path $scriptPath "app\server\sendNotify.js") "$serverDir\sendNotify.js" -Force -ErrorAction SilentlyContinue
+        Write-Host "  Copied sendNotify.js" -ForegroundColor Green
+
         Write-Host "  Server files copied" -ForegroundColor Green
     } else {
         Write-Host "  Error: Compiled server.js not found" -ForegroundColor Red

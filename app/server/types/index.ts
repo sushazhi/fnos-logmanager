@@ -163,6 +163,14 @@ export interface AppConfig {
         maxTotalBytes: number;
     };
     logDirs: string[];
+    eventLogger: {
+        dbPath: string;
+        enabled: boolean;
+        checkInterval: number;
+        eventTypes: string[];
+        minSeverity: 'debug' | 'info' | 'warning' | 'error' | 'critical';
+        notificationChannels: string[];
+    };
     sensitivePatterns: RegExp[];
     passwordFile: string;
     auditLogFile: string;

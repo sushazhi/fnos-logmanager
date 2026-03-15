@@ -37,6 +37,8 @@
       @list-docker="listDockerContainers"
       @toggle-filter="toggleFilter"
       @open-settings="showSettings = true"
+      @show-notification="showNotification = true"
+      @show-event-logger="showEventLogger = true"
     />
     
     <AppFooter />
@@ -76,11 +78,22 @@
       v-if="showSettings"
       @close="showSettings = false"
       @show-audit="showSettings = false; showAuditLog = true"
+      @show-notification="showSettings = false; showNotification = true"
     />
     
     <AuditLog 
       v-if="showAuditLog"
       @close="showAuditLog = false"
+    />
+    
+    <NotificationPanel
+      v-if="showNotification"
+      @close="showNotification = false"
+    />
+    
+    <EventLoggerPanel
+      v-if="showEventLogger"
+      @close="showEventLogger = false"
     />
     
     <ConfirmDialog ref="confirmDialog" />
@@ -106,6 +119,8 @@ import LoginModal from './components/LoginModal.vue'
 import SetupModal from './components/SetupModal.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import AuditLog from './components/AuditLog.vue'
+import NotificationPanel from './components/NotificationPanel.vue'
+import EventLoggerPanel from './components/EventLoggerPanel.vue'
 
 const {
   stats,
@@ -148,6 +163,8 @@ const isInitialized = ref(true)
 const isCheckingAuth = ref(true)
 const confirmDialog = ref(null)
 const showAuditLog = ref(false)
+const showNotification = ref(false)
+const showEventLogger = ref(false)
 
 async function showConfirm(options) {
   if (!confirmDialog.value) return false

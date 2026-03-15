@@ -74,6 +74,14 @@ const config: AppConfig = {
         '/vol1/@appshare',
         '/var/log/apps'
     ],
+    eventLogger: {
+        dbPath: process.env.EVENTLOGGER_DB_PATH || '/usr/trim/var/eventlogger_service/logger_data.db3',
+        enabled: process.env.EVENTLOGGER_ENABLED === 'true',
+        checkInterval: parseInt(process.env.EVENTLOGGER_CHECK_INTERVAL || '30000', 10),
+        eventTypes: (process.env.EVENTLOGGER_EVENT_TYPES || '*').split(','),
+        minSeverity: (process.env.EVENTLOGGER_MIN_SEVERITY || 'info') as 'debug' | 'info' | 'warning' | 'error' | 'critical',
+        notificationChannels: (process.env.EVENTLOGGER_CHANNELS || '').split(',').filter(Boolean)
+    },
     sensitivePatterns: [
         /password\s*[=:]\s*\S+/gi,
         /passwd\s*[=:]\s*\S+/gi,
