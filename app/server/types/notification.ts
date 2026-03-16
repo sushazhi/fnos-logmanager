@@ -6,7 +6,8 @@
 export type NotificationChannel =
     | 'bark'          // iOS Bark APP
     | 'dingtalk'      // 钉钉机器人
-    | 'feishu'        // 飞书机器人
+    | 'feishu'        // 飞书机器人（自定义机器人）
+    | 'feishu_app'    // 飞书企业自建应用
     | 'wecom'         // 企业微信机器人
     | 'wecom_app'     // 企业微信应用
     | 'wechat_bot'    // 企业微信智能机器人（长连接）
@@ -51,7 +52,7 @@ export interface NotificationChannelConfig {
     // 飞书配置（企业自建应用）
     feishuAppId?: string;
     feishuAppSecret?: string;
-    // 飞书用户ID（可选，用于发送给指定用户）
+    // 飞书用户ID（使用user_id类型）
     feishuUserId?: string;
 
     // 企业微信机器人配置

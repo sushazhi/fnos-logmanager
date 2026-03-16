@@ -38,8 +38,6 @@ const httpClient = {
 };
 
 const push_config = {
-  HITOKOTO: true, // 启用一言（随机句子）
-
   BARK_PUSH: '', // bark IP 或设备码，例：https://api.day.app/DxHcxxxxxRxxxxxxcm/
   BARK_ARCHIVE: '', // bark 推送是否存档
   BARK_GROUP: '', // bark 推送分组
@@ -55,7 +53,7 @@ const push_config = {
   FSSECRET: '', // 飞书机器人的 FSSECRET（自定义机器人签名密钥）
   FEISHU_APP_ID: '', // 飞书企业自建应用的 App ID
   FEISHU_APP_SECRET: '', // 飞书企业自建应用的 App Secret
-  FEISHU_USER_ID: '', // 飞书用户 ID（可选，用于发送给指定用户）
+  FEISHU_USER_ID: '', // 飞书用户ID（使用user_id类型）
 
   GOTIFY_URL: '', // gotify地址,如https://push.example.de:8080
   GOTIFY_TOKEN: '', // gotify的消息应用token
@@ -109,7 +107,7 @@ const push_config = {
   WECHAT_BOT_CHAT_ID: '', // 默认发送目标，支持 user:xxx 或 group:xxx 格式
   WECHAT_BOT_WS_URL: 'wss://openws.work.weixin.qq.com', // WebSocket 地址
 
-  TG_BOT_TOKEN: '', // tg 机器人的 TG_BOT_TOKEN，例：1407203283:AAG9rt-6RDaaX0HBLZQq0laNOh898iFYaRQ
+  TG_BOT_TOKEN: '', // tg 机器人的 TG_BOT_TOKEN
   TG_USER_ID: '', // tg 机器人的 TG_USER_ID，例：1434078534
   TG_API_HOST: 'https://api.telegram.org', // tg 代理 api
   TG_PROXY_AUTH: '', // tg 代理认证参数
@@ -194,13 +192,6 @@ const $ = {
   },
   logErr: console.log,
 };
-
-async function one() {
-  const url = 'https://v1.hitokoto.cn/';
-  const res = await httpClient.request(url);
-  const body = await res.body.json();
-  return `${body.hitokoto}    ----${body.from}`;
-}
 
 function gotifyNotify(text, desp) {
   return new Promise((resolve) => {
@@ -1095,7 +1086,8 @@ function feishuAppNotify(text, desp) {
       const messageContent = `${text}\n\n${desp}`;
       
       let body;
-      let receiveIdType = 'user_id';
+      // 默认使用 union_id 类型（跨应用可用，飞书官方推荐）
+      const receiveIdType = 'union_id';
       
       if (FEISHU_USER_ID) {
         // 发送给指定用户
@@ -2213,10 +2205,6 @@ async function sendNotify(text, desp, params = {}) {
       console.info(text + '在 SKIP_PUSH_TITLE 环境变量内，跳过推送');
       return;
     }
-  }
-
-  if (push_config.HITOKOTO !== 'false') {
-    desp += '\n\n' + (await one());
   }
 
   await Promise.all([

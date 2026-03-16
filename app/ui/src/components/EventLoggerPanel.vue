@@ -188,8 +188,9 @@ function formatSeverity(severity: string): string {
 
 function formatTime(timestamp: string): string {
   if (!timestamp) return ''
-  const date = new Date(timestamp)
-  return date.toLocaleString('zh-CN')
+  // 后端已经返回了本地时间字符串，直接返回即可
+  // 避免重复时区转换导致时间偏移
+  return timestamp
 }
 
 async function loadData() {

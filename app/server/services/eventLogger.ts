@@ -47,6 +47,61 @@ const SEVERITY_ORDER: Record<EventSeverity, number> = {
     critical: 4
 };
 
+/**
+ * 格式化 template 格式的日志消息
+ * 支持的模板: LoginSucc, LoginFail, Logout, DiskWakeup, DiskSpindown 等
+ */
+function formatTemplateMessage(param: any): string {
+    const template = param.template;
+    const cat = param.cat; // 分类: 1=storage, 2=network, 3=user, 4=system 等
+    
+    // 模板翻译映射
+    const templateMessages: Record<string, (p: any) => string> = {
+        // 用户相关
+        'LoginSucc': (p) => `${p.user || '用户'}登录成功 IP:${p.IP || '未知'}`,
+        'LoginFail': (p) => `${p.user || '用户'}登录失败 IP:${p.IP || '未知'}`,
+        'Logout': (p) => `${p.user || '用户'}登出`,
+        'UserAdd': (p) => `添加用户 ${p.user || '未知'}`,
+        'UserDel': (p) => `删除用户 ${p.user || '未知'}`,
+        'UserMod': (p) => `修改用户 ${p.user || '未知'}`,
+        
+        // 硬盘存储相关
+        'DiskWakeup': (p) => `硬盘${p.disk || '未知'}已被唤醒 型号:${p.model || '未知'} 序列号:${p.serial || '未知'}`,
+        'DiskSpindown': (p) => `硬盘${p.disk || '未知'}已休眠 型号:${p.model || '未知'} 序列号:${p.serial || '未知'}`,
+        'DiskAdd': (p) => `硬盘${p.disk || '未知'}已添加 型号:${p.model || '未知'}`,
+        'DiskRemove': (p) => `硬盘${p.disk || '未知'}已移除`,
+        'DiskError': (p) => `硬盘${p.disk || '未知'}错误 ${p.error || ''}`,
+        
+        // 网络相关
+        'NetUp': (p) => `网络接口${p.iface || '未知'}已启动`,
+        'NetDown': (p) => `网络接口${p.iface || '未知'}已停止`,
+        'NetChange': (p) => `网络配置已更改`,
+        
+        // 系统相关
+        'Shutdown': (p) => `系统关机`,
+        'Reboot': (p) => `系统重启`,
+        'Startup': (p) => `系统启动`,
+        'ServiceStart': (p) => `服务${p.service || '未知'}已启动`,
+        'ServiceStop': (p) => `服务${p.service || '未知'}已停止`,
+        'ServiceRestart': (p) => `服务${p.service || '未知'}已重启`,
+        
+        // 应用相关
+        'AppInstall': (p) => `应用${p.app || '未知'}已安装`,
+        'AppUninstall': (p) => `应用${p.app || '未知'}已卸载`,
+        'AppUpdate': (p) => `应用${p.app || '未知'}已更新`,
+        'AppStart': (p) => `应用${p.app || '未知'}已启动`,
+        'AppStop': (p) => `应用${p.app || '未知'}已停止`,
+    };
+    
+    const formatter = templateMessages[template];
+    if (formatter) {
+        return formatter(param);
+    }
+    
+    // 未知模板，返回原始信息
+    return `${template}: ${JSON.stringify(param)}`;
+}
+
 // 已发送通知的事件ID集合（去重）
 const notifiedEvents = new Set<number>();
 
@@ -423,7 +478,13 @@ function queryEvents(request: GetEventsRequest): EventLogEntry[] {
                 if (parameterStr && parameterStr !== 'null') {
                     try {
                         const param = typeof parameterStr === 'string' ? JSON.parse(parameterStr) : parameterStr;
-                        if (param.data) {
+                        
+                        // 处理 template 格式的日志（如 LoginSucc, DiskWakeup 等）
+                        if (param.template) {
+                            message = formatTemplateMessage(param);
+                        }
+                        // 处理应用相关事件
+                        else if (param.data) {
                             const appName = param.data.APP_NAME;
                             const displayName = param.data.DISPLAY_NAME;
                             const eventId = param.eventId;
@@ -646,7 +707,13 @@ function getNewEvents(): EventLogEntry[] {
                 if (parameterStr && parameterStr !== 'null') {
                     try {
                         const param = typeof parameterStr === 'string' ? JSON.parse(parameterStr) : parameterStr;
-                        if (param.data) {
+                        
+                        // 处理 template 格式的日志（如 LoginSucc, DiskWakeup 等）
+                        if (param.template) {
+                            message = formatTemplateMessage(param);
+                        }
+                        // 处理应用相关事件
+                        else if (param.data) {
                             const appName = param.data.APP_NAME;
                             const displayName = param.data.DISPLAY_NAME;
                             const eventId = param.eventId;

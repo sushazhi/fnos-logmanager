@@ -187,12 +187,16 @@
             <input type="text" v-model="newChannel.name" placeholder="请输入渠道名称" :disabled="!!editingChannel">
           </div>
           <div class="form-group" v-for="field in currentChannelFields" :key="field">
-            <label>{{ getFieldLabel(field) }}</label>
+            <label>
+              {{ getFieldLabel(field) }}
+              <a v-if="getFieldHelpUrl(field)" :href="getFieldHelpUrl(field)" target="_blank" class="help-link">?</a>
+            </label>
             <input 
               :type="field.includes('password') || field.includes('secret') ? 'password' : 'text'" 
               v-model="newChannel.config[field]"
               :placeholder="getFieldPlaceholder(field)"
             >
+            <div v-if="getFieldHint(field)" class="hint">{{ getFieldHint(field) }}</div>
           </div>
         </div>
         <div class="modal-footer">
@@ -503,11 +507,11 @@ function getFieldLabel(field: string): string {
     barkGroup: '分组',
     ddBotToken: '钉钉机器人Token',
     ddBotSecret: '钉钉机器人Secret',
-    fsKey: '飞书Webhook Key',
-    fsSecret: '飞书签名密钥',
-    feishuAppId: '飞书App ID',
-    feishuAppSecret: '飞书App Secret',
-    feishuUserId: '飞书用户ID',
+    fsKey: 'Webhook Key',
+    fsSecret: '签名密钥(可选)',
+    feishuAppId: 'App ID',
+    feishuAppSecret: 'App Secret',
+    feishuUserId: '用户ID',
     qywxKey: '企业微信机器人Key',
     qywxOrigin: '企业微信代理地址',
     qywxAm: '企业微信应用配置',
@@ -541,10 +545,10 @@ function getFieldPlaceholder(field: string): string {
     barkPush: '如: https://api.day.app/xxx',
     ddBotToken: '钉钉机器人的access_token',
     fsKey: '飞书群机器人的Webhook Key',
-    fsSecret: '飞书签名密钥（可选）',
+    fsSecret: '签名密钥，用于验证消息来源',
     feishuAppId: '飞书企业自建应用的App ID',
     feishuAppSecret: '飞书企业自建应用的App Secret',
-    feishuUserId: '接收消息的用户ID，如: ou_xxxxx',
+    feishuUserId: '接收消息的用户union_id（跨应用通用）',
     qywxKey: '企业微信机器人的key',
     wechatBotId: '企业微信智能机器人ID',
     wechatBotSecret: '企业微信智能机器人Secret',
@@ -559,6 +563,21 @@ function getFieldPlaceholder(field: string): string {
     deerKey: 'PushDeer的pushkey'
   }
   return placeholders[field] || ''
+}
+
+function getFieldHelpUrl(field: string): string | undefined {
+  const helpUrls: Record<string, string> = {
+    feishuUserId: 'https://open.feishu.cn/document/platform-overveiw/basic-concepts/user-identity-introduction/open-id'
+  }
+  return helpUrls[field]
+}
+
+function getFieldHint(field: string): string | undefined {
+  const hints: Record<string, string> = {
+    qqOpenId: '留空，保存后给机器人发消息可自动获取',
+    qqGroupOpenId: '留空，保存后给机器人发消息可自动获取'
+  }
+  return hints[field]
 }
 
 function formatTime(timestamp: string): string {
@@ -1456,6 +1475,29 @@ input:checked + .slider:before {
 .hint {
   font-size: 0.75rem;
   color: var(--text-color-3);
+}
+
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--primary-color);
+  background: var(--bg-color-2);
+  border: 1px solid var(--primary-color);
+  border-radius: 50%;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.help-link:hover {
+  background: var(--primary-color);
+  color: white;
 }
 
 .cancel-btn {

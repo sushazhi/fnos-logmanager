@@ -68,6 +68,8 @@ function buildEnvConfig(channel: any): Record<string, string> {
             // 自定义机器人
             if (channel.fsKey) env.FSKEY = channel.fsKey;
             if (channel.fsSecret) env.FSSECRET = channel.fsSecret;
+            break;
+        case 'feishu_app':
             // 企业自建应用
             if (channel.feishuAppId) env.FEISHU_APP_ID = channel.feishuAppId;
             if (channel.feishuAppSecret) env.FEISHU_APP_SECRET = channel.feishuAppSecret;
@@ -140,8 +142,6 @@ function buildEnvConfig(channel: any): Record<string, string> {
             break;
     }
 
-    // 禁用一言
-    env.HITOKOTO = 'false';
     return env;
 }
 
@@ -276,7 +276,7 @@ export async function sendNotification(request: SendNotificationRequest): Promis
     }
 
     // 构建通知内容
-    const title = `[日志告警] ${request.appName}`;
+    const title = `[应用通知] ${request.appName}`;
     const content = `应用: ${request.appName}\n日志文件: ${request.logPath || 'N/A'}\n\n匹配内容:\n${request.matchedLine || request.content}\n\n规则: ${rule?.name || 'N/A'}`;
 
     // 发送到各个渠道
@@ -368,6 +368,7 @@ export function getChannelTypeName(channel: string): string {
         bark: 'Bark (iOS)',
         dingtalk: '钉钉机器人',
         feishu: '飞书机器人',
+        feishu_app: '飞书企业应用',
         wecom: '企业微信机器人',
         wecom_app: '企业微信应用',
         wechat_bot: '企业微信智能机器人',
@@ -391,7 +392,8 @@ export function getChannelConfigFields(channel: string): string[] {
     const fields: Record<string, string[]> = {
         bark: ['barkPush', 'barkSound', 'barkGroup', 'barkIcon', 'barkLevel', 'barkArchive', 'barkUrl'],
         dingtalk: ['ddBotToken', 'ddBotSecret'],
-        feishu: ['fsKey', 'fsSecret', 'feishuAppId', 'feishuAppSecret', 'feishuUserId'],
+        feishu: ['fsKey', 'fsSecret'],
+        feishu_app: ['feishuAppId', 'feishuAppSecret', 'feishuUserId'],
         wecom: ['qywxKey', 'qywxOrigin'],
         wecom_app: ['qywxAm', 'qywxOrigin'],
         wechat_bot: ['wechatBotId', 'wechatBotSecret', 'wechatBotChatId', 'wechatBotWsUrl'],

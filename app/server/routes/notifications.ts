@@ -95,7 +95,7 @@ router.get('/channels', validateToken, (_req: Request, res: Response) => {
  */
 router.get('/channels/types', validateToken, (_req: Request, res: Response) => {
     const types: NotificationChannel[] = [
-        'bark', 'dingtalk', 'feishu', 'wecom', 'wecom_app', 'wechat_bot',
+        'bark', 'dingtalk', 'feishu', 'feishu_app', 'wecom', 'wecom_app', 'wechat_bot',
         'telegram', 'serverchan', 'pushplus',
         'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot'
     ];
@@ -122,7 +122,7 @@ router.post('/channels', validateToken, validateCSRF, async (req: Request, res: 
         }
 
         const validChannels: NotificationChannel[] = [
-            'bark', 'dingtalk', 'feishu', 'wecom', 'wecom_app', 'wechat_bot',
+            'bark', 'dingtalk', 'feishu', 'feishu_app', 'wecom', 'wecom_app', 'wechat_bot',
             'telegram', 'serverchan', 'pushplus',
             'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot'
         ];
