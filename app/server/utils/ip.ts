@@ -1,5 +1,14 @@
 import { Request } from 'express';
 
+const TRUSTED_PROXIES = process.env.TRUSTED_PROXIES 
+    ? process.env.TRUSTED_PROXIES.split(',').map(ip => ip.trim())
+    : ['127.0.0.1', '::1', 'localhost'];
+
+function isTrustedProxy(ip: string): boolean {
+    if (!ip) return false;
+    return TRUSTED_PROXIES.includes(ip);
+}
+
 export function isPrivateIP(ip: string): boolean {
     if (!ip) return false;
     const cleanIP = ip.replace(/^::ffff:/, '').replace(/:.*$/, '');
@@ -36,30 +45,53 @@ function getFirstHeader(value: string | string[] | undefined): string | undefine
 }
 
 export function getClientIP(req: Request): string {
-    const xForwardedFor = getFirstHeader(req.headers['x-forwarded-for']);
-    if (xForwardedFor) {
-        const ips = xForwardedFor.split(',').map((ip: string) => ip.trim());
-        for (const ip of ips) {
-            if (ip && !isLocalhost(ip) && !isPrivateIP(ip)) {
-                return ip;
+    const socketIP = req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || '';
+    
+    // 检查是否为直接访问（非代理）
+    const isDirect = !req.headers['x-forwarded-for'] && !req.headers['x-real-ip'];
+    
+    // 如果是直接访问，直接返回socket IP
+    if (isDirect) {
+        return socketIP || 'unknown';
+    }
+    
+    // 如果有代理头，只从可信代理获取真实IP
+    const xRealIP = getFirstHeader(req.headers['x-real-ip']);
+    if (xRealIP && isTrustedProxy(socketIP)) {
+        const cleanIP = xRealIP.replace(/^::ffff:/, '').replace(/:.*$/, '');
+        if (cleanIP && !isLocalhost(cleanIP)) {
+            return cleanIP;
+        }
+    }
+    
+    const cfConnectingIP = getFirstHeader(req.headers['cf-connecting-ip']);
+    if (cfConnectingIP && isTrustedProxy(socketIP)) {
+        const cleanIP = cfConnectingIP.replace(/^::ffff:/, '').replace(/:.*$/, '');
+        if (cleanIP && !isLocalhost(cleanIP)) {
+            return cleanIP;
+        }
+    }
+    
+    // 如果socketIP本身是可信的代理，从X-Forwarded-For获取
+    if (isTrustedProxy(socketIP)) {
+        const xForwardedFor = getFirstHeader(req.headers['x-forwarded-for']);
+        if (xForwardedFor) {
+            const ips = xForwardedFor.split(',').map((ip: string) => ip.trim());
+            // 返回第一个非本地、非私有的IP（即客户端真实IP）
+            for (const ip of ips) {
+                if (ip && !isLocalhost(ip) && !isPrivateIP(ip)) {
+                    return ip;
+                }
+            }
+            // 如果都是私有IP，返回第一个
+            if (ips.length > 0 && ips[0]) {
+                return ips[0];
             }
         }
-        if (ips.length > 0 && ips[0]) {
-            return ips[0];
-        }
     }
-
-    const xRealIP = getFirstHeader(req.headers['x-real-ip']);
-    if (xRealIP && !isLocalhost(xRealIP)) {
-        return xRealIP;
-    }
-
-    const cfConnectingIP = getFirstHeader(req.headers['cf-connecting-ip']);
-    if (cfConnectingIP && !isLocalhost(cfConnectingIP)) {
-        return cfConnectingIP;
-    }
-
-    return req.ip || (req.connection?.remoteAddress) || (req.socket?.remoteAddress) || 'unknown';
+    
+    // 降级：返回socket IP
+    return socketIP || 'unknown';
 }
 
 export function isDirectAccess(req: Request, clientIP: string): boolean {

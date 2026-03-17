@@ -41,10 +41,12 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
 
     console.error('[LogManager] Unexpected error:', err.stack || err);
 
-    // 返回详细错误信息便于调试
+    // 生产环境完全禁用错误详情
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.FORCE_HTTPS === 'true';
+    
     res.status(500).json({
-        error: err.message || '服务器内部错误',
+        error: isProduction ? '服务器内部错误' : err.message || '服务器内部错误',
         code: 'INTERNAL_ERROR',
-        details: process.env.NODE_ENV === 'production' ? undefined : err.stack
+        details: isProduction ? undefined : err.stack
     });
 }

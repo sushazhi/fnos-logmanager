@@ -174,6 +174,7 @@ export interface AppConfig {
     sensitivePatterns: RegExp[];
     passwordFile: string;
     auditLogFile: string;
+    initTimestampFile: string;
 }
 
 export interface PasswordChangeResult {

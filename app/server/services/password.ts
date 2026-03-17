@@ -83,6 +83,42 @@ async function setStoredPassword(hashedPassword: string): Promise<void> {
     await writeFile(config.passwordFile, hashedPassword, { mode: 0o600 });
 }
 
+/**
+ * 获取初始化时间戳（首次设置密码的时间）
+ */
+export async function getInitTimestamp(): Promise<number | null> {
+    try {
+        await stat(config.initTimestampFile);
+        const content = await readFile(config.initTimestampFile, 'utf8');
+        const timestamp = parseInt(content.trim(), 10);
+        return isNaN(timestamp) ? null : timestamp;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * 设置初始化时间戳
+ */
+async function setInitTimestamp(timestamp: number): Promise<void> {
+    await ensureDataDir();
+    await writeFile(config.initTimestampFile, String(timestamp), { mode: 0o600 });
+}
+
+/**
+ * 检查设置密码是否在允许的时间窗口内
+ */
+export async function isSetupAllowed(): Promise<boolean> {
+    const timestamp = await getInitTimestamp();
+    if (!timestamp) {
+        // 没有时间戳，说明还没设置过密码，允许设置
+        return true;
+    }
+    
+    const MAX_SETUP_TIME = 30 * 60 * 1000; // 30分钟
+    return (Date.now() - timestamp) < MAX_SETUP_TIME;
+}
+
 export async function isPasswordSet(): Promise<boolean> {
     const hash = await getStoredPassword();
     return !!hash;
@@ -98,8 +134,17 @@ export async function setupPassword(password: string): Promise<PasswordChangeRes
         return { success: false, message: '密码至少8位' };
     }
 
+    // 检查是否在允许的时间窗口内
+    if (!(await isSetupAllowed())) {
+        return { success: false, message: '初始设置时间已过，请联系管理员' };
+    }
+
     const hashedPassword = await hashPassword(password);
     await setStoredPassword(hashedPassword);
+    
+    // 首次设置密码时保存时间戳
+    await setInitTimestamp(Date.now());
+    
     return { success: true, message: '密码设置成功' };
 }
 

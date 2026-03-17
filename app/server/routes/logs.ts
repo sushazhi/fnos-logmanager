@@ -8,6 +8,7 @@ import { sensitiveActionRateLimit } from '../middleware/rateLimit';
 import { 
     safePath, 
     isAllowedPath, 
+    isSymlinkPath,
     isValidSize, 
     isValidNumber, 
     isValidPattern,

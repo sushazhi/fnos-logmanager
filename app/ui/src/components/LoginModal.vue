@@ -88,7 +88,7 @@
           <label class="checkbox-label">
             <input type="checkbox" v-model="rememberMe" :disabled="loading">
             <span class="checkbox-custom"></span>
-            <span class="checkbox-text">记住密码</span>
+            <span class="checkbox-text">保持登录</span>
           </label>
         </div>
 
@@ -120,68 +120,8 @@ const showPassword = ref(false)
 const passwordInput = ref<HTMLInputElement | null>(null)
 const rememberMe = ref(false)
 
-// 存储键名
-const SESSION_KEY = 'logmanager_session_password'
-const PERSIST_KEY = 'logmanager_remembered_password'
-
-// 简单的编码/解码函数（非加密，仅混淆）
-// 注意：这不是真正的加密，只是增加一层混淆，防止明文存储
-function encodePassword(pwd: string): string {
-  try {
-    // 使用 base64 编码 + 简单的字符替换
-    const encoded = btoa(encodeURIComponent(pwd))
-    // 字符替换增加混淆
-    return encoded.split('').map(c => String.fromCharCode(c.charCodeAt(0) + 1)).join('')
-  } catch {
-    return ''
-  }
-}
-
-function decodePassword(encoded: string): string {
-  try {
-    // 反向字符替换
-    const decoded = encoded.split('').map(c => String.fromCharCode(c.charCodeAt(0) - 1)).join('')
-    return decodeURIComponent(atob(decoded))
-  } catch {
-    return ''
-  }
-}
-
-// 保存密码
-function savePassword(pwd: string): void {
-  const encoded = encodePassword(pwd)
-  sessionStorage.setItem(SESSION_KEY, encoded)
-  localStorage.setItem(PERSIST_KEY, encoded)
-}
-
-// 清除保存的密码
-function clearSavedPassword(): void {
-  sessionStorage.removeItem(SESSION_KEY)
-  localStorage.removeItem(PERSIST_KEY)
-}
-
-// 加载保存的密码
-function loadSavedPassword(): string {
-  // 优先从 sessionStorage 读取（当前会话）
-  const sessionPassword = sessionStorage.getItem(SESSION_KEY)
-  if (sessionPassword) {
-    const decoded = decodePassword(sessionPassword)
-    if (decoded) {
-      return decoded
-    }
-  }
-
-  // 如果 sessionStorage 没有，尝试从 localStorage 读取（持久存储）
-  const savedPassword = localStorage.getItem(PERSIST_KEY)
-  if (savedPassword) {
-    const decoded = decodePassword(savedPassword)
-    if (decoded) {
-      return decoded
-    }
-  }
-
-  return ''
-}
+// 存储键名 - 仅存储"记住我"偏好设置，不存储密码
+const REMEMBER_KEY = 'logmanager_remember_login'
 
 async function handleLogin(): Promise<void> {
   if (!password.value) return
@@ -198,11 +138,12 @@ async function handleLogin(): Promise<void> {
         api.setCSRFToken(data.csrfToken)
       }
 
-      // 保存或清除密码
+      // 仅保存"记住我"偏好设置，不保存密码
+      // 登录状态由服务器 Session 维护
       if (rememberMe.value) {
-        savePassword(password.value)
+        localStorage.setItem(REMEMBER_KEY, 'true')
       } else {
-        clearSavedPassword()
+        localStorage.removeItem(REMEMBER_KEY)
       }
 
       emit('login', data.csrfToken || '')
@@ -217,11 +158,11 @@ async function handleLogin(): Promise<void> {
   }
 }
 
-// 组件挂载时，检查是否有保存的密码
+// 组件挂载时，检查是否有"记住我"设置
 onMounted(() => {
-  const savedPassword = loadSavedPassword()
-  if (savedPassword) {
-    password.value = savedPassword
+  // 恢复"记住我"复选框状态
+  const rememberLogin = localStorage.getItem(REMEMBER_KEY)
+  if (rememberLogin === 'true') {
     rememberMe.value = true
   }
   passwordInput.value?.focus()

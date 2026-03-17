@@ -48,8 +48,44 @@ const SEVERITY_ORDER: Record<EventSeverity, number> = {
 };
 
 /**
+ * 将时间戳转换为本地时间字符串
+ * 处理服务器可能运行在 UTC 时区的情况
+ */
+function formatTimestampToLocal(timestamp: number | string): string {
+    let date: Date;
+    
+    if (typeof timestamp === 'number') {
+        // Unix 时间戳
+        if (timestamp > 1000000000000) {
+            // 毫秒
+            date = new Date(timestamp);
+        } else if (timestamp > 1000000000) {
+            // 秒
+            date = new Date(timestamp * 1000);
+        } else {
+            // 其他数字格式，尝试直接转换
+            date = new Date(timestamp);
+        }
+    } else {
+        // 字符串格式
+        date = new Date(timestamp);
+    }
+    
+    // 使用 toLocaleString 确保使用系统本地时区
+    // 格式: YYYY-MM-DD HH:mm:ss
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+/**
  * 格式化 template 格式的日志消息
- * 支持的模板: LoginSucc, LoginFail, Logout, DiskWakeup, DiskSpindown 等
+ * 支持的模板: LoginSucc, LoginFail, Logout, DiskWakeup, DiskSpindown, DeleteFile, CreateFile 等
  */
 function formatTemplateMessage(param: any): string {
     const template = param.template;
@@ -91,6 +127,16 @@ function formatTemplateMessage(param: any): string {
         'AppUpdate': (p) => `应用${p.app || '未知'}已更新`,
         'AppStart': (p) => `应用${p.app || '未知'}已启动`,
         'AppStop': (p) => `应用${p.app || '未知'}已停止`,
+        
+        // 文件管理器相关
+        'DeleteFile': (p) => `删除"${p.FILE || p.file || '未知'}"`,
+        'CreateFile': (p) => `创建"${p.FILE || p.file || '未知'}"`,
+        'MoveFile': (p) => `移动"${p.SRC || p.src || '未知'}" 到 "${p.DST || p.dst || '未知'}"`,
+        'CopyFile': (p) => `复制"${p.SRC || p.src || '未知'}" 到 "${p.DST || p.dst || '未知'}"`,
+        'RenameFile': (p) => `重命名"${p.OLD || p.old || '未知'}" 为 "${p.NEW || p.new || '未知'}"`,
+        'Mkdir': (p) => `创建目录"${p.FILE || p.file || p.dir || '未知'}"`,
+        'UploadFile': (p) => `上传"${p.FILE || p.file || '未知'}"`,
+        'DownloadFile': (p) => `下载"${p.FILE || p.file || '未知'}"`,
     };
     
     const formatter = templateMessages[template];
@@ -317,7 +363,16 @@ function queryEvents(request: GetEventsRequest): EventLogEntry[] {
         const tableNames = tablesResult[0].values.map((row: any) => row[0]);
         let events: any[] = [];
         
+        // 表名安全验证正则：只允许字母、数字、下划线
+        const VALID_TABLE_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+        
         for (const tableName of tableNames) {
+            // 安全检查：验证表名格式，防止 SQL 注入
+            if (!VALID_TABLE_PATTERN.test(tableName)) {
+                console.warn(`[EventLogger] 跳过无效表名: ${tableName}`);
+                continue;
+            }
+            
             try {
                 // Get column info
                 const columnsResult = db.exec(`PRAGMA table_info(${tableName})`);
@@ -448,26 +503,26 @@ function queryEvents(request: GetEventsRequest): EventLogEntry[] {
                 k.toLowerCase().includes('user')
             );
 
-            // 处理时间戳 - 可能是Unix时间戳
+            // 处理时间戳 - 可能是Unix时间戳或字符串
             let timestampValue = row[timestampKey || 'timestamp'];
+            
             if (typeof timestampValue === 'number' && timestampValue > 1000000000) {
-                // Unix时间戳（秒）- 转换为本地时间字符串
-                const date = new Date(timestampValue * 1000);
-                timestampValue = date.getFullYear() + '-' + 
-                    String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                    String(date.getDate()).padStart(2, '0') + ' ' + 
-                    String(date.getHours()).padStart(2, '0') + ':' + 
-                    String(date.getMinutes()).padStart(2, '0') + ':' + 
-                    String(date.getSeconds()).padStart(2, '0');
+                // 飞牛系统的数据库存储的是本地时间戳（东八区），不是 UTC 时间戳
+                // 直接在时间戳上加 8 小时偏移来修正
+                const adjustedTimestamp = timestampValue + (8 * 3600); // 加 8 小时（秒）
+                const date = new Date(adjustedTimestamp * 1000);
+                timestampValue = date.toISOString();
             } else if (typeof timestampValue === 'number' && timestampValue > 1000000000000) {
-                // Unix时间戳（毫秒）
-                const date = new Date(timestampValue);
-                timestampValue = date.getFullYear() + '-' + 
-                    String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                    String(date.getDate()).padStart(2, '0') + ' ' + 
-                    String(date.getHours()).padStart(2, '0') + ':' + 
-                    String(date.getMinutes()).padStart(2, '0') + ':' + 
-                    String(date.getSeconds()).padStart(2, '0');
+                // Unix时间戳（毫秒）- 同样处理
+                const adjustedTimestamp = timestampValue + (8 * 3600 * 1000); // 加 8 小时（毫秒）
+                const date = new Date(adjustedTimestamp);
+                timestampValue = date.toISOString();
+            } else if (typeof timestampValue === 'string') {
+                // 字符串格式的时间，尝试解析并转换为 ISO 格式
+                const parsed = new Date(timestampValue);
+                if (!isNaN(parsed.getTime())) {
+                    timestampValue = parsed.toISOString();
+                }
             }
 
             // 处理消息 - 可能是剩余的所有字段
@@ -559,6 +614,9 @@ function queryEvents(request: GetEventsRequest): EventLogEntry[] {
 function getLatestEventId(): number {
     if (!db) return 0;
     
+    // 表名安全验证正则
+    const VALID_TABLE_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+    
     try {
         const tablesResult = db.exec(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -569,6 +627,11 @@ function getLatestEventId(): number {
         const tableNames = tablesResult[0].values.map((row: any) => row[0]);
         
         for (const tableName of tableNames) {
+            // 安全检查：验证表名格式
+            if (!VALID_TABLE_PATTERN.test(tableName)) {
+                continue;
+            }
+            
             try {
                 const columnsResult = db.exec(`PRAGMA table_info(${tableName})`);
                 if (columnsResult.length === 0) continue;
@@ -607,6 +670,9 @@ function getNewEvents(): EventLogEntry[] {
     // Query events with ID > lastEventId
     if (!db) return [];
     
+    // 表名安全验证正则
+    const VALID_TABLE_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+    
     try {
         const tablesResult = db.exec(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -617,6 +683,11 @@ function getNewEvents(): EventLogEntry[] {
         const tableNames = tablesResult[0].values.map((row: any) => row[0]);
         
         for (const tableName of tableNames) {
+            // 安全检查：验证表名格式
+            if (!VALID_TABLE_PATTERN.test(tableName)) {
+                continue;
+            }
+            
             try {
                 const columnsResult = db.exec(`PRAGMA table_info(${tableName})`);
                 if (columnsResult.length === 0) continue;
@@ -679,23 +750,21 @@ function getNewEvents(): EventLogEntry[] {
                             // 处理时间戳
                             let timestampValue = row[timestampKey || 'timestamp'];
                             if (typeof timestampValue === 'number' && timestampValue > 1000000000) {
-                                // Unix时间戳（秒）- 转换为本地时间字符串
-                                const date = new Date(timestampValue * 1000);
-                                timestampValue = date.getFullYear() + '-' + 
-                                    String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                                    String(date.getDate()).padStart(2, '0') + ' ' + 
-                                    String(date.getHours()).padStart(2, '0') + ':' + 
-                                    String(date.getMinutes()).padStart(2, '0') + ':' + 
-                                    String(date.getSeconds()).padStart(2, '0');
+                                // 飞牛系统的数据库存储的是本地时间戳，加 8 小时偏移
+                                const adjustedTimestamp = timestampValue + (8 * 3600);
+                                const date = new Date(adjustedTimestamp * 1000);
+                                timestampValue = date.toISOString();
                             } else if (typeof timestampValue === 'number' && timestampValue > 1000000000000) {
                                 // Unix时间戳（毫秒）
-                                const date = new Date(timestampValue);
-                                timestampValue = date.getFullYear() + '-' + 
-                                    String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                                    String(date.getDate()).padStart(2, '0') + ' ' + 
-                                    String(date.getHours()).padStart(2, '0') + ':' + 
-                                    String(date.getMinutes()).padStart(2, '0') + ':' + 
-                                    String(date.getSeconds()).padStart(2, '0');
+                                const adjustedTimestamp = timestampValue + (8 * 3600 * 1000);
+                                const date = new Date(adjustedTimestamp);
+                                timestampValue = date.toISOString();
+                            } else if (typeof timestampValue === 'string') {
+                                // 字符串格式的时间，尝试解析并转换为 ISO 格式
+                                const parsed = new Date(timestampValue);
+                                if (!isNaN(parsed.getTime())) {
+                                    timestampValue = parsed.toISOString();
+                                }
                             }
 
             // 处理消息

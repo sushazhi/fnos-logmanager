@@ -301,6 +301,18 @@ async function performCheck(): Promise<void> {
         
         // 处理每个文件
         for (const logFile of logFiles) {
+            // 排除日志管理器的运行日志文件，避免循环通知
+            // 当 EventLogger 发送通知后，会写入 info.log/error.log，LogMonitor 不应再次触发通知
+            // 但保留 audit.log 的监控，因为审计日志是用户操作记录，需要监控
+            if (logFile.appName === 'logmanager') {
+                const fileName = logFile.path.split('/').pop() || '';
+                // 只排除运行日志，保留审计日志
+                if (fileName === 'info.log' || fileName === 'error.log' || 
+                    fileName.startsWith('info.log.') || fileName.startsWith('error.log.')) {
+                    continue;
+                }
+            }
+            
             try {
                 await processLogFile(logFile.path, logFile.appName ?? null);
             } catch (err) {

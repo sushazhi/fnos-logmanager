@@ -29,8 +29,8 @@
             </div>
             <div v-if="updateInfo.changelog" class="changelog">
               <h4>更新内容：</h4>
-              <!-- eslint-disable-next-line vue/no-v-html -->
-              <div class="changelog-content" v-html="updateInfo.changelog"></div>
+              <!-- 使用 DOMPurify 清理后的安全 HTML -->
+              <div class="changelog-content" v-html="safeChangelog"></div>
             </div>
             <div class="update-actions">
               <button class="btn-primary" @click="startUpdate">
@@ -67,9 +67,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUpdate } from '../composables/useUpdate'
 import { showNotification } from '../utils/notification'
+import DOMPurify from 'dompurify'
 
 const {
   appVersion,
@@ -83,6 +84,15 @@ const {
 
 const checking = ref(false)
 const showDialog = ref(false)
+
+// 安全清理 changelog HTML，防止 XSS
+const safeChangelog = computed(() => {
+  if (!updateInfo.value?.changelog) return ''
+  return DOMPurify.sanitize(updateInfo.value.changelog, {
+    ALLOWED_TAGS: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'h1', 'h2', 'h3', 'h4', 'code', 'pre'],
+    ALLOWED_ATTR: ['href', 'target', 'rel']
+  })
+})
 
 // 检查更新
 async function check() {

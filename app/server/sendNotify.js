@@ -1577,7 +1577,13 @@ async function getQQGatewayUrl(accessToken) {
 }
 
 // QQ Bot intents
-const QQ_INTENT_GROUP_AND_C2C = 1 << 25;
+// 参考: https://bot.q.qq.com/wiki/develop/api/gateway/intents.html
+const QQ_INTENT_PUBLIC_GUILD_MESSAGES = 1 << 3;  // 公域消息事件
+const QQ_INTENT_GUILD_MESSAGES = 1 << 9;          // 频道消息事件
+const QQ_INTENT_GROUP_AND_C2C = 1 << 25;          // 群聊和私聊事件
+
+// 组合所有消息相关的 intents
+const QQ_INTENT_ALL_MESSAGES = QQ_INTENT_PUBLIC_GUILD_MESSAGES | QQ_INTENT_GUILD_MESSAGES | QQ_INTENT_GROUP_AND_C2C;
 
 /**
  * 启动QQ openid监听器（需要安装 ws 库: npm install ws）
@@ -1608,8 +1614,6 @@ async function startQQOpenidListener(appId, appSecret) {
   }
 
   console.log('QQ机器人: 正在连接Gateway...');
-  console.log('QQ机器人: (监听60秒，请让用户给机器人发消息)');
-  console.log('============================================================');
 
   return new Promise((resolve) => {
     const ws = new WebSocket(gatewayUrl);
@@ -1652,7 +1656,6 @@ async function startQQOpenidListener(appId, appSecret) {
 
       if (op === 10) { // Hello
         const heartbeatInterval = d.heartbeat_interval || 30000;
-        console.log(`QQ机器人: 收到Hello, 心跳间隔=${heartbeatInterval}ms`);
 
         // Identify
         const identify = {
@@ -1665,7 +1668,6 @@ async function startQQOpenidListener(appId, appSecret) {
         };
         ws.send(JSON.stringify(identify));
         identified = true;
-        console.log('QQ机器人: 已发送认证，等待READY...');
 
         // 启动心跳
         const sendHeartbeat = () => {
@@ -1677,7 +1679,7 @@ async function startQQOpenidListener(appId, appSecret) {
         heartbeatTimer = setTimeout(sendHeartbeat, heartbeatInterval);
       } else if (op === 0) { // Dispatch
         if (t === 'READY') {
-          console.log('QQ机器人: 认证成功！等待消息...\n');
+          console.log('QQ机器人: 认证成功！等待消息...');
         } else if (t === 'C2C_MESSAGE_CREATE') {
           const author = d.author || {};
           const userOpenid = author.user_openid || '';
@@ -1711,6 +1713,56 @@ async function startQQOpenidListener(appId, appSecret) {
 
           cleanup();
           resolve();
+        } else if (t === 'GROUP_MESSAGE_CREATE') {
+          // 群消息（不需要@）
+          const groupOpenid = d.group_openid || '';
+          const author = d.author || {};
+          const msgContent = (d.content || '').trim();
+
+          console.log('\n============================================================');
+          console.log('收到群消息（非@）');
+          console.log('============================================================');
+          console.log(`群 openid: ${groupOpenid}`);
+          console.log(`发送者: ${author.user_openid || '未知'}`);
+          console.log(`消息内容: ${msgContent}`);
+          console.log('------------------------------------------------------------');
+          console.log('如需使用此群，请将以下配置添加到环境变量：');
+          console.log(`  export QQ_GROUP_OPENID="${groupOpenid}"`);
+          console.log('============================================================\n');
+
+          cleanup();
+          resolve();
+        } else if (t === 'DIRECT_MESSAGE_CREATE') {
+          // 频道私信
+          const author = d.author || {};
+          const userOpenid = author.user_openid || '';
+          const msgContent = (d.content || '').trim();
+
+          console.log('\n============================================================');
+          console.log('收到频道私信');
+          console.log('============================================================');
+          console.log(`用户 openid: ${userOpenid}`);
+          console.log(`消息内容: ${msgContent}`);
+          console.log('------------------------------------------------------------');
+          console.log('请将以下配置添加到环境变量：');
+          console.log(`  export QQ_OPENID="${userOpenid}"`);
+          console.log('============================================================\n');
+
+          cleanup();
+          resolve();
+        } else if (t === 'AT_MESSAGE_CREATE') {
+          // 频道@消息
+          const channelId = d.channel_id || '';
+          const author = d.author || {};
+          const msgContent = (d.content || '').trim();
+
+          console.log('\n============================================================');
+          console.log('收到频道@消息');
+          console.log('============================================================');
+          console.log(`频道 ID: ${channelId}`);
+          console.log(`用户 openid: ${author.user_openid || '未知'}`);
+          console.log(`消息内容: ${msgContent}`);
+          console.log('============================================================\n');
         }
       } else if (op === 11) { // Heartbeat ACK
         // 心跳响应，忽略
@@ -1761,7 +1813,6 @@ function qqBotNotify(text, desp) {
     if (targets.length === 0) {
       // 未配置接收者时，启动监听模式获取openid
       console.log('QQ机器人: 未配置接收者，启动监听模式获取openid...');
-      console.log('QQ机器人: 请让用户给机器人发送消息，获取到openid后会自动配置');
       await startQQOpenidListener(QQ_APP_ID, QQ_APP_SECRET);
       resolve();
       return;
@@ -1778,7 +1829,6 @@ function qqBotNotify(text, desp) {
         try {
           await sendQQMessage(accessToken, target.id, content, target.isGroup, true);
           successCount++;
-          console.log(`QQ机器人: 消息已发送到 ${target.isGroup ? '群' : '用户'} ${target.id}`);
         } catch (err) {
           const errMsg = err.message || String(err);
           // 如果Markdown不可用，回退到纯文本
@@ -1787,7 +1837,6 @@ function qqBotNotify(text, desp) {
               const plainContent = `【${text}】\n\n${desp}`;
               await sendQQMessage(accessToken, target.id, plainContent, target.isGroup, false);
               successCount++;
-              console.log(`QQ机器人: Markdown不可用，已回退纯文本发送至 ${target.id}`);
             } catch (fallbackErr) {
               console.log(`QQ机器人: 发送失败 (${target.id}): ${fallbackErr}`);
             }

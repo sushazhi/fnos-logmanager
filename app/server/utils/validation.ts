@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 
 export function safePath(inputPath: string): string | null {
     if (!inputPath || typeof inputPath !== 'string') return null;
@@ -31,12 +32,69 @@ export function safePath(inputPath: string): string | null {
     return normalized;
 }
 
+/**
+ * 检查路径是否为符号链接，或是否在符号链接之后
+ */
+export function isSymlinkPath(filePath: string): boolean {
+    try {
+        const stats = fs.lstatSync(filePath);
+        if (stats.isSymbolicLink()) {
+            return true;
+        }
+        
+        // 检查父目录是否为符号链接
+        const parentDir = path.dirname(filePath);
+        if (parentDir !== filePath) {
+            try {
+                const parentStats = fs.lstatSync(parentDir);
+                if (parentStats.isSymbolicLink()) {
+                    return true;
+                }
+            } catch {
+                // 忽略错误
+            }
+        }
+        return false;
+    } catch {
+        // 文件不存在或其他错误
+        return false;
+    }
+}
+
+/**
+ * 检查解析后的路径是否与原始路径一致（防止符号链接绕过）
+ */
+export function resolvePath(inputPath: string): string | null {
+    const safe = safePath(inputPath);
+    if (!safe) return null;
+    
+    try {
+        const resolved = path.resolve(safe);
+        // 检查符号链接
+        if (isSymlinkPath(resolved)) {
+            return null;
+        }
+        return resolved;
+    } catch {
+        return null;
+    }
+}
+
 export function isAllowedPath(inputPath: string, allowedDirs: string[]): boolean {
     if (!inputPath) return false;
     const normalized = safePath(inputPath);
     if (!normalized) return false;
+    
+    // 检查符号链接
+    if (isSymlinkPath(normalized)) {
+        return false;
+    }
 
     for (const allowedDir of allowedDirs) {
+        // 也检查允许目录本身是否为符号链接
+        if (isSymlinkPath(allowedDir)) {
+            continue;
+        }
         if (normalized === allowedDir || normalized.startsWith(allowedDir + '/')) {
             return true;
         }

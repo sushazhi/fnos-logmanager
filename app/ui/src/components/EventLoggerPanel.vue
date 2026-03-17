@@ -188,9 +188,25 @@ function formatSeverity(severity: string): string {
 
 function formatTime(timestamp: string): string {
   if (!timestamp) return ''
-  // 后端已经返回了本地时间字符串，直接返回即可
-  // 避免重复时区转换导致时间偏移
-  return timestamp
+  // 使用和审计日志相同的方式格式化时间
+  // 这样可以正确处理时区转换
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) {
+    // 如果解析失败，直接返回原始字符串
+    console.log('[EventLogger] 时间解析失败:', timestamp)
+    return timestamp
+  }
+  const formatted = date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).replace(/\//g, '-')
+  console.log('[EventLogger] 时间格式化:', { 原始: timestamp, 解析后: date.toString(), 格式化: formatted })
+  return formatted
 }
 
 async function loadData() {
@@ -379,6 +395,8 @@ onMounted(() => {
 .status-detail {
   font-size: 0.8125rem;
   color: var(--text-color-2);
+  word-break: break-all;
+  line-height: 1.4;
 }
 
 .status-error {

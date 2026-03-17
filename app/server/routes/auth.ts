@@ -47,13 +47,11 @@ router.post('/setup', validate([
             return;
         }
 
-        const uptime = process.uptime();
-        const maxSetupTime = 30 * 60;
-
-        if (uptime > maxSetupTime) {
+        // 使用持久化时间戳检查（替代进程运行时间）
+        if (!(await passwordService.isSetupAllowed())) {
             res.status(403).json({
                 success: false,
-                error: '初始设置时间已过'
+                error: '初始设置时间已过，请联系管理员'
             });
             return;
         }

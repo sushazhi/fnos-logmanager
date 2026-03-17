@@ -3,6 +3,9 @@ import path from 'path';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 
+// 设置时区为东八区（中国标准时间）
+process.env.TZ = 'Asia/Shanghai';
+
 import config from './utils/config';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler';
 import { 

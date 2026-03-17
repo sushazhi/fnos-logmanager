@@ -270,11 +270,11 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>静默时段开始</label>
+              <label>免打扰开始时间</label>
               <input type="time" v-model="newRule.quietHoursStart">
             </div>
             <div class="form-group">
-              <label>静默时段结束</label>
+              <label>免打扰结束时间</label>
               <input type="time" v-model="newRule.quietHoursEnd">
             </div>
           </div>
@@ -574,8 +574,8 @@ function getFieldHelpUrl(field: string): string | undefined {
 
 function getFieldHint(field: string): string | undefined {
   const hints: Record<string, string> = {
-    qqOpenId: '留空，保存后给机器人发消息可自动获取',
-    qqGroupOpenId: '留空，保存后给机器人发消息可自动获取'
+    qqOpenId: '留空，保存后点击测试，给机器人发消息可自动获取',
+    qqGroupOpenId: '留空，保存后点击测试，给机器人发消息可自动获取'
   }
   return hints[field]
 }

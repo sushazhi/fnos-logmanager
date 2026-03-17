@@ -96,11 +96,13 @@ const config: AppConfig = {
         /eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_.+/]*/g
     ],
     passwordFile: '',
-    auditLogFile: ''
+    auditLogFile: '',
+    initTimestampFile: ''
 };
 
 config.passwordFile = path.join(config.dataDir, '.password');
 config.auditLogFile = path.join(config.dataDir, 'audit.log');
+config.initTimestampFile = path.join(config.dataDir, '.init-time');
 
 const configFile = path.join(config.dataDir, 'config', 'config.json');
 try {

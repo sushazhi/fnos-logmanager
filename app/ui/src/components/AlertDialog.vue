@@ -86,16 +86,47 @@ function cancel() {
 }
 
 function copyToClipboard() {
-  if (props.copyText) {
+  if (!props.copyText) return
+  
+  // 检查是否支持现代 Clipboard API
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
     navigator.clipboard.writeText(props.copyText).then(() => {
       copied.value = true
       setTimeout(() => {
         copied.value = false
       }, 2000)
-    }).catch(() => {
-      // 复制失败
+    }).catch((err) => {
+      console.error('复制失败:', err)
+      // 尝试备用方案
+      fallbackCopy()
     })
+  } else {
+    // 不支持现代 API，使用备用方案
+    fallbackCopy()
   }
+}
+
+function fallbackCopy() {
+  const textArea = document.createElement('textarea')
+  textArea.value = props.copyText || ''
+  textArea.style.position = 'fixed'
+  textArea.style.left = '-9999px'
+  textArea.style.top = '0'
+  document.body.appendChild(textArea)
+  textArea.focus()
+  textArea.select()
+  try {
+    const success = document.execCommand('copy')
+    if (success) {
+      copied.value = true
+      setTimeout(() => {
+        copied.value = false
+      }, 2000)
+    }
+  } catch (err) {
+    console.error('复制失败:', err)
+  }
+  document.body.removeChild(textArea)
 }
 </script>
 

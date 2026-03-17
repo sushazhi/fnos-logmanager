@@ -198,14 +198,30 @@ async function callSendNotify(title: string, content: string, envConfig: Record<
             const openidMatch = stdout.match(/用户 openid:\s*([a-zA-Z0-9_-]+)/);
             const groupOpenidMatch = stdout.match(/群 openid:\s*([a-zA-Z0-9_-]+)/);
 
+            // 检查是否有错误标志
+            const hasError = stdout.includes('会话无效') || 
+                            stdout.includes('监听结束（60秒超时）') ||
+                            stdout.includes('WebSocket错误') ||
+                            stdout.includes('连接已关闭') ||
+                            code !== 0;
+
             const result: { success: boolean; openid?: string; groupOpenid?: string; error?: string } = {
-                success: code === 0,
+                success: !hasError && (openidMatch !== null || groupOpenidMatch !== null || code === 0),
                 openid: openidMatch ? openidMatch[1] : undefined,
                 groupOpenid: groupOpenidMatch ? groupOpenidMatch[1] : undefined
             };
 
-            if (code !== 0) {
-                result.error = stderr || stdout || `进程退出码: ${code}`;
+            if (hasError) {
+                // 提取错误信息
+                if (stdout.includes('会话无效')) {
+                    result.error = 'QQ机器人: 会话无效，请检查 intents 权限配置';
+                } else if (stdout.includes('监听结束（60秒超时）')) {
+                    result.error = 'QQ机器人: 60秒内未收到消息，请确保已给机器人发送消息';
+                } else if (stdout.includes('WebSocket错误')) {
+                    result.error = 'QQ机器人: WebSocket 连接错误';
+                } else if (code !== 0) {
+                    result.error = stderr || stdout || `进程退出码: ${code}`;
+                }
             }
 
             resolve(result);
