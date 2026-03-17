@@ -15,7 +15,22 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
 
     const host = req.headers.host || '';
     const hostBase = host.split(':')[0];
-    const frameAncestors = `'self' http://${hostBase}:* https://${hostBase}:*`;
+    // 判断是否为 IP 地址（纯数字和点组成）
+    const isIpAddress = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostBase);
+    
+    // 构建 frame-ancestors
+    let frameAncestors: string;
+    if (isIpAddress) {
+        // IP 地址：允许该 IP 的所有端口（http 和 https）
+        frameAncestors = `'self' http://${hostBase}:* https://${hostBase}:* https://*.5ddd.com http://*.5ddd.com`;
+    } else {
+        // 域名提取主域名支持子域名通配符
+        const domainParts = hostBase.split('.');
+        const mainDomain = domainParts.length >= 2 
+            ? domainParts.slice(-2).join('.') 
+            : hostBase;
+        frameAncestors = `'self' https://*.${mainDomain} http://*.${mainDomain} https://*.5ddd.com http://*.5ddd.com`;
+    }
 
     const cspNonce = crypto.randomBytes(16).toString('base64');
     res.locals.cspNonce = cspNonce;
