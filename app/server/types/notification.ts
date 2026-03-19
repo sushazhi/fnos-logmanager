@@ -127,12 +127,14 @@ export interface NotificationRule {
 
     // 监控目标
     appName: string;           // 应用名称，支持通配符 *
+    sources?: string[];        // 来源应用列表（系统日志监控用）
     logPaths?: string[];       // 指定日志文件路径（可选）
 
     // 触发条件
     logLevel: LogLevel;        // 日志级别
     keywords?: string[];       // 关键词匹配（可选，多个关键词为OR关系）
     excludeKeywords?: string[];// 排除关键词（可选，匹配则不通知）
+    excludeSources?: string[]; // 排除来源（可选，匹配则不通知）
     pattern?: string;          // 正则表达式匹配（可选）
 
     // 通知配置

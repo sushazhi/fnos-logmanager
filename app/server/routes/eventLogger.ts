@@ -87,6 +87,19 @@ router.get('/stats', validateToken, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/eventlogger/sources
+ * Get available sources (app names)
+ */
+router.get('/sources', validateToken, async (req: Request, res: Response) => {
+    try {
+        const sources = eventLoggerService.getSources();
+        res.json(sources);
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+    }
+});
+
+/**
  * GET /api/eventlogger/events
  * Get events with filtering
  */

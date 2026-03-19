@@ -242,7 +242,11 @@ export const eventLoggerApi = {
   
   restart: () => api.post<EventLoggerStatus>('/api/eventlogger/restart'),
   
-  check: () => api.post<{ success: boolean }>('/api/eventlogger/check')
+  check: () => api.post<{ success: boolean }>('/api/eventlogger/check'),
+  
+  getSources: () => api.get<string[]>('/api/eventlogger/sources'),
+  
+  getAppNames: () => api.get<string[]>('/api/appnames')
 }
 
 export default api

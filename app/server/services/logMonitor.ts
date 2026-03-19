@@ -268,6 +268,7 @@ async function processLogFile(filePath: string, appName: string | null): Promise
 
 // 执行一次检查
 async function performCheck(): Promise<void> {
+    const checkStartTime = Date.now();
     lastCheckTime = new Date();
     errors = [];
     
@@ -318,11 +319,18 @@ async function performCheck(): Promise<void> {
             } catch (err) {
                 const error = err as Error;
                 errors.push(`${logFile.path}: ${error.message}`);
+                console.error(`[LogMonitor] 处理文件失败 ${logFile.path}:`, error);
             }
         }
         
         // 清理频率控制缓存
         notificationStore.cleanupFrequencyCache();
+        
+        const checkDuration = Date.now() - checkStartTime;
+        if (checkDuration > 1000 || errors.length > 0) {
+            console.log(`[LogMonitor] 检查完成，耗时 ${checkDuration}ms，监控 ${logFiles.length} 个文件，错误 ${errors.length} 个`);
+        }
+        
     } catch (err) {
         const error = err as Error;
         errors.push(`检查失败: ${error.message}`);
@@ -337,8 +345,12 @@ export async function init(): Promise<void> {
     
     // 如果通知功能已启用，自动启动监控
     const settings = notificationStore.getSettings();
+    console.log(`[LogMonitor] 通知功能状态: enabled=${settings.enabled}, checkInterval=${settings.checkInterval}ms`);
+    
     if (settings.enabled) {
         await start();
+    } else {
+        console.log('[LogMonitor] 通知功能未启用，监控服务未启动。可通过API /api/notifications/settings 启用');
     }
     
     console.log('[LogMonitor] 监控服务初始化完成');
@@ -352,9 +364,11 @@ export async function start(): Promise<void> {
     }
     
     const settings = notificationStore.getSettings();
+    
+    // 即使配置未启用，也允许启动监控（用于手动启动）
+    // 但会记录警告日志
     if (!settings.enabled) {
-        console.log('[LogMonitor] 通知功能未启用');
-        return;
+        console.log('[LogMonitor] 警告: 通知功能未启用，但监控服务将启动。建议在设置中启用通知功能');
     }
     
     isRunning = true;
@@ -367,8 +381,16 @@ export async function start(): Promise<void> {
     // 立即执行一次检查
     await performCheck();
     
-    // 设置定时检查
-    checkInterval = setInterval(performCheck, settings.checkInterval);
+    // 设置定时检查，添加错误处理
+    checkInterval = setInterval(async () => {
+        try {
+            await performCheck();
+        } catch (err) {
+            console.error('[LogMonitor] 定时检查错误:', err);
+        }
+    }, settings.checkInterval);
+    
+    console.log('[LogMonitor] 监控启动成功');
 }
 
 // 停止

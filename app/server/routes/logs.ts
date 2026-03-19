@@ -79,6 +79,15 @@ router.get('/dirs', validateToken, async (_req: Request, res: Response, next: Ne
     }
 });
 
+router.get('/appnames', validateToken, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+        const appNames = await logFileService.getAppNames();
+        res.json(appNames);
+    } catch (err) {
+        next(err);
+    }
+});
+
 router.get('/logs/list', validateToken, [
     query('dir').optional().isString().isLength({ max: MAX_PATH_LENGTH }),
     query('limit').optional().isInt({ min: 1, max: 500 })

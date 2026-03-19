@@ -154,6 +154,37 @@ async function findFiles(dir: string, filterFn: (name: string) => boolean, limit
     return results;
 }
 
+/**
+ * Get all unique app names from log files
+ */
+export async function getAppNames(): Promise<string[]> {
+    const appNames = new Set<string>();
+    
+    for (const dir of config.logDirs) {
+        const normalizedDir = safePath(dir);
+        if (!normalizedDir || !fs.existsSync(normalizedDir)) continue;
+        
+        const files = await findFiles(normalizedDir, isLogFile, 10000);
+        
+        for (const file of files) {
+            try {
+                const stats = await stat(file);
+                // 过滤掉大小为 0 的日志文件
+                if (stats.size === 0) continue;
+                
+                const appName = extractAppNameFromPath(file);
+                if (appName) {
+                    appNames.add(appName);
+                }
+            } catch {
+                // 忽略无法访问的文件
+            }
+        }
+    }
+    
+    return Array.from(appNames).sort();
+}
+
 export async function listLogFiles(dir?: string, limit: number = 100): Promise<LogFile[]> {
     const searchDirs = dir ? [dir] : config.logDirs;
     const results: LogFile[] = [];

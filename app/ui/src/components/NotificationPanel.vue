@@ -219,9 +219,29 @@
             <input type="text" v-model="newRule.name" placeholder="请输入规则名称">
           </div>
           <div class="form-group">
-            <label>应用名称 (支持通配符和正则)</label>
-            <input type="text" v-model="newRule.appName" placeholder="如: nginx, app-*, regex:^web">
-            <div class="hint">支持: * (所有), 通配符 (app-*), 正则 (regex:pattern 或 /pattern/flags)</div>
+            <label>监控应用</label>
+            <div class="dropdown-select" :class="{ open: showAppDropdown }">
+              <div class="dropdown-trigger" @click="showAppDropdown = !showAppDropdown">
+                <span class="dropdown-text">{{ selectedAppsText }}</span>
+                <span class="dropdown-arrow">▼</span>
+              </div>
+              <div class="dropdown-menu" v-if="showAppDropdown">
+                <label class="dropdown-item">
+                  <input type="checkbox" :checked="isAllAppsSelected" @change="toggleAllApps">
+                  <span>所有应用</span>
+                </label>
+                <label class="dropdown-item">
+                  <input type="checkbox" :checked="selectedApps.includes('eventlogger')" @change="toggleAppSelect('eventlogger')">
+                  <span>系统日志</span>
+                </label>
+                <div class="dropdown-divider" v-if="appNames.length > 0"></div>
+                <label class="dropdown-item" v-for="app in appNames" :key="app">
+                  <input type="checkbox" :checked="selectedApps.includes(app)" @change="toggleAppSelect(app)">
+                  <span>{{ app }}</span>
+                </label>
+              </div>
+            </div>
+            <div class="hint" v-if="selectedApps.includes('eventlogger')">系统日志：监控飞牛系统事件（登录、硬盘、应用操作等）</div>
           </div>
           <div class="form-group">
             <label>日志级别</label>
@@ -309,8 +329,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import api from '../services/api'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import api, { eventLoggerApi } from '../services/api'
 import AlertDialog from './AlertDialog.vue'
 
 interface NotificationSettings {
@@ -332,6 +352,8 @@ interface NotificationRule {
   name: string
   status: string
   appName: string
+  sources?: string[]
+  excludeSources?: string[]
   logLevel: string
   keywords?: string[]
   excludeKeywords?: string[]
@@ -390,6 +412,9 @@ const showAddChannel = ref(false)
 const showAddRule = ref(false)
 const editingRule = ref<NotificationRule | null>(null)
 const editingChannel = ref<ChannelConfig | null>(null)
+
+// 定时刷新器
+let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 // 弹窗状态
 const alertVisible = ref(false)
@@ -457,6 +482,45 @@ function toggleChannel(channelName: string) {
   }
 }
 
+function toggleSource(source: string): void {
+  if (!newRule.value.sources) newRule.value.sources = []
+  const index = newRule.value.sources.indexOf(source)
+  if (index > -1) {
+    newRule.value.sources.splice(index, 1)
+  } else {
+    newRule.value.sources.push(source)
+  }
+}
+
+function toggleExcludeSource(source: string): void {
+  if (!newRule.value.excludeSources) newRule.value.excludeSources = []
+  const index = newRule.value.excludeSources.indexOf(source)
+  if (index > -1) {
+    newRule.value.excludeSources.splice(index, 1)
+  } else {
+    newRule.value.excludeSources.push(source)
+  }
+}
+
+function onAppNameChange(): void {
+  // 切换应用名称时清空 sources
+  newRule.value.sources = []
+  newRule.value.excludeSources = []
+  // 如果选择了系统日志，加载来源列表
+  if (newRule.value.appName === 'eventlogger' && eventSources.value.length === 0) {
+    loadEventSources()
+  }
+}
+
+async function loadEventSources(): Promise<void> {
+  try {
+    const sources = await eventLoggerApi.getSources()
+    eventSources.value = sources
+  } catch (e) {
+    console.error('Failed to load event sources:', e)
+  }
+}
+
 const newChannel = ref<{
   channel: string
   name: string
@@ -470,6 +534,8 @@ const newChannel = ref<{
 const newRule = ref<{
   name: string
   appName: string
+  sources?: string[]
+  excludeSources?: string[]
   logLevel: string
   channels: string[]
   cooldown: number
@@ -479,6 +545,8 @@ const newRule = ref<{
 }>({
   name: '',
   appName: '*',
+  sources: [],
+  excludeSources: [],
   logLevel: 'error',
   channels: [],
   cooldown: 60,
@@ -486,6 +554,58 @@ const newRule = ref<{
   quietHoursStart: '',
   quietHoursEnd: ''
 })
+
+const eventSources = ref<string[]>([])
+const appNames = ref<string[]>([])
+const selectedApps = ref<string[]>([])
+const showAppDropdown = ref(false)
+
+const selectedAppsText = computed(() => {
+  if (selectedApps.value.length === 0) {
+    return '请选择应用'
+  }
+  if (isAllAppsSelected.value) {
+    return '所有应用'
+  }
+  if (selectedApps.value.length === 1) {
+    return selectedApps.value[0] === 'eventlogger' ? '系统日志' : selectedApps.value[0]
+  }
+  return `已选择 ${selectedApps.value.length} 个应用`
+})
+
+const isAllAppsSelected = computed(() => {
+  const allApps = ['eventlogger', ...appNames.value]
+  return allApps.every(app => selectedApps.value.includes(app))
+})
+
+function toggleAllApps(): void {
+  const allApps = ['eventlogger', ...appNames.value]
+  if (isAllAppsSelected.value) {
+    // 取消全选
+    selectedApps.value = []
+  } else {
+    // 全选
+    selectedApps.value = [...allApps]
+  }
+}
+
+function toggleAppSelect(app: string): void {
+  const index = selectedApps.value.indexOf(app)
+  if (index > -1) {
+    selectedApps.value.splice(index, 1)
+  } else {
+    selectedApps.value.push(app)
+  }
+}
+
+async function loadAppNames(): Promise<void> {
+  try {
+    const names = await eventLoggerApi.getAppNames()
+    appNames.value = names
+  } catch (e) {
+    console.error('Failed to load app names:', e)
+  }
+}
 
 const keywordsInput = ref('')
 const excludeKeywordsInput = ref('')
@@ -580,8 +700,20 @@ function getFieldHint(field: string): string | undefined {
   return hints[field]
 }
 
-function formatTime(timestamp: string): string {
-  return new Date(timestamp).toLocaleString('zh-CN')
+function formatTime(timestamp: string | Date): string {
+  if (!timestamp) return '-'
+  const date = new Date(timestamp)
+  // 确保正确处理UTC时间，转换为本地时间
+  return date.toLocaleString('zh-CN', {
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
 }
 
 async function loadSettings(): Promise<void> {
@@ -837,6 +969,8 @@ function closeRuleModal(): void {
   newRule.value = {
     name: '',
     appName: '*',
+    sources: [],
+    excludeSources: [],
     logLevel: 'error',
     channels: [],
     cooldown: 60,
@@ -844,6 +978,7 @@ function closeRuleModal(): void {
     quietHoursStart: '',
     quietHoursEnd: ''
   }
+  selectedApps.value = []
   keywordsInput.value = ''
   excludeKeywordsInput.value = ''
 }
@@ -855,12 +990,22 @@ function editRule(rule: NotificationRule): void {
   newRule.value = {
     name: rule.name,
     appName: rule.appName,
+    sources: rule.sources || [],
+    excludeSources: rule.excludeSources || [],
     logLevel: rule.logLevel,
     channels: [...ruleChannels],
     cooldown: rule.cooldown,
     maxNotifications: rule.maxNotifications,
     quietHoursStart: rule.quietHoursStart || '',
     quietHoursEnd: rule.quietHoursEnd || ''
+  }
+  // 解析 appName 到 selectedApps
+  if (rule.appName === '*') {
+    selectedApps.value = ['eventlogger', ...appNames.value]
+  } else if (rule.appName.includes(',')) {
+    selectedApps.value = rule.appName.split(',')
+  } else {
+    selectedApps.value = [rule.appName]
   }
   keywordsInput.value = (rule.keywords || []).join(', ')
   excludeKeywordsInput.value = (rule.excludeKeywords || []).join(', ')
@@ -881,8 +1026,23 @@ async function saveRule(): Promise<void> {
     return
   }
 
+  // 根据选中的应用生成 appName
+  let appName = '*'
+  if (selectedApps.value.length === 0) {
+    showAlert('提示', '请选择至少一个应用', 'warning')
+    return
+  }
+  if (selectedApps.value.length === 1) {
+    appName = selectedApps.value[0]
+  } else if (!isAllAppsSelected.value) {
+    // 多选但不是全选，用逗号分隔
+    appName = selectedApps.value.join(',')
+  }
+  
   const ruleData = {
     ...newRule.value,
+    appName,
+    selectedApps: selectedApps.value,
     channels: selectedChannels,
     keywords: keywordsInput.value.split(',').map(k => k.trim()).filter(Boolean),
     excludeKeywords: excludeKeywordsInput.value.split(',').map(k => k.trim()).filter(Boolean)
@@ -948,8 +1108,23 @@ onMounted(async () => {
     loadChannels(),
     loadChannelTypes(),
     loadRules(),
-    loadHistory()
+    loadHistory(),
+    loadAppNames()
   ])
+  
+  // 定期刷新监控状态、规则和历史记录
+  refreshTimer = setInterval(() => {
+    loadMonitorStatus()
+    loadRules()
+    loadHistory()
+  }, 5000) // 每5秒刷新一次
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
 })
 </script>
 
@@ -1438,6 +1613,15 @@ input:checked + .slider:before {
   box-sizing: border-box;
 }
 
+/* 不影响checkbox和radio的宽度 */
+.form-group input[type="checkbox"],
+.form-group input[type="radio"] {
+  width: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
@@ -1457,6 +1641,108 @@ input:checked + .slider:before {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
+}
+
+.sources-group {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+  background: var(--bg-color-2);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-color);
+}
+
+.app-select-group {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+  background: var(--bg-color-2);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-color);
+}
+
+.dropdown-select {
+  position: relative;
+}
+
+.dropdown-trigger {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-color-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-color-1);
+}
+
+.dropdown-trigger:hover {
+  border-color: var(--primary-color);
+}
+
+.dropdown-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-arrow {
+  font-size: 0.75rem;
+  color: var(--text-color-3);
+  margin-left: var(--spacing-sm);
+  transition: transform 0.2s;
+}
+
+.dropdown-select.open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow-lg);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-color-1);
+  transition: background 0.2s;
+}
+
+.dropdown-item:hover {
+  background: var(--bg-color-2);
+}
+
+.dropdown-item input[type="checkbox"] {
+  margin-right: var(--spacing-sm);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.dropdown-item span {
+  flex: 1;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: var(--spacing-xs) 0;
 }
 
 .checkbox {

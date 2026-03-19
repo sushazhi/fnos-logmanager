@@ -277,7 +277,8 @@ function loadRules(): EventLoggerNotificationRule[] {
             enabled: r.status === 'enabled',
             eventTypes: r.logPaths || ['*'],
             severity: mapLogLevelToSeverity(r.logLevel),
-            sources: r.appName === '*' ? undefined : [r.appName],
+            sources: r.sources || (r.appName === '*' ? undefined : [r.appName]),
+            excludeSources: r.excludeSources,
             keywords: r.keywords,
             excludeKeywords: r.excludeKeywords,
             channels: r.channels,
@@ -974,7 +975,8 @@ async function sendEventNotification(
     }
     
     const title = `飞牛系统通知`;
-    const content = `来源: ${event.source}\n类型: ${event.eventType}\n级别: ${event.severity.toUpperCase()}\n时间: ${event.timestamp}\n\n消息:\n${event.message}`;
+    const formattedTime = formatTimestampToLocal(event.timestamp);
+    const content = `来源: ${event.source}\n类型: ${event.eventType}\n级别: ${event.severity.toUpperCase()}\n时间: ${formattedTime}\n\n消息:\n${event.message}`;
 
     // Get channel config
     const channels = notificationStore.getChannels();
@@ -986,6 +988,24 @@ async function sendEventNotification(
         try {
             const result = await notificationService.sendToChannel(channel, title, content);
             
+            // 记录历史
+            const historyRecord = {
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                ruleId: rule.id,
+                ruleName: rule.name,
+                channel: channel.channel,
+                title,
+                content,
+                appName: appName || '系统事件',
+                logPath: '',
+                matchedLine: event.message,
+                success: result.success,
+                error: result.error,
+                timestamp: new Date()
+            };
+            
+            await notificationStore.addHistory(historyRecord);
+            
             if (result.success) {
                 console.log(`[EventLogger] Notification sent: ${channel.name}`);
             } else {
@@ -996,6 +1016,12 @@ async function sendEventNotification(
         }
     }
 
+    // 更新规则触发信息
+    if (rule.id) {
+        await notificationStore.updateRuleTrigger(rule.id);
+        notificationStore.recordNotification(rule.id);
+    }
+
     // Update cooldown
     cooldownTracker.set(rule.id, Date.now());
 }
@@ -1004,15 +1030,24 @@ async function sendEventNotification(
  * Process new events
  */
 async function processEvents(): Promise<void> {
-    if (!status.dbAccessible) {
-        await reconnect();
-        if (!status.dbAccessible) return;
-    }
-
-    status.lastCheckTime = new Date();
-    status.lastError = null;
-
+    const checkStartTime = Date.now();
+    
     try {
+        if (!status.dbAccessible) {
+            await reconnect();
+            if (!status.dbAccessible) {
+                console.warn('[EventLogger] Database not accessible, will retry next check');
+                status.lastError = 'Database not accessible';
+                return;
+            }
+        }
+
+        // 每次检查前重新加载数据库文件，确保获取最新数据
+        await reconnect();
+
+        status.lastCheckTime = new Date();
+        status.lastError = null;
+
         const newEvents = getNewEvents();
         
         for (const event of newEvents) {
@@ -1042,9 +1077,16 @@ async function processEvents(): Promise<void> {
         // Reload rules in case they changed
         rules = loadRules();
 
+        const checkDuration = Date.now() - checkStartTime;
+        if (checkDuration > 1000) {
+            console.log(`[EventLogger] Check completed in ${checkDuration}ms, processed ${newEvents.length} events`);
+        }
+
     } catch (err) {
         status.lastError = (err as Error).message;
         console.error('[EventLogger] Process error:', err);
+        // 数据库可能已损坏，标记为不可访问以便下次重连
+        status.dbAccessible = false;
     }
 }
 
@@ -1065,16 +1107,27 @@ export async function start(): Promise<void> {
         }
     }
 
+    // 初始化 lastEventId 为当前数据库中的最大事件 ID
+    // 这样可以避免处理所有历史事件，只处理启动后的新事件
+    const currentMaxId = getLatestEventId();
+    lastEventId = currentMaxId;
+    console.log(`[EventLogger] Initialized lastEventId to current max: ${lastEventId}`);
+
     isRunning = true;
     status.isRunning = true;
 
     console.log(`[EventLogger] Starting monitor, interval: ${configData.checkInterval}ms`);
 
-    // Initial check
-    await processEvents();
-
-    // Set up interval
-    checkInterval = setInterval(processEvents, configData.checkInterval);
+    // Set up interval with error handling
+    checkInterval = setInterval(async () => {
+        try {
+            await processEvents();
+        } catch (err) {
+            console.error('[EventLogger] Interval check error:', err);
+        }
+    }, configData.checkInterval);
+    
+    console.log('[EventLogger] Monitor started successfully');
 }
 
 /**
@@ -1216,6 +1269,66 @@ export function getConfig(): EventLoggerConfig {
  */
 export async function forceCheck(): Promise<void> {
     await processEvents();
+}
+
+/**
+ * Get available sources (app names) from database
+ */
+export function getSources(): string[] {
+    if (!status.dbAccessible) {
+        return [];
+    }
+
+    try {
+        // 重新加载数据库以获取最新数据
+        reconnect();
+        
+        if (!db) return [];
+
+        const tablesResult = db.exec(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        );
+        
+        if (tablesResult.length === 0) return [];
+
+        const tableNames = tablesResult[0].values.map((row: any) => row[0]);
+        const sources = new Set<string>();
+        
+        const VALID_TABLE_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+        
+        for (const tableName of tableNames) {
+            if (!VALID_TABLE_PATTERN.test(tableName)) continue;
+            
+            try {
+                const columnsResult = db.exec(`PRAGMA table_info(${tableName})`);
+                if (columnsResult.length === 0) continue;
+                
+                const columnNames = columnsResult[0].values.map((row: any) => row[1].toLowerCase());
+                const sourceCol = columnNames.find(c => 
+                    c.includes('source') || c.includes('app') || c.includes('name') || 
+                    c === 'serviceid' || c === 'service' || c === 'program'
+                );
+                
+                if (sourceCol) {
+                    const result = db.exec(`SELECT DISTINCT ${sourceCol} FROM ${tableName} LIMIT 100`);
+                    if (result.length > 0) {
+                        for (const row of result[0].values) {
+                            if (row[0] && typeof row[0] === 'string' && row[0] !== 'null') {
+                                sources.add(row[0]);
+                            }
+                        }
+                    }
+                }
+            } catch {
+                continue;
+            }
+        }
+        
+        return Array.from(sources).sort();
+    } catch (err) {
+        console.error('[EventLogger] Get sources error:', err);
+        return [];
+    }
 }
 
 /**

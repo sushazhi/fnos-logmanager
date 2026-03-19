@@ -205,7 +205,6 @@ function formatTime(timestamp: string): string {
     second: '2-digit',
     hour12: false
   }).replace(/\//g, '-')
-  console.log('[EventLogger] 时间格式化:', { 原始: timestamp, 解析后: date.toString(), 格式化: formatted })
   return formatted
 }
 

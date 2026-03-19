@@ -292,8 +292,18 @@ export async function sendNotification(request: SendNotificationRequest): Promis
     }
 
     // 构建通知内容
+    const now = new Date();
+    const formattedTime = now.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
     const title = `[应用通知] ${request.appName}`;
-    const content = `应用: ${request.appName}\n日志文件: ${request.logPath || 'N/A'}\n\n匹配内容:\n${request.matchedLine || request.content}\n\n规则: ${rule?.name || 'N/A'}`;
+    const content = `时间: ${formattedTime}\n应用: ${request.appName}\n日志文件: ${request.logPath || 'N/A'}\n\n匹配内容:\n${request.matchedLine || request.content}\n\n规则: ${rule?.name || 'N/A'}`;
 
     // 发送到各个渠道
     for (const channel of enabledChannels) {
