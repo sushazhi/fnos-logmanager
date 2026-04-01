@@ -9,6 +9,9 @@ import { promisify } from 'util';
 import * as notificationStore from './notificationStore';
 import * as notificationService from './notification';
 import * as logFileService from './logFile';
+import Logger from '../utils/logger';
+
+const logger = Logger.child({ module: 'LogMonitor' });
 
 const stat = promisify(fs.stat);
 const open = promisify(fs.open);
@@ -258,9 +261,9 @@ async function processLogFile(filePath: string, appName: string | null): Promise
                     matchedLine: line,
                     rule
                 });
-                console.log(`[LogMonitor] 触发通知: 规则="${rule.name}", 应用="${appName}", 文件="${filePath}"`);
+                logger.info({ rule: rule.name, app: appName, file: filePath }, '触发通知');
             } catch (err) {
-                console.error(`[LogMonitor] 发送通知失败:`, err);
+                logger.error({ err }, '发送通知失败');
             }
         }
     }
@@ -319,7 +322,7 @@ async function performCheck(): Promise<void> {
             } catch (err) {
                 const error = err as Error;
                 errors.push(`${logFile.path}: ${error.message}`);
-                console.error(`[LogMonitor] 处理文件失败 ${logFile.path}:`, error);
+                logger.error({ err: error, file: logFile.path }, '处理文件失败');
             }
         }
         
@@ -328,13 +331,13 @@ async function performCheck(): Promise<void> {
         
         const checkDuration = Date.now() - checkStartTime;
         if (checkDuration > 1000 || errors.length > 0) {
-            console.log(`[LogMonitor] 检查完成，耗时 ${checkDuration}ms，监控 ${logFiles.length} 个文件，错误 ${errors.length} 个`);
+            logger.info({ duration: checkDuration, files: logFiles.length, errors: errors.length }, '检查完成');
         }
-        
+
     } catch (err) {
         const error = err as Error;
         errors.push(`检查失败: ${error.message}`);
-        console.error('[LogMonitor] 检查失败:', error);
+        logger.error({ err: error }, '检查失败');
     }
 }
 
@@ -342,55 +345,55 @@ async function performCheck(): Promise<void> {
 export async function init(): Promise<void> {
     // 初始化存储
     await notificationStore.init();
-    
+
     // 如果通知功能已启用，自动启动监控
     const settings = notificationStore.getSettings();
-    console.log(`[LogMonitor] 通知功能状态: enabled=${settings.enabled}, checkInterval=${settings.checkInterval}ms`);
-    
+    logger.info({ enabled: settings.enabled, checkInterval: settings.checkInterval }, '通知功能状态');
+
     if (settings.enabled) {
         await start();
     } else {
-        console.log('[LogMonitor] 通知功能未启用，监控服务未启动。可通过API /api/notifications/settings 启用');
+        logger.info('通知功能未启用，监控服务未启动。可通过API /api/notifications/settings 启用');
     }
-    
-    console.log('[LogMonitor] 监控服务初始化完成');
+
+    logger.info('监控服务初始化完成');
 }
 
 // 启动
 export async function start(): Promise<void> {
     if (isRunning) {
-        console.log('[LogMonitor] 监控已在运行中');
+        logger.info('监控已在运行中');
         return;
     }
-    
+
     const settings = notificationStore.getSettings();
-    
+
     // 即使配置未启用，也允许启动监控（用于手动启动）
     // 但会记录警告日志
     if (!settings.enabled) {
-        console.log('[LogMonitor] 警告: 通知功能未启用，但监控服务将启动。建议在设置中启用通知功能');
+        logger.warn('通知功能未启用，但监控服务将启动。建议在设置中启用通知功能');
     }
-    
+
     isRunning = true;
     watchedFiles.clear();
     activeRules = [];
     errors = [];
-    
-    console.log(`[LogMonitor] 启动监控，检查间隔: ${settings.checkInterval}ms`);
-    
+
+    logger.info({ checkInterval: settings.checkInterval }, '启动监控');
+
     // 立即执行一次检查
     await performCheck();
-    
+
     // 设置定时检查，添加错误处理
     checkInterval = setInterval(async () => {
         try {
             await performCheck();
         } catch (err) {
-            console.error('[LogMonitor] 定时检查错误:', err);
+            logger.error({ err }, '定时检查错误');
         }
     }, settings.checkInterval);
-    
-    console.log('[LogMonitor] 监控启动成功');
+
+    logger.info('监控启动成功');
 }
 
 // 停止
@@ -398,17 +401,17 @@ export function stop(): void {
     if (!isRunning) {
         return;
     }
-    
+
     isRunning = false;
     if (checkInterval) {
         clearInterval(checkInterval);
         checkInterval = null;
     }
-    
+
     watchedFiles.clear();
     activeRules = [];
-    
-    console.log('[LogMonitor] 监控已停止');
+
+    logger.info('监控已停止');
 }
 
 // 重启
@@ -471,12 +474,12 @@ export async function checkAppLogs(appName: string): Promise<void> {
                             rule
                         });
                     } catch (err) {
-                        console.error(`[LogMonitor] 发送通知失败:`, err);
+                        logger.error({ err }, '发送通知失败');
                     }
                 }
             }
         } catch (err) {
-            console.error(`[LogMonitor] 检查日志失败: ${logFile.path}`, err);
+            logger.error({ err, file: logFile.path }, '检查日志失败');
         }
     }
 }

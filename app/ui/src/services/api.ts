@@ -1,3 +1,13 @@
+import { 
+  NetworkError, 
+  AuthenticationError, 
+  ValidationError, 
+  ServerError,
+  withRetry,
+  RequestCanceller,
+  RequestDeduper 
+} from '../utils/request'
+
 const API_BASE = window.location.origin
 
 // CSRF Token 存储说明：
@@ -7,6 +17,12 @@ const API_BASE = window.location.origin
 // 3. 即使存在 XSS 漏洞，攻击者也只能在当前会话内窃取 Token
 // 4. Token 会随会话过期而失效
 let CSRF_TOKEN = ''
+
+// 请求取消管理器
+const canceller = new RequestCanceller()
+
+// 请求去重器
+const deduper = new RequestDeduper()
 
 export function setCSRFToken(csrfToken: string): void {
   CSRF_TOKEN = csrfToken || ''
@@ -46,76 +62,111 @@ export async function fetchCSRFToken(): Promise<string | null> {
 
 interface RequestOptions extends RequestInit {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+  retry?: boolean // 是否启用重试
+  dedupe?: boolean // 是否启用去重
+  cancelKey?: string // 取消请求的 key
 }
 
 async function request<T = unknown>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const url = `${API_BASE}${endpoint}`
+  const {
+    retry = false,
+    dedupe = false,
+    cancelKey,
+    ...fetchOptions
+  } = options
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
-  }
+  const executeRequest = async (): Promise<T> => {
+    const url = `${API_BASE}${endpoint}`
 
-  // 处理用户传入的 headers
-  if (options.headers) {
-    const h = options.headers as Record<string, string>
-    for (const key of Object.keys(h)) {
-      headers[key] = h[key]
-    }
-  }
-
-  const method = options.method || 'GET'
-  const needCSRF = method === 'POST' || method === 'PUT' || method === 'DELETE'
-
-  // POST/PUT/DELETE 请求需要 CSRF token
-  if (needCSRF && !CSRF_TOKEN) {
-    await fetchCSRFToken()
-  }
-
-  if (needCSRF && CSRF_TOKEN) {
-    headers['X-CSRF-Token'] = CSRF_TOKEN
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include'
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-
-    if (response.status === 401) {
-      clearCSRFToken()
-      throw Object.assign(new Error(error.error || '需要认证'), error)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
     }
 
-    // CSRF 验证失败时，尝试获取新 token 并重试一次
-    if (response.status === 403 && (error.error === 'CSRF验证失败' || error.code === 'CSRF_ERROR')) {
-      clearCSRFToken()
-      const newCSRFToken = await fetchCSRFToken()
-      if (newCSRFToken) {
-        headers['X-CSRF-Token'] = newCSRFToken
-        const retryResponse = await fetch(url, {
-          ...options,
-          headers,
-          credentials: 'include'
-        })
-        if (retryResponse.ok) {
-          return retryResponse.json() as Promise<T>
-        }
-        const retryError = await retryResponse.json().catch(() => ({}))
-        // 过滤敏感信息
-        const safeError = filterSensitiveInfo(retryError.error || `HTTP ${retryResponse.status}`)
-        throw Object.assign(new Error(safeError), retryError)
+    // 处理用户传入的 headers
+    if (fetchOptions.headers) {
+      const h = fetchOptions.headers as Record<string, string>
+      for (const key of Object.keys(h)) {
+        headers[key] = h[key]
       }
     }
 
-    // 过滤敏感信息
-    const safeError = filterSensitiveInfo(error.error || `HTTP ${response.status}`)
-    throw Object.assign(new Error(safeError), error)
+    const method = fetchOptions.method || 'GET'
+    const needCSRF = method === 'POST' || method === 'PUT' || method === 'DELETE'
+
+    // POST/PUT/DELETE 请求需要 CSRF token
+    if (needCSRF && !CSRF_TOKEN) {
+      await fetchCSRFToken()
+    }
+
+    if (needCSRF && CSRF_TOKEN) {
+      headers['X-CSRF-Token'] = CSRF_TOKEN
+    }
+
+    // 创建 AbortController
+    const controller = cancelKey ? canceller.createController(cancelKey) : new AbortController()
+
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+      credentials: 'include',
+      signal: controller.signal
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+
+      if (response.status === 401) {
+        clearCSRFToken()
+        throw new AuthenticationError(error.error || '需要认证')
+      }
+
+      if (response.status === 400) {
+        throw new ValidationError(error.error || '请求参数错误')
+      }
+
+      if (response.status >= 500) {
+        throw new ServerError(error.error || '服务器错误')
+      }
+
+      // CSRF 验证失败时，尝试获取新 token 并重试一次
+      if (response.status === 403 && (error.error === 'CSRF验证失败' || error.code === 'CSRF_ERROR')) {
+        clearCSRFToken()
+        const newCSRFToken = await fetchCSRFToken()
+        if (newCSRFToken) {
+          headers['X-CSRF-Token'] = newCSRFToken
+          const retryResponse = await fetch(url, {
+            ...fetchOptions,
+            headers,
+            credentials: 'include'
+          })
+          if (retryResponse.ok) {
+            return retryResponse.json() as Promise<T>
+          }
+          const retryError = await retryResponse.json().catch(() => ({}))
+          // 过滤敏感信息
+          const safeError = filterSensitiveInfo(retryError.error || `HTTP ${retryResponse.status}`)
+          throw new ServerError(safeError)
+        }
+      }
+
+      // 过滤敏感信息
+      const safeError = filterSensitiveInfo(error.error || `HTTP ${response.status}`)
+      throw new NetworkError(safeError)
+    }
+
+    return response.json() as Promise<T>
   }
 
-  return response.json() as Promise<T>
+  // 根据配置决定是否启用重试或去重
+  if (retry) {
+    return withRetry(executeRequest)
+  }
+
+  if (dedupe) {
+    return deduper.dedupe(endpoint, executeRequest)
+  }
+
+  return executeRequest()
 }
 
 /**

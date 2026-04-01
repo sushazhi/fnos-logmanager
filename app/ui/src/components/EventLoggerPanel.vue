@@ -193,7 +193,6 @@ function formatTime(timestamp: string): string {
   const date = new Date(timestamp)
   if (isNaN(date.getTime())) {
     // 如果解析失败，直接返回原始字符串
-    console.log('[EventLogger] 时间解析失败:', timestamp)
     return timestamp
   }
   const formatted = date.toLocaleString('zh-CN', {

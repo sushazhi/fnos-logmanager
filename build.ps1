@@ -249,7 +249,7 @@ if (Test-Path "$serverSrcDir\server.ts") {
         Copy-Item "$distDir\server.js" "$serverDir\server.js" -Force
         Copy-Item "$serverSrcDir\package.json" "$serverDir\package.json" -Force
         
-        $subdirs = @("utils", "middleware", "services", "routes", "types")
+        $subdirs = @("utils", "middleware", "services", "routes", "types", "notify", "errors")
         foreach ($subdir in $subdirs) {
             $srcPath = Join-Path $distDir $subdir
             $dstPath = Join-Path $serverDir $subdir
@@ -259,12 +259,6 @@ if (Test-Path "$serverSrcDir\server.ts") {
                 Write-Host "  Copied $subdir/" -ForegroundColor Green
             }
         }
-
-        # 复制 sendNotify.js（从 server 目录）
-        $scriptPath = $PSScriptRoot
-        if (-not $scriptPath) { $scriptPath = Get-Location }
-        Copy-Item (Join-Path $scriptPath "app\server\sendNotify.js") "$serverDir\sendNotify.js" -Force -ErrorAction SilentlyContinue
-        Write-Host "  Copied sendNotify.js" -ForegroundColor Green
 
         Write-Host "  Server files copied" -ForegroundColor Green
     } else {

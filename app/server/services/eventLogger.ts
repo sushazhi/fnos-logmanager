@@ -552,7 +552,9 @@ function queryEvents(request: GetEventsRequest): EventLogEntry[] {
                                 'APP_INSTALLED': '安装成功',
                                 'APP_UNINSTALLED': '卸载成功',
                                 'APP_UPDATED': '更新成功',
-                                'APP_UPGRADED': '升级成功'
+                                'APP_UPGRADED': '升级成功',
+                                'APP_CRASH': '异常退出',
+                                'APP_START_FAILED_LOCAL_APP_RUN_EXCEPTION': '启用失败。原因：执行应用启动脚本失败。'
                             };
                             
                             const appNameCn = displayName || appName || '';
@@ -796,7 +798,9 @@ function getNewEvents(): EventLogEntry[] {
                                 'APP_INSTALLED': '安装成功',
                                 'APP_UNINSTALLED': '卸载成功',
                                 'APP_UPDATED': '更新成功',
-                                'APP_UPGRADED': '升级成功'
+                                'APP_UPGRADED': '升级成功',
+                                'APP_CRASH': '异常退出',
+                                'APP_START_FAILED_LOCAL_APP_RUN_EXCEPTION': '启用失败。原因：执行应用启动脚本失败。'
                             };
                             
                             const appNameCn = displayName || appName || '';

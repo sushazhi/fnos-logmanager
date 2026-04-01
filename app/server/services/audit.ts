@@ -3,6 +3,9 @@ import config from '../utils/config';
 import { getClientIP } from '../utils/ip';
 import { AuditLogEntry } from '../types';
 import { Request } from 'express';
+import Logger from '../utils/logger';
+
+const logger = Logger.child({ module: 'Audit' });
 
 interface ExtendedAuditDetails {
     [key: string]: unknown;
@@ -123,7 +126,7 @@ export async function addAuditLog(action: string, details: Record<string, unknow
         const logLine = JSON.stringify(entry) + '\n';
         await fs.promises.appendFile(config.auditLogFile, logLine, { mode: 0o600 });
     } catch (e) {
-        console.error('[LogManager] 写入审计日志失败:', (e as Error).message);
+        logger.error({ err: e }, '写入审计日志失败');
     }
 }
 
@@ -157,7 +160,7 @@ export async function getAuditLogs(limit: number = 100): Promise<AuditLogEntry[]
         if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
             return [];
         }
-        console.error('[LogManager] 读取审计日志失败:', (e as Error).message);
+        logger.error({ err: e }, '读取审计日志失败');
         return [];
     }
 }
@@ -175,7 +178,7 @@ export async function cleanOldAuditLogs(): Promise<void> {
         if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
             return;
         }
-        console.error('[LogManager] 清理审计日志失败:', (e as Error).message);
+        logger.error({ err: e }, '清理审计日志失败');
     }
 }
 

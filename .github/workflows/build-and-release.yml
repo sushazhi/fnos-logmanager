@@ -127,7 +127,7 @@ jobs:
           cp app/server/package.json build/app/server/
           
           # Copy compiled server subdirectories
-          for subdir in utils middleware services routes types; do
+          for subdir in utils middleware services routes types notify errors; do
             if [ -d "app/server/dist/$subdir" ]; then
               mkdir -p "build/app/server/$subdir"
               cp -r app/server/dist/$subdir/* "build/app/server/$subdir/"

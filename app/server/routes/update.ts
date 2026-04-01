@@ -83,6 +83,56 @@ function isValidGitHubAsset(asset: GitHubAsset): boolean {
     }
 }
 
+/**
+ * 验证命令参数安全性
+ * 只允许特定的命令和参数模式
+ */
+function isValidCommand(command: string, args: string[]): boolean {
+    // 允许的命令白名单
+    const allowedCommands: Record<string, (args: string[]) => boolean> = {
+        'tar': (args) => {
+            // tar 命令只允许 -xf 参数和特定路径
+            if (args.length !== 4) return false;
+            if (args[0] !== '-xf') return false;
+            // 验证文件路径不包含危险字符
+            const filePath = args[1];
+            const targetDir = args[3];
+            if (filePath.includes('..') || filePath.includes(';') || filePath.includes('|') || filePath.includes('&')) return false;
+            if (targetDir.includes('..') || targetDir.includes(';') || targetDir.includes('|') || targetDir.includes('&')) return false;
+            if (args[2] !== '-C') return false;
+            return true;
+        },
+        'appcenter-cli': (args) => {
+            // appcenter-cli 只允许特定子命令
+            if (args.length === 0) return false;
+            
+            // default-volume 命令：只允许数字参数
+            if (args[0] === 'default-volume') {
+                if (args.length !== 2) return false;
+                return /^\d+$/.test(args[1]);
+            }
+            
+            // install-local 命令：只允许特定参数
+            if (args[0] === 'install-local') {
+                if (args.length !== 3) return false;
+                if (args[1] !== '--env') return false;
+                // 配置文件名必须是安全的
+                const configFile = args[2];
+                if (configFile.includes('..') || configFile.includes('/') || configFile.includes('\\')) return false;
+                if (!configFile.endsWith('.env')) return false;
+                return true;
+            }
+            
+            return false;
+        }
+    };
+    
+    const validator = allowedCommands[command];
+    if (!validator) return false;
+    
+    return validator(args);
+}
+
 router.get('/version', validateToken, (_req: Request, res: Response) => {
     try {
         const currentVersion = process.env.TRIM_APPVER || '0.0.0';
@@ -329,8 +379,13 @@ wizard_data_action=keep
         systemStatus.updateMessage = '正在解压更新包...';
         systemStatus.updateProgress = 70;
 
+        const tarArgs = ['-xf', fpkFile, '-C', updateDir];
+        if (!isValidCommand('tar', tarArgs)) {
+            throw new Error('解压命令参数验证失败');
+        }
+
         await new Promise<void>((resolve, reject) => {
-            const proc = spawn('tar', ['-xf', fpkFile, '-C', updateDir], {
+            const proc = spawn('tar', tarArgs, {
                 timeout: 120000
             });
 
@@ -357,8 +412,13 @@ wizard_data_action=keep
         const volume = normalizeUpdatePath(updateDir).match(/\/vol(\d+)\//);
         const volumeNum = volume ? volume[1] : '1';
 
+        const volumeArgs = ['default-volume', volumeNum];
+        if (!isValidCommand('appcenter-cli', volumeArgs)) {
+            throw new Error('设置默认卷命令参数验证失败');
+        }
+
         await new Promise<void>((resolve, reject) => {
-            const proc = spawn('appcenter-cli', ['default-volume', volumeNum], {
+            const proc = spawn('appcenter-cli', volumeArgs, {
                 cwd: updateDir,
                 timeout: 60000
             });
@@ -374,7 +434,12 @@ wizard_data_action=keep
             proc.on('error', reject);
         });
 
-        const installProc = spawn('appcenter-cli', ['install-local', '--env', 'config.env'], {
+        const installArgs = ['install-local', '--env', 'config.env'];
+        if (!isValidCommand('appcenter-cli', installArgs)) {
+            throw new Error('安装命令参数验证失败');
+        }
+
+        const installProc = spawn('appcenter-cli', installArgs, {
             cwd: updateDir,
             detached: true,
             stdio: 'ignore'

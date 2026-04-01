@@ -11,6 +11,9 @@
   - 归档日志文件 (.gz, .bz2, .xz, .zip 等)
 
 - **日志查看** - 在线查看日志内容，支持搜索过滤
+  - 流式读取大文件，内存占用低
+  - 支持倒序查看最新日志
+  - 支持上下文搜索
 
 - **日志管理**
   - 删除已卸载应用的日志文件
@@ -21,7 +24,7 @@
   - 一键备份所有日志
 
 - **通知推送** - 日志监控与多渠道通知
-  - 支持 Bark、钉钉、飞书、企业微信、Telegram、QQ机器人 等 15 种通知渠道
+  - 支持 Bark、钉钉、飞书、企业微信、Telegram、QQ机器人 等 22 种通知渠道
   - 自定义监控规则，关键词匹配（支持正则表达式）
   - 日志级别过滤
   - 冷却时间与静默时段设置
@@ -36,11 +39,19 @@
   - 登录失败锁定
   - 敏感信息过滤
   - 审计日志记录
+  - CSRF 双重保护
+  - 统一错误处理
 
 - **个性化设置**
   - 日间/夜间主题
   - 自定义主题色
   - 字体大小调节
+
+- **性能优化**
+  - 流式日志读取，支持大文件
+  - 内存缓存机制
+  - 请求去重和重试
+  - 代码分割优化加载
 
 ## 支持的通知渠道
 
@@ -61,6 +72,13 @@
 | Gotify | 自建推送服务 |
 | PushDeer | 开源推送服务 |
 | 自定义Webhook | 自定义HTTP推送 |
+| iGot | 推送服务 |
+| Synology Chat | 群晖聊天 |
+| QMsg | QQ推送 |
+| PushMe | 推送服务 |
+| WxPusher | 微信推送 |
+| AIBotK | 智能机器人 |
+| WePlusBot | 机器人 |
 
 ## 安装
 
@@ -135,31 +153,61 @@ git push --tags
 ├── app/
 │   ├── server/                     # 后端服务
 │   │   ├── server.ts
+│   │   ├── errors/                 # 错误类型定义
 │   │   ├── middleware/             # 中间件
 │   │   ├── routes/                 # 路由
 │   │   ├── services/               # 服务
 │   │   ├── utils/                  # 工具
+│   │   │   ├── streamReader.ts     # 流式读取
+│   │   │   ├── cache.ts            # 缓存层
+│   │   │   └── ...
 │   │   ├── types/                  # 类型定义
-│   │   ├── sendNotify.js           # 通知发送模块
+│   │   ├── notify/                 # 通知模块
 │   │   └── package.json
 │   └── ui/                         # 前端界面
 │       ├── src/
+│       │   ├── stores/             # Pinia stores
+│       │   │   ├── useLogStore.ts
+│       │   │   ├── useNotificationStore.ts
+│       │   │   └── useAuthStore.ts
+│       │   ├── utils/              # 工具函数
+│       │   │   └── request.ts      # 请求工具
+│       │   └── ...
 │       ├── images/
-│       └── vite.config.js
+│       └── vite.config.ts
 ├── cmd/                            # 应用脚本
 ├── config/                         # 配置文件
 ├── wizard/                         # 安装向导
 ├── manifest                        # 应用清单
+├── IMPROVEMENTS.md                 # 改进说明文档
 ├── ICON.PNG
 └── ICON_256.PNG
 ```
 
 ## 技术栈
 
-- **后端**: Node.js + Express + TypeScript
-- **前端**: Vue 3 + Vite
-- **打包**: fnpack
-- **通知**: 支持多种通知渠道
+### 后端
+- **运行时**: Node.js 24+
+- **框架**: Express 4.18.2
+- **语言**: TypeScript 5.9.3
+- **密码加密**: @node-rs/argon2 (Argon2id)
+- **日志**: Pino 8.21.0
+- **数据库**: sql.js 1.10.3 (SQLite WASM)
+- **HTTP客户端**: undici 6.24.1
+- **WebSocket**: ws 8.20.0
+
+### 前端
+- **框架**: Vue 3.5.31 (Composition API)
+- **状态管理**: Pinia 2.1.7
+- **构建工具**: Vite 7.3.1
+- **语言**: TypeScript 5.9.3
+- **安全**: DOMPurify 3.3.3
+
+### 架构特点
+- **状态管理**: Pinia 统一管理应用状态
+- **错误处理**: 统一的错误类型和响应格式
+- **性能优化**: 流式读取、缓存机制、请求去重
+- **类型安全**: 完整的 TypeScript 类型定义
 
 ## 安全说明
 
@@ -167,8 +215,92 @@ git push --tags
 - 登录失败 5 次锁定 30 分钟
 - 敏感信息（密码、密钥等）自动过滤
 - 审计日志记录所有敏感操作
-- CSRF 保护
+- CSRF 双重保护（Token + Cookie）
 - 路径验证防止目录遍历
+- 统一错误处理，避免信息泄露
+- 请求限流保护
+
+## 开发指南
+
+### 使用 Pinia Store
+
+```typescript
+import { useLogStore } from '@/stores'
+
+// 在组件中
+const logStore = useLogStore()
+
+// 加载日志
+await logStore.loadLogs('/var/log/apps')
+
+// 访问状态
+console.log(logStore.logs)
+console.log(logStore.loading)
+console.log(logStore.error)
+```
+
+### 使用优化后的 API
+
+```typescript
+import { api } from '@/services/api'
+
+// 启用重试
+await api.get('/api/logs/list', { retry: true })
+
+// 启用去重
+await api.get('/api/logs/list', { dedupe: true })
+
+// 支持取消
+await api.get('/api/logs/list', { cancelKey: 'logs-list' })
+```
+
+### 使用错误类
+
+```typescript
+import { ValidationError, NotFoundError } from '../errors'
+
+// 抛出验证错误
+if (!path) {
+  throw new ValidationError('路径不能为空')
+}
+
+// 抛出未找到错误
+if (!file) {
+  throw new NotFoundError('文件不存在')
+}
+```
+
+### 使用流式读取
+
+```typescript
+import { readLogStream } from '../utils/streamReader'
+
+// 流式读取日志
+const result = await readLogStream(filePath, {
+  maxLines: 1000,
+  maxSize: 10 * 1024 * 1024,
+  reverse: true
+})
+
+console.log(result.content)
+console.log(result.truncated)
+```
+
+### 使用缓存
+
+```typescript
+import { globalCache, createCacheKey } from '../utils/cache'
+
+// 设置缓存
+const key = createCacheKey('logs', dirPath)
+globalCache.set(key, logs, 600000) // 10分钟
+
+// 获取缓存
+const cached = globalCache.get(key)
+if (cached) {
+  return cached
+}
+```
 
 ## 问题反馈
 

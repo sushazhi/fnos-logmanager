@@ -35,6 +35,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import DOMPurify from 'dompurify'
 import { useUpdate } from '../composables/useUpdate'
 import type { UpdateInfo } from '../types'
 
@@ -60,10 +61,13 @@ const changelogHtml = computed(() => {
   text = text.split('\n').filter((line: string) => line.trim().length > 0)
   text = text.map((line: string) => escapeHtml(line.replace(/^-\s*/, '• ')))
   const result = (text as string[]).join('<br>')
-  if (props.updateInfo.changelog.length > 500) {
-    return result + '...'
-  }
-  return result
+  const finalResult = props.updateInfo.changelog.length > 500 ? result + '...' : result
+  
+  // 使用 DOMPurify 清理 HTML，只允许 br 标签
+  return DOMPurify.sanitize(finalResult, {
+    ALLOWED_TAGS: ['br'],
+    ALLOWED_ATTR: []
+  })
 })
 
 function escapeHtml(text: string): string {

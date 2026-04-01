@@ -48,6 +48,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import DOMPurify from 'dompurify'
 
 interface Props {
   title?: string
@@ -188,11 +189,20 @@ function formatLine(line: string, lineIndex: number): string {
       html = before.replace(regex, '<mark class="highlight">$1</mark>') + 
              '<mark class="highlight current">' + match + '</mark>' + 
              after.replace(regex, '<mark class="highlight">$1</mark>')
-      return html
+      // 使用 DOMPurify 清理 HTML，只允许 mark 标签
+      return DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['mark'],
+        ALLOWED_ATTR: ['class']
+      })
     }
   }
   
-  return html.replace(regex, '<mark class="highlight">$1</mark>')
+  const highlightedHtml = html.replace(regex, '<mark class="highlight">$1</mark>')
+  // 使用 DOMPurify 清理 HTML，只允许 mark 标签
+  return DOMPurify.sanitize(highlightedHtml, {
+    ALLOWED_TAGS: ['mark'],
+    ALLOWED_ATTR: ['class']
+  })
 }
 
 function escapeHtml(text: string): string {

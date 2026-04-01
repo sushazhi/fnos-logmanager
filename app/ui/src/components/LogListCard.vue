@@ -150,10 +150,22 @@ const filteredLogs = computed(() => {
 
 function highlightText(text, query) {
   if (!query || !text) return text
+  // 先对文本进行HTML转义
+  const escapedText = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+  
   const regex = new RegExp(`(${escapeRegex(query)})`, 'gi')
-  const html = text.replace(regex, '<mark class="highlight">$1</mark>')
-  // 使用DOMPurify清理HTML，防止XSS攻击
-  return DOMPurify.sanitize(html)
+  const html = escapedText.replace(regex, '<mark class="highlight">$1</mark>')
+  
+  // 使用DOMPurify清理HTML，只允许mark标签和class属性
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['mark'],
+    ALLOWED_ATTR: ['class']
+  })
 }
 
 function escapeRegex(string) {

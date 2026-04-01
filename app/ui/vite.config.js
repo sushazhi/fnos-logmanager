@@ -18,10 +18,16 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks: {
-                    'vendor-vue': ['vue']
+                    'vendor-vue': ['vue'],
+                    'vendor-pinia': ['pinia'],
+                    'vendor-dompurify': ['dompurify']
                 }
             }
-        }
+        },
+        // 性能优化
+        target: 'es2020',
+        cssCodeSplit: true,
+        reportCompressedSize: true
     },
     server: {
         port: 3000,
@@ -31,5 +37,10 @@ export default defineConfig({
                 changeOrigin: true
             }
         }
+    },
+    // 优化依赖预构建
+    optimizeDeps: {
+        include: ['vue', 'pinia', 'dompurify'],
+        exclude: []
     }
 });
