@@ -4,10 +4,14 @@
       <div class="confirm-modal">
         <div class="confirm-icon">{{ currentType === 'danger' ? '!' : '?' }}</div>
         <div class="confirm-title">{{ currentTitle }}</div>
-        <div class="confirm-message">{{ currentMessage }}</div>
+        <div class="confirm-message">
+          <div v-for="(line, index) in messageLines" :key="index" :class="['message-line', { 'message-dir': isDirLine(line) }]">
+            {{ line }}
+          </div>
+        </div>
         <div class="confirm-actions">
           <button class="btn-cancel" @click="cancel">取消</button>
-          <button class="btn-confirm" :class="{ danger: currentType === 'danger' }" @click="confirm">
+          <button class="btn-confirm" :class="{ danger: currentType === 'danger', warning: currentType === 'warning' }" @click="confirm">
             {{ currentConfirmText }}
           </button>
         </div>
@@ -17,7 +21,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const visible = ref(false)
 let resolvePromise = null
@@ -25,6 +29,14 @@ const currentTitle = ref('确认')
 const currentMessage = ref('')
 const currentType = ref('info')
 const currentConfirmText = ref('确定')
+
+const messageLines = computed(() => {
+  return currentMessage.value.split('\n').filter(line => line.trim())
+})
+
+function isDirLine(line) {
+  return line.startsWith('/vol1/') || line.startsWith('/var/')
+}
 
 function show(options = {}) {
   if (typeof options === 'string') {
@@ -120,6 +132,28 @@ defineExpose({ show })
   color: var(--text-color-2);
   margin-bottom: var(--spacing-2xl);
   line-height: 1.5;
+  text-align: left;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.message-line {
+  padding: var(--spacing-xs) 0;
+}
+
+.message-line:first-child {
+  padding-top: 0;
+}
+
+.message-dir {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.8125rem;
+  color: var(--primary-color);
+  background: var(--bg-color-2);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-xs);
+  margin: var(--spacing-xs) 0;
+  word-break: break-all;
 }
 
 .confirm-actions {
@@ -170,6 +204,14 @@ defineExpose({ show })
 }
 
 .btn-confirm.danger:hover {
+  opacity: 0.9;
+}
+
+.btn-confirm.warning {
+  background: var(--warning-color);
+}
+
+.btn-confirm.warning:hover {
   opacity: 0.9;
 }
 </style>

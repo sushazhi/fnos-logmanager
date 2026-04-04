@@ -21,14 +21,14 @@
       <button class="danger" @click="$emit('showClean')" title="清空或删除旧日志文件">
         清理
       </button>
+      <button class="warning" @click="$emit('cleanEmptyDirs')" title="删除已卸载应用的空文件夹">
+        清理空文件夹
+      </button>
       <button @click="$emit('backup')" title="备份日志到指定目录">
         备份
       </button>
       <button @click="$emit('refresh')" title="刷新统计数据">
         刷新
-      </button>
-      <button @click="$emit('openSettings')" title="显示设置">
-        设置
       </button>
     </div>
 
@@ -38,6 +38,9 @@
       </button>
       <button @click="$emit('showEventLogger')" title="配置系统日志监控">
         系统日志
+      </button>
+      <button @click="$emit('openSettings')" title="显示设置">
+        设置
       </button>
     </div>
     
@@ -76,6 +79,7 @@ defineEmits<{
   listLogs: []
   showSearch: []
   showClean: []
+  cleanEmptyDirs: []
   backup: []
   listArchives: []
   listDocker: []
@@ -149,6 +153,23 @@ button.danger:hover {
     var(--card-color-4-light, #ec6a9d) 0%,
     var(--card-color-4, #e74c8c) 50%,
     var(--card-color-3-light, #48c9b0) 100%
+  );
+}
+
+button.warning {
+  background: linear-gradient(135deg,
+    #f39c12 0%,
+    #f1c40f 50%,
+    #e67e22 100%
+  );
+  color: #4a4a4a;
+}
+
+button.warning:hover {
+  background: linear-gradient(135deg,
+    #f1c40f 0%,
+    #f39c12 50%,
+    #d35400 100%
   );
 }
 

@@ -32,6 +32,7 @@
       @list-logs="listLogs"
       @show-search="showSearchModal = true"
       @show-clean="showCleanModal = true"
+      @clean-empty-dirs="cleanEmptyDirs"
       @backup="backupLogs"
       @list-archives="listArchives"
       @list-docker="listDockerContainers"
@@ -152,6 +153,7 @@ const {
   viewDockerLogs,
   backupLogs,
   executeClean,
+  cleanEmptyDirs,
   toggleFilter,
   checkForUpdates,
   clearList

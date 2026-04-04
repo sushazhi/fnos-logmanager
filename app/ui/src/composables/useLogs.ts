@@ -165,6 +165,31 @@ export function useLogs() {
     setStatus('就绪', 'success')
   }
 
+  async function cleanEmptyDirs(): Promise<void> {
+    const confirmed = await confirm({
+      title: '清理空文件夹',
+      message: '确定要删除已卸载应用的空文件夹吗？\n\n将检查以下目录：\n/vol1/@appcenter\n/vol1/@appconf\n/vol1/@appdata\n/vol1/@apphome\n/vol1/@appmeta\n/vol1/@apptemp\n/vol1/@appshare',
+      type: 'warning',
+      confirmText: '开始清理'
+    })
+    if (!confirmed) return
+
+    setStatus('正在清理空文件夹...', 'loading')
+    try {
+      const data = await api.post<{ cleaned: number; dirs: string[]; errors: string[] }>('/api/dirs/clean-empty')
+      if (data.errors && data.errors.length > 0) {
+        setStatus(`清理完成，删除 ${data.cleaned} 个文件夹，但有 ${data.errors.length} 个错误`, 'warning')
+      } else if (data.cleaned === 0) {
+        setStatus('没有找到需要清理的空文件夹', 'success')
+      } else {
+        setStatus(`清理完成，共删除 ${data.cleaned} 个空文件夹`, 'success')
+      }
+    } catch (e) {
+      const error = e as Error
+      setStatus('清理失败: ' + error.message, 'error')
+    }
+  }
+
   return {
     logList,
     listType,
@@ -182,6 +207,7 @@ export function useLogs() {
     truncateLog,
     deleteLog,
     executeClean,
+    cleanEmptyDirs,
     clearList
   }
 }

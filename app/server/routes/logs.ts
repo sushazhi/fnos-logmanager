@@ -517,4 +517,23 @@ router.get('/audit/log', validateToken, async (_req: Request, res: Response) => 
     res.json({ logs });
 });
 
+router.post('/dirs/clean-empty', validateToken, validateCSRF, sensitiveActionRateLimit(3, 300000), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const result = await logFileService.cleanEmptyAppDirs();
+        auditService.addAuditLog('dirs_clean_empty', {
+            cleaned: result.cleaned,
+            dirs: result.dirs
+        }, req);
+        res.json({
+            success: true,
+            cleaned: result.cleaned,
+            dirs: result.dirs,
+            errors: result.errors,
+            message: `已删除 ${result.cleaned} 个空文件夹`
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
 export default router;

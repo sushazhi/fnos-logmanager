@@ -613,3 +613,103 @@ export async function cleanLogFiles(options: CleanLogOptions): Promise<CleanLogR
 
     return results;
 }
+
+/**
+ * 需要清理空文件夹的目录列表
+ */
+const APP_DIRS_TO_CLEAN = [
+    '/vol1/@appcenter',
+    '/vol1/@appconf',
+    '/vol1/@appdata',
+    '/vol1/@apphome',
+    '/vol1/@appmeta',
+    '/vol1/@apptemp',
+    '/vol1/@appshare'
+];
+
+/**
+ * 递归检查目录是否为空
+ */
+async function isDirEmpty(dirPath: string): Promise<boolean> {
+    try {
+        const entries = await readdir(dirPath, { withFileTypes: true });
+        return entries.length === 0;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * 递归删除空目录
+ */
+async function removeEmptyDirsRecursively(dirPath: string, removedDirs: string[]): Promise<void> {
+    try {
+        const entries = await readdir(dirPath, { withFileTypes: true });
+
+        // 先递归处理子目录
+        for (const entry of entries) {
+            if (entry.isDirectory()) {
+                const subDirPath = path.join(dirPath, entry.name);
+                await removeEmptyDirsRecursively(subDirPath, removedDirs);
+            }
+        }
+
+        // 检查当前目录是否为空
+        const isEmpty = await isDirEmpty(dirPath);
+        if (isEmpty) {
+            try {
+                await promisify(fs.rmdir)(dirPath);
+                removedDirs.push(dirPath);
+            } catch {
+                // 忽略删除失败（可能非空或权限问题）
+            }
+        }
+    } catch {
+        // 忽略读取错误
+    }
+}
+
+/**
+ * 删除已卸载应用的空文件夹
+ */
+export async function cleanEmptyAppDirs(): Promise<{ cleaned: number; dirs: string[]; errors: string[] }> {
+    const result = { cleaned: 0, dirs: [] as string[], errors: [] as string[] };
+    const installedApps = await getInstalledApps();
+
+    for (const baseDir of APP_DIRS_TO_CLEAN) {
+        const normalizedDir = safePath(baseDir);
+        if (!normalizedDir || !fs.existsSync(normalizedDir)) continue;
+
+        try {
+            const entries = await readdir(normalizedDir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (!entry.isDirectory()) continue;
+
+                const appName = entry.name;
+                const appDirPath = path.join(normalizedDir, appName);
+
+                // 如果应用已安装，跳过
+                if (installedApps.has(appName)) continue;
+
+                // 检查目录是否为空或只包含空子目录
+                const removedDirs: string[] = [];
+                await removeEmptyDirsRecursively(appDirPath, removedDirs);
+
+                // 如果整个应用目录被删除了，记录下来
+                if (!fs.existsSync(appDirPath)) {
+                    result.dirs.push(appDirPath);
+                    result.cleaned++;
+                } else if (removedDirs.length > 0) {
+                    // 如果只删除了部分子目录
+                    result.dirs.push(...removedDirs);
+                    result.cleaned += removedDirs.length;
+                }
+            }
+        } catch (e) {
+            result.errors.push(`${baseDir}: ${(e as Error).message}`);
+        }
+    }
+
+    return result;
+}

@@ -103,6 +103,12 @@ export interface CleanLogResult {
     errors: string[];
 }
 
+export interface CleanEmptyDirsResult {
+    cleaned: number;
+    dirs: string[];
+    errors: string[];
+}
+
 export interface AppConfig {
     port: number;
     dataDir: string;

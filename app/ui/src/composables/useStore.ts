@@ -32,6 +32,7 @@ export function useStore() {
     truncateLog,
     deleteLog,
     executeClean,
+    cleanEmptyDirs,
     clearList
   } = useLogs()
   const { dockerContainers, listDockerContainers, viewDockerLogs } = useDocker()
@@ -157,6 +158,7 @@ export function useStore() {
     deleteArchive: handleDeleteArchive,
     backupLogs: handleBackupLogs,
     executeClean,
+    cleanEmptyDirs,
     saveCSRFToken,
     fetchCSRFToken,
     checkForUpdates,
