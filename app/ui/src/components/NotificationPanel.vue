@@ -329,9 +329,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import api, { eventLoggerApi } from '../services/api'
 import AlertDialog from './AlertDialog.vue'
+import { useNotifyWebSocket } from '../composables/useNotifyWebSocket'
 
 interface NotificationSettings {
   enabled: boolean
@@ -437,16 +438,6 @@ function showAlert(title: string, message: string, type: 'info' | 'success' | 'e
   alertVisible.value = true
 }
 
-function copyAlertText(): void {
-  if (alertCopyText.value) {
-    navigator.clipboard.writeText(alertCopyText.value).then(() => {
-      // 复制成功，可以显示提示
-    }).catch(() => {
-      // 复制失败
-    })
-  }
-}
-
 function onAlertConfirm() {
   // 弹窗确认后的回调
 }
@@ -499,16 +490,6 @@ function toggleExcludeSource(source: string): void {
     newRule.value.excludeSources.splice(index, 1)
   } else {
     newRule.value.excludeSources.push(source)
-  }
-}
-
-function onAppNameChange(): void {
-  // 切换应用名称时清空 sources
-  newRule.value.sources = []
-  newRule.value.excludeSources = []
-  // 如果选择了系统日志，加载来源列表
-  if (newRule.value.appName === 'eventlogger' && eventSources.value.length === 0) {
-    loadEventSources()
   }
 }
 
@@ -1101,6 +1082,20 @@ function confirmClearHistory(): void {
   })
 }
 
+// 通知 WebSocket 连接
+const { isConnected: wsConnected, lastMonitorUpdate, lastHistoryUpdate, lastRulesUpdate, connect: connectWS, disconnect: disconnectWS } = useNotifyWebSocket()
+
+// WebSocket 更新时自动刷新对应数据
+watch(lastMonitorUpdate, (data) => {
+  if (data) monitorStatus.value = data
+})
+watch(lastHistoryUpdate, (data) => {
+  if (data) history.value = data
+})
+watch(lastRulesUpdate, (data) => {
+  if (data) rules.value = data
+})
+
 onMounted(async () => {
   await Promise.all([
     loadSettings(),
@@ -1112,12 +1107,17 @@ onMounted(async () => {
     loadAppNames()
   ])
   
-  // 定期刷新监控状态、规则和历史记录
+  // 优先使用 WebSocket，降级到轮询
+  connectWS(['monitor', 'history', 'rules'])
+  
+  // 降级轮询：WebSocket 未连接时使用轮询
   refreshTimer = setInterval(() => {
-    loadMonitorStatus()
-    loadRules()
-    loadHistory()
-  }, 5000) // 每5秒刷新一次
+    if (!wsConnected.value) {
+      loadMonitorStatus()
+      loadRules()
+      loadHistory()
+    }
+  }, 5000)
 })
 
 onUnmounted(() => {
@@ -1125,6 +1125,7 @@ onUnmounted(() => {
     clearInterval(refreshTimer)
     refreshTimer = null
   }
+  disconnectWS()
 })
 </script>
 

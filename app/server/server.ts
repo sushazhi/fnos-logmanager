@@ -30,6 +30,8 @@ import notificationRoutes from './routes/notifications';
 import eventLoggerRoutes from './routes/eventLogger';
 import * as logMonitor from './services/logMonitor';
 import * as eventLoggerService from './services/eventLogger';
+import { initLogStream, closeLogStream } from './services/logStream';
+import { initNotifyWebSocket, closeNotifyWebSocket } from './services/notifyWebSocket';
 
 const envValidation = validateEnv();
 if (!envValidation.valid) {
@@ -85,6 +87,12 @@ const server = app.listen(config.port, '0.0.0.0', async () => {
     logger.info({ port: config.port }, '飞牛日志管理服务已启动');
     auditService.addAuditLog('SERVER_START', { port: config.port }).catch(() => {});
 
+    // 初始化 WebSocket 日志流服务
+    initLogStream(server);
+
+    // 初始化通知 WebSocket 服务
+    initNotifyWebSocket(server);
+
     // 初始化日志监控服务
     try {
         await logMonitor.init();
@@ -107,6 +115,8 @@ server.headersTimeout = 66000;
 process.on('SIGTERM', () => {
     logger.info('收到SIGTERM信号，正在关闭...');
     auditService.addAuditLog('SERVER_SHUTDOWN', { reason: 'SIGTERM' }).catch(() => {});
+    closeLogStream();
+    closeNotifyWebSocket();
     server.close(() => {
         logger.info('服务已关闭');
         process.exit(0);
@@ -116,6 +126,8 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
     logger.info('收到SIGINT信号，正在关闭...');
     auditService.addAuditLog('SERVER_SHUTDOWN', { reason: 'SIGINT' }).catch(() => {});
+    closeLogStream();
+    closeNotifyWebSocket();
     server.close(() => {
         logger.info('服务已关闭');
         process.exit(0);

@@ -49,7 +49,8 @@ function submit() {
 }
 
 .modal-content {
-  background: white;
+  background: var(--card-bg, #ffffff);
+  color: var(--text-primary, #333);
   padding: 30px;
   border-radius: 12px;
   max-width: 400px;
@@ -69,9 +70,11 @@ function submit() {
 .form-group input {
   width: 100%;
   padding: 10px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color, #ddd);
   border-radius: 6px;
   font-size: 14px;
+  background: var(--input-bg, #fff);
+  color: var(--text-primary, #333);
 }
 
 .modal-footer {
@@ -81,7 +84,7 @@ function submit() {
 
 .modal-footer button {
   padding: 10px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
   color: white;
   border: none;
   border-radius: 6px;

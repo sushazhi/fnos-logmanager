@@ -167,6 +167,9 @@ export async function getAuditLogs(limit: number = 100): Promise<AuditLogEntry[]
 
 export async function cleanOldAuditLogs(): Promise<void> {
     try {
+        // 先检查文件大小，执行轮转
+        await rotateAuditLog();
+
         const content = await fs.promises.readFile(config.auditLogFile, 'utf8');
         const lines = content.trim().split('\n').filter(line => line);
 
@@ -179,6 +182,46 @@ export async function cleanOldAuditLogs(): Promise<void> {
             return;
         }
         logger.error({ err: e }, '清理审计日志失败');
+    }
+}
+
+/**
+ * 审计日志轮转
+ * 当文件超过 maxFileSize 时，将当前文件重命名为 .1，.1 重命名为 .2，以此类推
+ * 最多保留 maxRotatedFiles 个历史文件
+ */
+async function rotateAuditLog(): Promise<void> {
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB 触发轮转
+    const MAX_ROTATED_FILES = 5; // 最多保留 5 个历史文件
+
+    try {
+        const stat = await fs.promises.stat(config.auditLogFile);
+        if (stat.size < MAX_FILE_SIZE) return;
+
+        // 轮转历史文件：.4 -> .5, .3 -> .4, .2 -> .3, .1 -> .2
+        for (let i = MAX_ROTATED_FILES - 1; i >= 1; i--) {
+            const oldPath = `${config.auditLogFile}.${i}`;
+            const newPath = `${config.auditLogFile}.${i + 1}`;
+            try {
+                await fs.promises.access(oldPath);
+                if (i === MAX_ROTATED_FILES - 1) {
+                    // 最老的文件直接删除
+                    await fs.promises.unlink(oldPath);
+                } else {
+                    await fs.promises.rename(oldPath, newPath);
+                }
+            } catch {
+                // 文件不存在，跳过
+            }
+        }
+
+        // 将当前文件重命名为 .1
+        await fs.promises.rename(config.auditLogFile, `${config.auditLogFile}.1`);
+
+        logger.info({ originalSize: stat.size }, 'Audit log rotated');
+    } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT') return;
+        logger.error({ err: e }, '审计日志轮转失败');
     }
 }
 

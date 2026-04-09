@@ -1,9 +1,12 @@
-import { useStatus } from './useStatus'
+/**
+ * useArchive - 使用 Pinia useStatusStore
+ */
+import { useStatusStore } from '../stores/useStatusStore'
 import api from '../services/api'
 import type { Archive, ArchivesResponse, LogItem } from '../types'
 
 export function useArchive() {
-  const { setStatus, confirm } = useStatus()
+  const { setStatus, confirm } = useStatusStore()
 
   async function listArchives(): Promise<LogItem[]> {
     setStatus('正在查找归档日志...', 'loading')

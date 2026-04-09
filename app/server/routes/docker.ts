@@ -3,22 +3,11 @@ import { spawn } from 'child_process';
 import { query } from 'express-validator';
 import { validateToken } from '../middleware/auth';
 import { isValidContainerName } from '../utils/validation';
+import { filterSensitiveInfo } from '../utils/filter';
 import config from '../utils/config';
 import { DockerContainer } from '../types';
 
 const router = express.Router();
-
-let FILTER_SENSITIVE = process.env.FILTER_SENSITIVE !== 'false';
-
-function filterSensitiveInfo(content: string): string {
-    if (!FILTER_SENSITIVE) return content;
-    if (!content || typeof content !== 'string') return content;
-    let filtered = content;
-    for (const pattern of config.sensitivePatterns) {
-        filtered = filtered.replace(pattern, '[FILTERED]');
-    }
-    return filtered;
-}
 
 function execDocker(args: string[], timeout: number = 60000, maxBytes: number = config.docker.maxOutputBytes): Promise<string> {
     return new Promise((resolve, reject) => {

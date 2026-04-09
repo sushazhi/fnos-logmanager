@@ -1,12 +1,14 @@
 /**
- * 简单的内存缓存实现
+ * 内存缓存实现（支持 LRU 淘汰策略）
  */
 export class Cache {
-  private cache: Map<string, { value: any; expires: number }>;
+  private cache: Map<string, { value: any; expires: number; lastAccessed: number }>;
   private cleanupInterval: NodeJS.Timeout;
+  private maxSize: number;
 
-  constructor(private defaultTTL: number = 600000) { // 默认 10 分钟
+  constructor(private defaultTTL: number = 600000, maxSize: number = 1000) { // 默认 10 分钟，最大 1000 条
     this.cache = new Map();
+    this.maxSize = maxSize;
     
     // 定期清理过期缓存
     this.cleanupInterval = setInterval(() => {
@@ -18,8 +20,13 @@ export class Cache {
    * 设置缓存
    */
   set<T>(key: string, value: T, ttl?: number): void {
+    // 如果超过最大容量，执行 LRU 淘汰
+    if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
+      this.evictLRU();
+    }
+
     const expires = Date.now() + (ttl || this.defaultTTL);
-    this.cache.set(key, { value, expires });
+    this.cache.set(key, { value, expires, lastAccessed: Date.now() });
   }
 
   /**
@@ -37,6 +44,9 @@ export class Cache {
       this.cache.delete(key);
       return null;
     }
+
+    // 更新访问时间（LRU）
+    item.lastAccessed = Date.now();
 
     return item.value as T;
   }
@@ -79,6 +89,25 @@ export class Cache {
    */
   size(): number {
     return this.cache.size;
+  }
+
+  /**
+   * LRU 淘汰：移除最久未访问的条目
+   */
+  private evictLRU(): void {
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+
+    for (const [key, item] of this.cache.entries()) {
+      if (item.lastAccessed < oldestTime) {
+        oldestTime = item.lastAccessed;
+        oldestKey = key;
+      }
+    }
+
+    if (oldestKey) {
+      this.cache.delete(oldestKey);
+    }
   }
 
   /**

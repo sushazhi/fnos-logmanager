@@ -20,12 +20,14 @@ import {
     GetEventsResponse,
     EventNotificationRequest
 } from '../types/eventLogger';
+import { parseEventRow, formatTimestampToLocal, formatTemplateMessage, parseLoglevel, TIMEZONE_OFFSET_SECONDS } from './eventLogger/eventParser';
 
 let SQL: any = null;
 let db: SqlJsDatabase | null = null;
 let isRunning = false;
 let checkInterval: NodeJS.Timeout | null = null;
 let lastEventId = 0;
+let lastDbMtime = 0; // 数据库文件最后修改时间，用于增量检测
 let configData: EventLoggerConfig;
 let rules: EventLoggerNotificationRule[] = [];
 let status: EventLoggerStatus = {
@@ -48,105 +50,18 @@ const SEVERITY_ORDER: Record<EventSeverity, number> = {
 };
 
 /**
- * 将时间戳转换为本地时间字符串
- * 处理服务器可能运行在 UTC 时区的情况
+ * 计算本地时区与 UTC 的偏移量（秒）
+ * 用于修正飞牛系统数据库中存储的本地时间戳
  */
-function formatTimestampToLocal(timestamp: number | string): string {
-    let date: Date;
-    
-    if (typeof timestamp === 'number') {
-        // Unix 时间戳
-        if (timestamp > 1000000000000) {
-            // 毫秒
-            date = new Date(timestamp);
-        } else if (timestamp > 1000000000) {
-            // 秒
-            date = new Date(timestamp * 1000);
-        } else {
-            // 其他数字格式，尝试直接转换
-            date = new Date(timestamp);
-        }
-    } else {
-        // 字符串格式
-        date = new Date(timestamp);
-    }
-    
-    // 使用 toLocaleString 确保使用系统本地时区
-    // 格式: YYYY-MM-DD HH:mm:ss
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+function getLocalTimezoneOffsetSeconds(): number {
+    const now = new Date();
+    // getTimezoneOffset() 返回 UTC - 本地的差值（分钟）
+    // 例如东八区返回 -480，我们需要 +28800 秒
+    return -now.getTimezoneOffset() * 60;
 }
 
-/**
- * 格式化 template 格式的日志消息
- * 支持的模板: LoginSucc, LoginFail, Logout, DiskWakeup, DiskSpindown, DeleteFile, CreateFile 等
- */
-function formatTemplateMessage(param: any): string {
-    const template = param.template;
-    const cat = param.cat; // 分类: 1=storage, 2=network, 3=user, 4=system 等
-    
-    // 模板翻译映射
-    const templateMessages: Record<string, (p: any) => string> = {
-        // 用户相关
-        'LoginSucc': (p) => `${p.user || '用户'}登录成功 IP:${p.IP || '未知'}`,
-        'LoginFail': (p) => `${p.user || '用户'}登录失败 IP:${p.IP || '未知'}`,
-        'Logout': (p) => `${p.user || '用户'}登出`,
-        'UserAdd': (p) => `添加用户 ${p.user || '未知'}`,
-        'UserDel': (p) => `删除用户 ${p.user || '未知'}`,
-        'UserMod': (p) => `修改用户 ${p.user || '未知'}`,
-        
-        // 硬盘存储相关
-        'DiskWakeup': (p) => `硬盘${p.disk || '未知'}已被唤醒 型号:${p.model || '未知'} 序列号:${p.serial || '未知'}`,
-        'DiskSpindown': (p) => `硬盘${p.disk || '未知'}已休眠 型号:${p.model || '未知'} 序列号:${p.serial || '未知'}`,
-        'DiskAdd': (p) => `硬盘${p.disk || '未知'}已添加 型号:${p.model || '未知'}`,
-        'DiskRemove': (p) => `硬盘${p.disk || '未知'}已移除`,
-        'DiskError': (p) => `硬盘${p.disk || '未知'}错误 ${p.error || ''}`,
-        
-        // 网络相关
-        'NetUp': (p) => `网络接口${p.iface || '未知'}已启动`,
-        'NetDown': (p) => `网络接口${p.iface || '未知'}已停止`,
-        'NetChange': (p) => `网络配置已更改`,
-        
-        // 系统相关
-        'Shutdown': (p) => `系统关机`,
-        'Reboot': (p) => `系统重启`,
-        'Startup': (p) => `系统启动`,
-        'ServiceStart': (p) => `服务${p.service || '未知'}已启动`,
-        'ServiceStop': (p) => `服务${p.service || '未知'}已停止`,
-        'ServiceRestart': (p) => `服务${p.service || '未知'}已重启`,
-        
-        // 应用相关
-        'AppInstall': (p) => `应用${p.app || '未知'}已安装`,
-        'AppUninstall': (p) => `应用${p.app || '未知'}已卸载`,
-        'AppUpdate': (p) => `应用${p.app || '未知'}已更新`,
-        'AppStart': (p) => `应用${p.app || '未知'}已启动`,
-        'AppStop': (p) => `应用${p.app || '未知'}已停止`,
-        
-        // 文件管理器相关
-        'DeleteFile': (p) => `删除"${p.FILE || p.file || '未知'}"`,
-        'CreateFile': (p) => `创建"${p.FILE || p.file || '未知'}"`,
-        'MoveFile': (p) => `移动"${p.SRC || p.src || '未知'}" 到 "${p.DST || p.dst || '未知'}"`,
-        'CopyFile': (p) => `复制"${p.SRC || p.src || '未知'}" 到 "${p.DST || p.dst || '未知'}"`,
-        'RenameFile': (p) => `重命名"${p.OLD || p.old || '未知'}" 为 "${p.NEW || p.new || '未知'}"`,
-        'Mkdir': (p) => `创建目录"${p.FILE || p.file || p.dir || '未知'}"`,
-        'UploadFile': (p) => `上传"${p.FILE || p.file || '未知'}"`,
-        'DownloadFile': (p) => `下载"${p.FILE || p.file || '未知'}"`,
-    };
-    
-    const formatter = templateMessages[template];
-    if (formatter) {
-        return formatter(param);
-    }
-    
-    // 未知模板，返回原始信息
-    return `${template}: ${JSON.stringify(param)}`;
-}
+// 缓存时区偏移，避免每次调用都计算
+// TIMEZONE_OFFSET_SECONDS 已从 eventParser 导入
 
 // 已发送通知的事件ID集合（去重）
 const notifiedEvents = new Set<number>();
@@ -256,8 +171,23 @@ function closeDb(): void {
 
 /**
  * Reconnect to database
+ * 使用 mtime 检测优化：仅在数据库文件变更时重新加载
  */
-async function reconnect(): Promise<void> {
+async function reconnect(force: boolean = false): Promise<void> {
+    try {
+        const stat = fs.statSync(configData.dbPath);
+        const currentMtime = stat.mtimeMs;
+        
+        // 如果文件未修改且不强制刷新，跳过重新加载
+        if (!force && currentMtime === lastDbMtime && db) {
+            return;
+        }
+        
+        lastDbMtime = currentMtime;
+    } catch {
+        // 文件不存在或无法访问，继续尝试重连
+    }
+    
     closeDb();
     db = loadDatabase();
 }
@@ -307,40 +237,7 @@ function mapLogLevelToSeverity(level: string): EventSeverity {
     return map[level] || 'info';
 }
 
-/**
- * Map severity string to EventSeverity
- */
-function parseSeverity(severity: string | number): EventSeverity {
-    const s = String(severity).toLowerCase();
-    if (s.includes('crit') || s.includes('emerg') || s.includes('panic')) return 'critical';
-    if (s.includes('err')) return 'error';
-    if (s.includes('warn')) return 'warning';
-    if (s.includes('debug') || s.includes('trace')) return 'debug';
-    return 'info';
-}
-
-/**
- * Parse numeric loglevel to severity
- * Based on common logging levels:
- * 0 = debug/trace
- * 1 = info
- * 2 = warning
- * 3 = error
- * 4+ = critical
- */
-function parseLoglevel(level: string | number): EventSeverity {
-    if (typeof level === 'number') {
-        // loglevel: 0 = 普通(info), 1 = 警告, 2 = 错误, 3 = 严重
-        switch (level) {
-            case 0: return 'info';   // 普通
-            case 1: return 'warning'; // 警告
-            case 2: return 'error';  // 错误
-            case 3: return 'critical'; // 严重
-            default: return level >= 4 ? 'critical' : 'info';
-        }
-    }
-    return parseSeverity(level);
-}
+// parseSeverity 和 parseLoglevel 已从 eventParser 导入
 
 /**
  * Try to find event table and get events
@@ -469,140 +366,8 @@ function queryEvents(request: GetEventsRequest): EventLogEntry[] {
             }
         }
 
-        // Map to EventLogEntry
-        return events.map((row: any) => {
-            const keys = Object.keys(row);
-            
-            // 尝试匹配实际字段名
-            const timestampKey = keys.find(k => 
-                k.toLowerCase() === 'logtime' || k.toLowerCase() === 'timestamp' || 
-                k.toLowerCase().includes('time') || k.toLowerCase().includes('date')
-            );
-            const sourceKey = keys.find(k => 
-                k.toLowerCase() === 'serviceid' || k.toLowerCase() === 'service' ||
-                k.toLowerCase().includes('source') || k.toLowerCase().includes('app')
-            );
-            const messageKey = keys.find(k => 
-                k.toLowerCase() === 'message' || k.toLowerCase() === 'msg' || 
-                k.toLowerCase() === 'content' || k.toLowerCase().includes('description') ||
-                k.toLowerCase() === 'log'
-            );
-            const severityKey = keys.find(k => 
-                k.toLowerCase() === 'loglevel' || k.toLowerCase() === 'level' || 
-                k.toLowerCase().includes('severity') || k.toLowerCase().includes('priority')
-            );
-            const typeKey = keys.find(k => 
-                k.toLowerCase() === 'type' || k.toLowerCase() === 'category' ||
-                k.toLowerCase().includes('event')
-            );
-            const idKey = keys.find(k => k.toLowerCase() === 'id');
-            const metadataKey = keys.find(k => 
-                k.toLowerCase().includes('metadata') || k.toLowerCase().includes('extra')
-            );
-            const userKey = keys.find(k => 
-                k.toLowerCase() === 'uid' || k.toLowerCase() === 'uname' ||
-                k.toLowerCase().includes('user')
-            );
-
-            // 处理时间戳 - 可能是Unix时间戳或字符串
-            let timestampValue = row[timestampKey || 'timestamp'];
-            
-            if (typeof timestampValue === 'number' && timestampValue > 1000000000) {
-                // 飞牛系统的数据库存储的是本地时间戳（东八区），不是 UTC 时间戳
-                // 直接在时间戳上加 8 小时偏移来修正
-                const adjustedTimestamp = timestampValue + (8 * 3600); // 加 8 小时（秒）
-                const date = new Date(adjustedTimestamp * 1000);
-                timestampValue = date.toISOString();
-            } else if (typeof timestampValue === 'number' && timestampValue > 1000000000000) {
-                // Unix时间戳（毫秒）- 同样处理
-                const adjustedTimestamp = timestampValue + (8 * 3600 * 1000); // 加 8 小时（毫秒）
-                const date = new Date(adjustedTimestamp);
-                timestampValue = date.toISOString();
-            } else if (typeof timestampValue === 'string') {
-                // 字符串格式的时间，尝试解析并转换为 ISO 格式
-                const parsed = new Date(timestampValue);
-                if (!isNaN(parsed.getTime())) {
-                    timestampValue = parsed.toISOString();
-                }
-            }
-
-            // 处理消息 - 可能是剩余的所有字段
-            let message = row[messageKey || 'message'];
-            if (!message || message === 'null') {
-                // 尝试从 parameter 字段提取有用信息
-                const parameterStr = row['parameter'];
-                if (parameterStr && parameterStr !== 'null') {
-                    try {
-                        const param = typeof parameterStr === 'string' ? JSON.parse(parameterStr) : parameterStr;
-                        
-                        // 处理 template 格式的日志（如 LoginSucc, DiskWakeup 等）
-                        if (param.template) {
-                            message = formatTemplateMessage(param);
-                        }
-                        // 处理应用相关事件
-                        else if (param.data) {
-                            const appName = param.data.APP_NAME;
-                            const displayName = param.data.DISPLAY_NAME;
-                            const eventId = param.eventId;
-                            
-                            // 生成中文消息
-                            const actionMap: Record<string, string> = {
-                                'APP_STARTED': '启用成功',
-                                'APP_STOPPED': '停止成功',
-                                'APP_INSTALLED': '安装成功',
-                                'APP_UNINSTALLED': '卸载成功',
-                                'APP_UPDATED': '更新成功',
-                                'APP_UPGRADED': '升级成功',
-                                'APP_CRASH': '异常退出',
-                                'APP_START_FAILED_LOCAL_APP_RUN_EXCEPTION': '启用失败。原因：执行应用启动脚本失败。'
-                            };
-                            
-                            const appNameCn = displayName || appName || '';
-                            const action = eventId ? (actionMap[eventId] || eventId) : '';
-                            
-                            if (appNameCn && action) {
-                                message = `应用 ${appNameCn} ${action}`;
-                            } else if (appNameCn) {
-                                message = appNameCn;
-                            } else if (eventId) {
-                                message = eventId;
-                            }
-                        }
-                        // 如果解析失败，使用原始字符串
-                        if (!message) {
-                            message = parameterStr.substring(0, 500);
-                        }
-                    } catch {
-                        // JSON解析失败，使用原始值
-                        message = String(parameterStr).substring(0, 500);
-                    }
-                }
-            }
-            
-            // 如果还是没有消息，收集其他字段
-            if (!message || message === 'null') {
-                const excludedKeys = [idKey, timestampKey, sourceKey, severityKey, typeKey, metadataKey, userKey, 'parameter'];
-                const otherFields = keys.filter(k => !excludedKeys.includes(k));
-                message = otherFields.map(k => `${k}: ${row[k]}`).join(', ').substring(0, 500);
-            }
-
-            // 处理用户
-            let userValue = row[userKey || 'user'];
-            if (userValue === null || userValue === 'null') {
-                userValue = undefined;
-            }
-
-            return {
-                id: row[idKey || 'id'] || 0,
-                timestamp: timestampValue || new Date().toISOString(),
-                source: row[sourceKey || 'source'] || 'unknown',
-                eventType: row[typeKey || 'event_type'] || 'system',
-                severity: parseLoglevel(row[severityKey || 'level']),
-                message: message,
-                metadata: row[metadataKey || 'metadata'],
-                user: userValue
-            } as EventLogEntry;
-        });
+        // Map to EventLogEntry using shared parser
+        return events.map((row: any) => parseEventRow(row));
 
     } catch (err) {
         console.error('[EventLogger] Query error:', err);
@@ -716,140 +481,8 @@ function getNewEvents(): EventLogEntry[] {
                         
                         lastEventId = latestId;
                         
-                        return events.map((row: any) => {
-                            const keys = Object.keys(row);
-                            
-                            // 尝试匹配实际字段名
-                            const timestampKey = keys.find(k => 
-                                k.toLowerCase() === 'logtime' || k.toLowerCase() === 'timestamp' || 
-                                k.toLowerCase().includes('time') || k.toLowerCase().includes('date')
-                            );
-                            const sourceKey = keys.find(k => 
-                                k.toLowerCase() === 'serviceid' || k.toLowerCase() === 'service' ||
-                                k.toLowerCase().includes('source') || k.toLowerCase().includes('app')
-                            );
-                            const messageKey = keys.find(k => 
-                                k.toLowerCase() === 'message' || k.toLowerCase() === 'msg' || 
-                                k.toLowerCase() === 'content' || k.toLowerCase().includes('description') ||
-                                k.toLowerCase() === 'log'
-                            );
-                            const severityKey = keys.find(k => 
-                                k.toLowerCase() === 'loglevel' || k.toLowerCase() === 'level' || 
-                                k.toLowerCase().includes('severity') || k.toLowerCase().includes('priority')
-                            );
-                            const typeKey = keys.find(k => 
-                                k.toLowerCase() === 'type' || k.toLowerCase() === 'category' ||
-                                k.toLowerCase().includes('event')
-                            );
-                            const idKey = keys.find(k => k.toLowerCase() === 'id');
-                            const metadataKey = keys.find(k => 
-                                k.toLowerCase().includes('metadata') || k.toLowerCase().includes('extra')
-                            );
-                            const userKey = keys.find(k => 
-                                k.toLowerCase() === 'uid' || k.toLowerCase() === 'uname' ||
-                                k.toLowerCase().includes('user')
-                            );
-
-                            // 处理时间戳
-                            let timestampValue = row[timestampKey || 'timestamp'];
-                            if (typeof timestampValue === 'number' && timestampValue > 1000000000) {
-                                // 飞牛系统的数据库存储的是本地时间戳，加 8 小时偏移
-                                const adjustedTimestamp = timestampValue + (8 * 3600);
-                                const date = new Date(adjustedTimestamp * 1000);
-                                timestampValue = date.toISOString();
-                            } else if (typeof timestampValue === 'number' && timestampValue > 1000000000000) {
-                                // Unix时间戳（毫秒）
-                                const adjustedTimestamp = timestampValue + (8 * 3600 * 1000);
-                                const date = new Date(adjustedTimestamp);
-                                timestampValue = date.toISOString();
-                            } else if (typeof timestampValue === 'string') {
-                                // 字符串格式的时间，尝试解析并转换为 ISO 格式
-                                const parsed = new Date(timestampValue);
-                                if (!isNaN(parsed.getTime())) {
-                                    timestampValue = parsed.toISOString();
-                                }
-                            }
-
-            // 处理消息
-            let message = row[messageKey || 'message'];
-            let eventIdValue = '';
-            if (!message || message === 'null') {
-                // 尝试从 parameter 字段提取有用信息
-                const parameterStr = row['parameter'];
-                if (parameterStr && parameterStr !== 'null') {
-                    try {
-                        const param = typeof parameterStr === 'string' ? JSON.parse(parameterStr) : parameterStr;
-                        
-                        // 处理 template 格式的日志（如 LoginSucc, DiskWakeup 等）
-                        if (param.template) {
-                            message = formatTemplateMessage(param);
-                        }
-                        // 处理应用相关事件
-                        else if (param.data) {
-                            const appName = param.data.APP_NAME;
-                            const displayName = param.data.DISPLAY_NAME;
-                            const eventId = param.eventId;
-                            eventIdValue = eventId || '';
-                            
-                            // 生成中文消息
-                            const actionMap: Record<string, string> = {
-                                'APP_STARTED': '启用成功',
-                                'APP_STOPPED': '停止成功',
-                                'APP_INSTALLED': '安装成功',
-                                'APP_UNINSTALLED': '卸载成功',
-                                'APP_UPDATED': '更新成功',
-                                'APP_UPGRADED': '升级成功',
-                                'APP_CRASH': '异常退出',
-                                'APP_START_FAILED_LOCAL_APP_RUN_EXCEPTION': '启用失败。原因：执行应用启动脚本失败。'
-                            };
-                            
-                            const appNameCn = displayName || appName || '';
-                            const action = eventId ? (actionMap[eventId] || eventId) : '';
-                            
-                            if (appNameCn && action) {
-                                message = `应用 ${appNameCn} ${action}`;
-                            } else if (appNameCn) {
-                                message = appNameCn;
-                            } else if (eventId) {
-                                message = eventId;
-                            }
-                        }
-                        // 如果解析失败，使用原始字符串
-                        if (!message) {
-                            message = parameterStr.substring(0, 500);
-                        }
-                    } catch {
-                        // JSON解析失败，使用原始值
-                        message = String(parameterStr).substring(0, 500);
-                    }
-                }
-            }
-            
-            // 如果还是没有消息，收集其他字段
-            if (!message || message === 'null') {
-                const excludedKeys = [idKey, timestampKey, sourceKey, severityKey, typeKey, metadataKey, userKey, 'parameter'];
-                const otherFields = keys.filter(k => !excludedKeys.includes(k));
-                message = otherFields.map(k => `${k}: ${row[k]}`).join(', ').substring(0, 500);
-            }
-
-            // 处理用户
-            let userValue = row[userKey || 'user'];
-            if (userValue === null || userValue === 'null') {
-                userValue = undefined;
-            }
-
-            return {
-                id: row[idKey || 'id'] || 0,
-                timestamp: timestampValue || new Date().toISOString(),
-                source: row[sourceKey || 'source'] || 'unknown',
-                eventType: row[typeKey || 'event_type'] || 'system',
-                severity: parseLoglevel(row[severityKey || 'level']),
-                message: message,
-                metadata: row[metadataKey || 'metadata'],
-                user: userValue,
-                eventCode: eventIdValue
-            } as EventLogEntry;
-                        });
+                        // Use shared parser instead of inline parsing
+                        return events.map((row: any) => parseEventRow(row));
                     }
                 }
             } catch {

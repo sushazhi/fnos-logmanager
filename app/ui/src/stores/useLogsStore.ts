@@ -1,0 +1,260 @@
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import type { LogItem, ListType, LogsResponse, CleanType } from '../types'
+import api from '../services/api'
+import { useStatusStore } from './useStatusStore'
+
+export const useLogsStore = defineStore('logs', () => {
+  const logList = ref<LogItem[]>([])
+  const listType = ref<ListType>('logs')
+  const showLogModal = ref(false)
+  const showCleanModal = ref(false)
+  const showSearchModal = ref(false)
+  const logContent = ref('')
+  const logTitle = ref('')
+  const filterEnabled = ref(true)
+  const logTruncated = ref(false)
+  const logHasMore = ref(false)
+  const logTotalLines = ref(0)
+  const logCurrentPath = ref('')
+
+  async function loadFilterStatus(): Promise<void> {
+    try {
+      const data = await api.get<{ enabled: boolean }>('/api/settings/filter')
+      filterEnabled.value = data.enabled !== false
+    } catch {
+      filterEnabled.value = true
+    }
+  }
+
+  async function toggleFilter(): Promise<void> {
+    const { setStatus } = useStatusStore()
+    filterEnabled.value = !filterEnabled.value
+    try {
+      await api.post('/api/settings/filter', { enabled: filterEnabled.value })
+      setStatus(filterEnabled.value ? '敏感信息过滤已启用' : '敏感信息过滤已禁用', 'success')
+    } catch (e) {
+      const error = e as Error
+      setStatus('设置保存失败: ' + error.message, 'error')
+    }
+  }
+
+  async function listLogs(): Promise<void> {
+    const { setStatus } = useStatusStore()
+    listType.value = 'logs'
+    setStatus('正在列出日志文件...', 'loading')
+    try {
+      const data = await api.get<LogsResponse>('/api/logs/list?limit=100')
+      logList.value = data.logs.map(log => ({
+        ...log,
+        showActions: true
+      }))
+      setStatus(`找到 ${data.total} 个日志文件`, 'success')
+    } catch (e) {
+      const error = e as Error
+      setStatus('列出日志失败: ' + error.message, 'error')
+    }
+  }
+
+  async function searchLogs(type: 'size' | 'name', threshold: string, pattern: string): Promise<void> {
+    const { setStatus } = useStatusStore()
+    listType.value = 'logs'
+    showSearchModal.value = false
+
+    if (type === 'size') {
+      setStatus('正在查找大日志文件...', 'loading')
+      try {
+        const data = await api.get<LogsResponse>(`/api/logs/search?type=size&threshold=${encodeURIComponent(threshold)}&limit=50`)
+        logList.value = data.logs.map(log => ({
+          ...log,
+          showActions: true
+        }))
+        setStatus(`找到 ${data.logs.length} 个大日志文件`, 'success')
+      } catch (e) {
+        const error = e as Error
+        setStatus('查找失败: ' + error.message, 'error')
+      }
+    } else if (type === 'name') {
+      setStatus('正在按名称查找日志文件...', 'loading')
+      try {
+        const data = await api.get<LogsResponse>(`/api/logs/search?type=name&pattern=${encodeURIComponent(pattern)}&limit=50`)
+        logList.value = data.logs.map(log => ({
+          ...log,
+          showActions: true
+        }))
+        setStatus(`找到 ${data.total} 个匹配的日志文件`, 'success')
+      } catch (e) {
+        const error = e as Error
+        setStatus('查找失败: ' + error.message, 'error')
+      }
+    }
+  }
+
+  async function viewLog(path: string, maxLines: number = 5000): Promise<void> {
+    const { setStatus } = useStatusStore()
+    setStatus('正在加载日志内容...', 'loading')
+    try {
+      const data = await api.get<{
+        content: string
+        totalLines?: number
+        truncated?: boolean
+        hasMore?: boolean
+      }>(`/api/log/content?path=${encodeURIComponent(path)}&maxLines=${maxLines}`)
+      logTitle.value = path
+      logContent.value = data.content || '(空文件)'
+      logCurrentPath.value = path
+      logTotalLines.value = data.totalLines || 0
+      logTruncated.value = data.truncated || false
+      logHasMore.value = data.hasMore || false
+      showLogModal.value = true
+      setStatus('日志加载完成', 'success')
+    } catch (e) {
+      const error = e as Error
+      setStatus('加载失败: ' + error.message, 'error')
+    }
+  }
+
+  async function loadAllLines(): Promise<void> {
+    if (!logCurrentPath.value) return
+    const { setStatus } = useStatusStore()
+    setStatus('正在加载全部日志...', 'loading')
+    try {
+      const data = await api.get<{
+        content: string
+        totalLines?: number
+        truncated?: boolean
+        hasMore?: boolean
+      }>(`/api/log/content?path=${encodeURIComponent(logCurrentPath.value)}&maxLines=200000`)
+      logContent.value = data.content || '(空文件)'
+      logTotalLines.value = data.totalLines || 0
+      logTruncated.value = data.truncated || false
+      logHasMore.value = data.hasMore || false
+      setStatus('日志加载完成', 'success')
+    } catch (e) {
+      const error = e as Error
+      setStatus('加载失败: ' + error.message, 'error')
+    }
+  }
+
+  async function truncateLog(path: string): Promise<boolean> {
+    const { setStatus, confirm } = useStatusStore()
+    const confirmed = await confirm({
+      title: '清空日志',
+      message: '确定要清空此日志文件吗？',
+      type: 'warning',
+      confirmText: '清空'
+    })
+    if (!confirmed) return false
+
+    setStatus('正在清空日志...', 'loading')
+    try {
+      await api.post('/api/log/truncate', { path })
+      setStatus('日志已清空', 'success')
+      return true
+    } catch (e) {
+      const error = e as Error
+      setStatus('清空失败: ' + error.message, 'error')
+      return false
+    }
+  }
+
+  async function deleteLog(path: string): Promise<boolean> {
+    const { setStatus, confirm } = useStatusStore()
+    const confirmed = await confirm({
+      title: '删除日志',
+      message: '确定要删除此日志文件吗？此操作不可恢复！',
+      type: 'danger',
+      confirmText: '删除'
+    })
+    if (!confirmed) return false
+
+    setStatus('正在删除日志文件...', 'loading')
+    try {
+      await api.post('/api/log/delete', { path })
+      logList.value = logList.value.filter(log => log.path !== path)
+      setStatus('日志文件已删除', 'success')
+      return true
+    } catch (e) {
+      const error = e as Error
+      setStatus('删除失败: ' + error.message, 'error')
+      return false
+    }
+  }
+
+  async function executeClean(type: CleanType, threshold: string, days: number | null): Promise<void> {
+    const { setStatus } = useStatusStore()
+    showCleanModal.value = false
+    setStatus('正在清理日志...', 'loading')
+    try {
+      const data = await api.post<{ cleaned: number }>('/api/logs/clean', {
+        type,
+        threshold,
+        days: type === 'deleteOld' ? days : null,
+        action: type === 'deleteOld' ? 'delete' : type
+      })
+      setStatus(`清理完成，共处理 ${data.cleaned} 个文件`, 'success')
+    } catch (e) {
+      const error = e as Error
+      setStatus('清理失败: ' + error.message, 'error')
+    }
+  }
+
+  function clearList(): void {
+    const { setStatus } = useStatusStore()
+    logList.value = []
+    listType.value = 'logs'
+    setStatus('就绪', 'success')
+  }
+
+  async function cleanEmptyDirs(): Promise<void> {
+    const { setStatus, confirm } = useStatusStore()
+    const confirmed = await confirm({
+      title: '清理空文件夹',
+      message: '确定要删除已卸载应用的空文件夹吗？\n\n将检查以下目录：\n/vol1/@appcenter\n/vol1/@appconf\n/vol1/@appdata\n/vol1/@apphome\n/vol1/@appmeta\n/vol1/@apptemp\n/vol1/@appshare',
+      type: 'warning',
+      confirmText: '开始清理'
+    })
+    if (!confirmed) return
+
+    setStatus('正在清理空文件夹...', 'loading')
+    try {
+      const data = await api.post<{ cleaned: number; dirs: string[]; errors: string[] }>('/api/dirs/clean-empty')
+      if (data.errors && data.errors.length > 0) {
+        setStatus(`清理完成，删除 ${data.cleaned} 个文件夹，但有 ${data.errors.length} 个错误`, 'warning')
+      } else if (data.cleaned === 0) {
+        setStatus('没有找到需要清理的空文件夹', 'success')
+      } else {
+        setStatus(`清理完成，共删除 ${data.cleaned} 个空文件夹`, 'success')
+      }
+    } catch (e) {
+      const error = e as Error
+      setStatus('清理失败: ' + error.message, 'error')
+    }
+  }
+
+  return {
+    logList,
+    listType,
+    showLogModal,
+    showCleanModal,
+    showSearchModal,
+    logContent,
+    logTitle,
+    filterEnabled,
+    logTruncated,
+    logHasMore,
+    logTotalLines,
+    logCurrentPath,
+    loadFilterStatus,
+    toggleFilter,
+    listLogs,
+    searchLogs,
+    viewLog,
+    loadAllLines,
+    truncateLog,
+    deleteLog,
+    executeClean,
+    cleanEmptyDirs,
+    clearList
+  }
+})

@@ -5,9 +5,16 @@
       <div class="modal-header">
         <span class="title">{{ title }}</span>
         <div class="header-actions">
-          <span class="line-count">{{ totalLines }} 行</span>
+          <span class="line-count">{{ totalLines }} 行{{ truncated ? ` / 共 ${totalLinesInFile} 行` : '' }}</span>
           <button class="close-btn" @click="$emit('close')">×</button>
         </div>
+      </div>
+      <div class="truncated-warning" v-if="truncated">
+        <span class="warning-icon">⚠</span>
+        <span>日志已截断，仅显示最后 {{ totalLines }} 行</span>
+        <button class="load-all-btn" @click="$emit('loadAll')" :disabled="loadingAll">
+          {{ loadingAll ? '加载中...' : '加载全部' }}
+        </button>
       </div>
       <div class="modal-search">
         <input 
@@ -47,21 +54,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import DOMPurify from 'dompurify'
+import { useLogSearch } from '../composables/useLogSearch'
 
 interface Props {
   title?: string
   content?: string
+  truncated?: boolean
+  totalLinesInFile?: number
+  loadingAll?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   title: '',
-  content: ''
+  content: '',
+  truncated: false,
+  totalLinesInFile: 0,
+  loadingAll: false
 })
 
 defineEmits<{
   close: []
+  loadAll: []
 }>()
 
 const searchQuery = ref('')
@@ -84,6 +99,9 @@ const allLines = computed(() => {
   if (!content || content === '(空文件)') return []
   return content.split('\n')
 })
+
+// 使用 Web Worker 搜索 composable
+const { matchPositions, isSearching, cleanup: cleanupSearch } = useLogSearch(allLines, searchQuery)
 
 const totalLines = computed(() => allLines.value.length)
 
@@ -109,27 +127,6 @@ const visibleLines = computed(() => {
     }
   }
   return lines
-})
-
-interface MatchPosition {
-  lineIndex: number
-  charIndex: number
-}
-
-const matchPositions = computed(() => {
-  if (!searchQuery.value.trim()) return []
-  const query = searchQuery.value.toLowerCase()
-  const positions: MatchPosition[] = []
-  allLines.value.forEach((line, lineIndex) => {
-    let searchPos = 0
-    let pos = line.toLowerCase().indexOf(query, searchPos)
-    while (pos !== -1) {
-      positions.push({ lineIndex, charIndex: pos })
-      searchPos = pos + 1
-      pos = line.toLowerCase().indexOf(query, searchPos)
-    }
-  })
-  return positions
 })
 
 watch(searchQuery, () => {
@@ -279,6 +276,10 @@ function goToLastLine(): void {
 onMounted(() => {
   handleScroll()
 })
+
+onUnmounted(() => {
+  cleanupSearch()
+})
 </script>
 
 <style scoped>
@@ -351,6 +352,42 @@ onMounted(() => {
 
 .close-btn:hover {
   color: var(--text-color, #333);
+}
+
+.truncated-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  background: #fff3cd;
+  border-bottom: 1px solid #ffc107;
+  color: #856404;
+  font-size: 13px;
+}
+
+.warning-icon {
+  font-size: 16px;
+}
+
+.load-all-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: #ffc107;
+  border: none;
+  border-radius: 4px;
+  color: #212529;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.load-all-btn:hover:not(:disabled) {
+  background: #e0a800;
+}
+
+.load-all-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .modal-search {

@@ -1,9 +1,12 @@
-import { useStatus } from './useStatus'
+/**
+ * useBackup - 使用 Pinia useStatusStore
+ */
+import { useStatusStore } from '../stores/useStatusStore'
 import api from '../services/api'
 import type { Backup, BackupResponse } from '../types'
 
 export function useBackup() {
-  const { setStatus } = useStatus()
+  const { setStatus } = useStatusStore()
 
   async function backupLogs(): Promise<BackupResponse | null> {
     setStatus('正在备份日志...', 'loading')

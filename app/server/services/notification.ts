@@ -7,6 +7,9 @@ import * as notificationStore from './notificationStore';
 import { setConfig } from '../notify';
 import { registry } from '../notify/registry';
 import type { ChannelConfig } from '../notify/types';
+import Logger from '../utils/logger';
+
+const logger = Logger.child({ module: 'Notification' });
 
 /**
  * 渠道类型到渠道名称的映射
@@ -195,7 +198,7 @@ export async function sendToChannel(channel: any, title: string, content: string
         };
     }
 
-    console.log(`[Notification] 渠道类型: ${channel.channel}, 渠道名称: ${channel.name}`);
+    logger.info({ channelType: channel.channel, channelName: channel.name }, 'Sending to channel');
 
     // 设置渠道配置
     const config = buildChannelConfig(channel);
@@ -216,11 +219,9 @@ export async function sendToChannel(channel: any, title: string, content: string
     }
 
     try {
-        // 临时启用渠道并发送
-        const wasEnabled = registeredChannel.enabled;
-        registeredChannel.enabled = true;
+        // 直接调用 send() 方法，不修改共享对象的 enabled 状态
+        // 避免并发场景下多个通知同时修改 enabled 导致的状态竞争
         const result = await registeredChannel.send(title, content);
-        registeredChannel.enabled = wasEnabled; // 恢复原状态
 
         return {
             success: result.success,
@@ -249,7 +250,7 @@ export async function sendNotification(request: SendNotificationRequest): Promis
     const enabledChannels = channels.filter(c => rule?.channels?.includes(c.name) && c.enabled);
 
     if (enabledChannels.length === 0) {
-        console.log(`[Notification] 规则 "${rule?.name}" 没有可用的通知渠道`);
+        logger.info({ ruleName: rule?.name }, 'No available notification channels for rule');
         return results;
     }
 
@@ -292,13 +293,13 @@ export async function sendNotification(request: SendNotificationRequest): Promis
             await notificationStore.addHistory(historyRecord);
 
             if (result.success) {
-                console.log(`[Notification] 发送成功: ${channel.name} (${channel.channel})`);
+                logger.info({ channelName: channel.name, channelType: channel.channel }, 'Notification sent successfully');
             } else {
-                console.error(`[Notification] 发送失败: ${channel.name} (${channel.channel}) - ${result.error}`);
+                logger.error({ channelName: channel.name, channelType: channel.channel, error: result.error }, 'Notification send failed');
             }
         } catch (err) {
             const error = err as Error;
-            console.error(`[Notification] 发送异常: ${channel.name} - ${error.message}`);
+            logger.error({ channelName: channel.name, err: error }, 'Notification exception');
             results.push({
                 success: false,
                 channel: channel.channel,

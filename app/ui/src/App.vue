@@ -60,7 +60,11 @@
       v-if="showLogModal"
       :title="logTitle"
       :content="logContent"
+      :truncated="logTruncated"
+      :total-lines-in-file="logTotalLines"
+      :loading-all="loadingAllLines"
       @close="showLogModal = false"
+      @load-all="handleLoadAllLines"
     />
     
     <CleanModal 
@@ -134,6 +138,8 @@ const {
   showSearchModal,
   logContent,
   logTitle,
+  logTruncated,
+  logTotalLines,
   selectedDir,
   updateInfo,
   listType,
@@ -145,6 +151,7 @@ const {
   searchLogs,
   listArchives,
   viewLog,
+  loadAllLines,
   viewArchive,
   deleteArchive,
   deleteLog,
@@ -167,6 +174,16 @@ const confirmDialog = ref(null)
 const showAuditLog = ref(false)
 const showNotification = ref(false)
 const showEventLogger = ref(false)
+const loadingAllLines = ref(false)
+
+async function handleLoadAllLines() {
+  loadingAllLines.value = true
+  try {
+    await loadAllLines()
+  } finally {
+    loadingAllLines.value = false
+  }
+}
 
 async function showConfirm(options) {
   if (!confirmDialog.value) return false

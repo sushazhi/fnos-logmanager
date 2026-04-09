@@ -209,7 +209,10 @@ export async function searchLogContent(
   const lineBuffer: string[] = [];
   let currentLine = 0;
 
-  const regex = typeof pattern === 'string' ? new RegExp(pattern, 'gi') : pattern;
+  // 为每行创建新的正则实例，避免带 g 标志的正则的 lastIndex 状态问题
+  const regexSource = typeof pattern === 'string' ? pattern : pattern.source;
+  const regexFlags = typeof pattern === 'string' ? 'i' : (pattern.flags.replace(/g/g, '') + 'g');
+  const lineRegex = new RegExp(regexSource, regexFlags);
 
   try {
     for await (const line of rl) {
@@ -221,7 +224,9 @@ export async function searchLogContent(
         lineBuffer.shift();
       }
 
-      if (regex.test(line)) {
+      // 重置 lastIndex 防止带 g 标志正则的状态问题
+      lineRegex.lastIndex = 0;
+      if (lineRegex.test(line)) {
         const result: any = {
           line: currentLine,
           content: line

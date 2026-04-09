@@ -1,44 +1,43 @@
 import type { LogItem } from '../types'
-import { useStatus, setConfirmFn } from './useStatus'
-import { useStats } from './useStats'
-import { useDirs } from './useDirs'
-import { useLogs } from './useLogs'
-import { useDocker } from './useDocker'
+import { setConfirmFn } from './useStatus'
+import { setCSRFToken, fetchCSRFToken } from '../services/api'
+import { storeToRefs } from 'pinia'
+import { useStatusStore } from '../stores/useStatusStore'
+import { useStatsStore } from '../stores/useStatsStore'
+import { useDirsStore } from '../stores/useDirsStore'
+import { useLogsStore } from '../stores/useLogsStore'
+import { useDockerStore } from '../stores/useDockerStore'
+import { useUpdateStore } from '../stores/useUpdateStore'
 import { useArchive } from './useArchive'
 import { useBackup } from './useBackup'
-import { useUpdate } from './useUpdate'
-import { setCSRFToken, fetchCSRFToken } from '../services/api'
 
 export { setConfirmFn }
 
 export function useStore() {
-  const { status, setStatus } = useStatus()
-  const { stats, loadStats } = useStats()
-  const { dirs, selectedDir, loadDirs, selectDir } = useDirs()
-  const {
-    logList,
-    listType,
-    showLogModal,
-    showCleanModal,
-    showSearchModal,
-    logContent,
-    logTitle,
-    filterEnabled,
-    loadFilterStatus,
-    toggleFilter,
-    listLogs,
-    searchLogs,
-    viewLog,
-    truncateLog,
-    deleteLog,
-    executeClean,
-    cleanEmptyDirs,
-    clearList
-  } = useLogs()
-  const { dockerContainers, listDockerContainers, viewDockerLogs } = useDocker()
+  // 直接使用 Pinia stores，通过 storeToRefs 保持响应性
+  const statusStore = useStatusStore()
+  const statsStore = useStatsStore()
+  const dirsStore = useDirsStore()
+  const logsStore = useLogsStore()
+  const dockerStore = useDockerStore()
+  const updateStore = useUpdateStore()
+
+  const { status } = storeToRefs(statusStore)
+  const { stats } = storeToRefs(statsStore)
+  const { dirs, selectedDir } = storeToRefs(dirsStore)
+  const { logList, listType, showLogModal, showCleanModal, showSearchModal, logContent, logTitle, filterEnabled, logTruncated, logHasMore, logTotalLines } = storeToRefs(logsStore)
+  const { dockerContainers } = storeToRefs(dockerStore)
+  const { updateInfo, appVersion } = storeToRefs(updateStore)
+
+  const { setStatus, confirm } = statusStore
+  const { loadStats } = statsStore
+  const { loadDirs, selectDir } = dirsStore
+  const { listLogs, searchLogs, viewLog, loadAllLines, truncateLog, deleteLog, executeClean, cleanEmptyDirs, clearList, loadFilterStatus, toggleFilter } = logsStore
+  const { listDockerContainers, viewDockerLogs } = dockerStore
+  const { checkForUpdates } = updateStore
+
   const { listArchives, viewArchive, deleteArchive } = useArchive()
   const { backupLogs } = useBackup()
-  const { appVersion, updateInfo, checkForUpdates } = useUpdate()
 
   async function refreshAll(): Promise<void> {
     setStatus('正在刷新...', 'loading')
@@ -135,6 +134,9 @@ export function useStore() {
     showSearchModal,
     logContent,
     logTitle,
+    logTruncated,
+    logHasMore,
+    logTotalLines,
     selectedDir,
     updateInfo,
     listType,
@@ -150,6 +152,7 @@ export function useStore() {
     searchLogs,
     listArchives: handleListArchives,
     viewLog,
+    loadAllLines,
     truncateLog: handleTruncateLog,
     deleteLog: handleDeleteLog,
     listDockerContainers: handleListDockerContainers,

@@ -19,24 +19,14 @@ import {
     clamp
 } from '../utils/validation';
 import config from '../utils/config';
+import { filterSensitiveInfo, setFilterEnabled, isFilterEnabled } from '../utils/filter';
+import { parseSizeThreshold } from '../utils/sizeParser';
 import { ValidationError } from '../utils/errors';
 
 const router = express.Router();
 
-let FILTER_SENSITIVE = process.env.FILTER_SENSITIVE !== 'false';
-
 const MAX_PATTERN_LENGTH = 100;
 const MAX_PATH_LENGTH = 4096;
-
-function filterSensitiveInfo(content: string): string {
-    if (!FILTER_SENSITIVE) return content;
-    if (!content || typeof content !== 'string') return content;
-    let filtered = content;
-    for (const pattern of config.sensitivePatterns) {
-        filtered = filtered.replace(pattern, '[FILTERED]');
-    }
-    return filtered;
-}
 
 function getQueryParam(value: unknown): string | undefined {
     if (!value) return undefined;
@@ -56,15 +46,14 @@ router.get('/health', (_req: Request, res: Response) => {
 });
 
 router.get('/settings/filter', validateToken, (_req: Request, res: Response) => {
-    res.json({ enabled: FILTER_SENSITIVE });
+    res.json({ enabled: isFilterEnabled() });
 });
 
 router.post('/settings/filter', validateToken, validateCSRF, (req: Request, res: Response) => {
     const { enabled } = req.body;
     if (typeof enabled === 'boolean') {
-        process.env.FILTER_SENSITIVE = enabled ? 'true' : 'false';
-        FILTER_SENSITIVE = enabled;
-        res.json({ success: true, enabled: FILTER_SENSITIVE });
+        setFilterEnabled(enabled);
+        res.json({ success: true, enabled: isFilterEnabled() });
     } else {
         res.status(400).json({ error: '无效的参数' });
     }
@@ -129,16 +118,7 @@ router.get('/logs/large', validateToken, [
             return;
         }
 
-        let thresholdBytes: number;
-        const match = thresholdStr.match(/^([0-9]+)([KMGT]?)$/i);
-        if (match) {
-            const num = parseInt(match[1]);
-            const unit = (match[2] || '').toUpperCase();
-            const multipliers: Record<string, number> = { '': 1, 'K': 1024, 'M': 1024 * 1024, 'G': 1024 * 1024 * 1024, 'T': 1024 * 1024 * 1024 * 1024 };
-            thresholdBytes = num * (multipliers[unit] || 1);
-        } else {
-            thresholdBytes = 10 * 1024 * 1024;
-        }
+        const thresholdBytes = parseSizeThreshold(thresholdStr);
 
         const logs = await logFileService.listLargeLogFiles(thresholdBytes, limitNum);
         res.json({ logs });
@@ -170,16 +150,7 @@ router.get('/logs/search', validateToken, [
                 return;
             }
 
-            let thresholdBytes: number;
-            const match = sizeThreshold.match(/^([0-9]+)([KMGT]?)$/i);
-            if (match) {
-                const num = parseInt(match[1]);
-                const unit = (match[2] || '').toUpperCase();
-                const multipliers: Record<string, number> = { '': 1, 'K': 1024, 'M': 1024 * 1024, 'G': 1024 * 1024 * 1024, 'T': 1024 * 1024 * 1024 * 1024 };
-                thresholdBytes = num * (multipliers[unit] || 1);
-            } else {
-                thresholdBytes = 10 * 1024 * 1024;
-            }
+            const thresholdBytes = parseSizeThreshold(sizeThreshold);
 
             logs = await logFileService.listLargeLogFiles(thresholdBytes, limitNum);
         } else if (typeStr === 'name') {
@@ -219,7 +190,7 @@ router.get('/logs/stats', validateToken, async (_req: Request, res: Response, ne
 
 router.get('/log/content', validateToken, [
     query('path').notEmpty().isString().isLength({ max: MAX_PATH_LENGTH }),
-    query('maxLines').optional().isInt({ min: 100, max: 50000 }),
+    query('maxLines').optional().isInt({ min: 100, max: 200000 }),
     query('offset').optional().isInt({ min: 0 }),
     query('tail').optional().isBoolean()
 ], async (req: Request, res: Response, next: NextFunction) => {
@@ -245,7 +216,7 @@ router.get('/log/content', validateToken, [
         const tailStr = getQueryParam(req.query.tail);
 
         const options = {
-            maxLines: clamp(maxLinesStr ? parseInt(maxLinesStr) : 5000, 100, 50000),
+            maxLines: clamp(maxLinesStr ? parseInt(maxLinesStr) : 5000, 100, 200000),
             offset: clamp(offsetStr ? parseInt(offsetStr) : 0, 0, Number.MAX_SAFE_INTEGER),
             tail: tailStr === 'true'
         };
@@ -347,13 +318,7 @@ router.post('/logs/clean', validateToken, validateCSRF, sensitiveActionRateLimit
 
         let thresholdBytes: number | null = null;
         if (threshold && isValidThreshold(threshold)) {
-            const match = threshold.match(/^([0-9]+)([KMGT]?)$/i);
-            if (match) {
-                const num = parseInt(match[1]);
-                const unit = (match[2] || '').toUpperCase();
-                const multipliers: Record<string, number> = { '': 1, 'K': 1024, 'M': 1024 * 1024, 'G': 1024 * 1024 * 1024, 'T': 1024 * 1024 * 1024 * 1024 };
-                thresholdBytes = num * (multipliers[unit] || 1);
-            }
+            thresholdBytes = parseSizeThreshold(threshold);
         }
 
         const daysNum = days ? clamp(parseInt(days), 1, 365) : null;
