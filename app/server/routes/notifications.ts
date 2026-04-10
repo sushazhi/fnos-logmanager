@@ -4,10 +4,12 @@
 
 import express, { Request, Response, NextFunction } from 'express';
 import { query, body, param } from 'express-validator';
+import crypto from 'crypto';
 import * as notificationStore from '../services/notificationStore';
 import * as notificationService from '../services/notification';
 import * as logMonitor from '../services/logMonitor';
 import { validateToken, validateCSRF } from '../middleware/auth';
+import { sensitiveActionRateLimit, apiRateLimit } from '../middleware/rateLimit';
 import {
     NotificationChannelConfig,
     NotificationRule,
@@ -22,7 +24,7 @@ const router = express.Router();
  * 生成唯一ID
  */
 function generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
 }
 
 // ==================== 设置管理 ====================
@@ -112,7 +114,10 @@ router.get('/channels/types', validateToken, (_req: Request, res: Response) => {
 /**
  * 添加渠道
  */
-router.post('/channels', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/channels', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), [
+    body('channel').notEmpty().isString().withMessage('渠道类型不能为空'),
+    body('name').notEmpty().isString().isLength({ max: 100 }).withMessage('渠道名称不能为空且不超过100字符')
+], async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { channel, name, config } = req.body as CreateChannelRequest;
 
@@ -149,7 +154,9 @@ router.post('/channels', validateToken, validateCSRF, async (req: Request, res: 
 /**
  * 更新渠道
  */
-router.put('/channels/:name', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+router.put('/channels/:name', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), [
+    param('name').isString().isLength({ max: 100 }).withMessage('渠道名称无效')
+], async (req: Request, res: Response, next: NextFunction) => {
     try {
         const channelName = req.params.name;
         const updates = req.body;
@@ -165,7 +172,9 @@ router.put('/channels/:name', validateToken, validateCSRF, async (req: Request, 
 /**
  * 删除渠道
  */
-router.delete('/channels/:name', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/channels/:name', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), [
+    param('name').isString().isLength({ max: 100 }).withMessage('渠道名称无效')
+], async (req: Request, res: Response, next: NextFunction) => {
     try {
         const channelName = req.params.name;
         await notificationStore.deleteChannel(channelName);
@@ -178,7 +187,9 @@ router.delete('/channels/:name', validateToken, validateCSRF, async (req: Reques
 /**
  * 测试渠道
  */
-router.post('/channels/:name/test', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveActionRateLimit(5, 300000), [
+    param('name').isString().isLength({ max: 100 }).withMessage('渠道名称无效')
+], async (req: Request, res: Response, next: NextFunction) => {
     try {
         const channelName = req.params.name;
         const channel = notificationStore.getChannel(channelName);
@@ -227,7 +238,7 @@ router.get('/rules/:id', validateToken, async (req: Request, res: Response, next
 /**
  * 添加规则
  */
-router.post('/rules', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/rules', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const ruleData = req.body as CreateNotificationRuleRequest;
 
@@ -284,7 +295,9 @@ router.post('/rules', validateToken, validateCSRF, async (req: Request, res: Res
 /**
  * 更新规则
  */
-router.put('/rules/:id', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+router.put('/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), [
+    param('id').isString().isLength({ max: 100 }).withMessage('规则ID无效')
+], async (req: Request, res: Response, next: NextFunction) => {
     try {
         const ruleId = req.params.id;
         const updates = req.body;
@@ -315,7 +328,9 @@ router.put('/rules/:id', validateToken, validateCSRF, async (req: Request, res: 
 /**
  * 删除规则
  */
-router.delete('/rules/:id', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), [
+    param('id').isString().isLength({ max: 100 }).withMessage('规则ID无效')
+], async (req: Request, res: Response, next: NextFunction) => {
     try {
         const ruleId = req.params.id;
         await notificationStore.deleteRule(ruleId);

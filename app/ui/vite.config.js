@@ -29,6 +29,10 @@ export default defineConfig({
         cssCodeSplit: true,
         reportCompressedSize: true
     },
+    // 生产环境移除 console 输出，防止敏感信息泄露
+    esbuild: {
+        drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : []
+    },
     server: {
         port: 3000,
         proxy: {

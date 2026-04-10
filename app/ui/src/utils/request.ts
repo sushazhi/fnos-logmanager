@@ -115,3 +115,34 @@ export class RequestDeduper {
     this.pending.clear()
   }
 }
+
+/**
+ * 过滤错误信息中的敏感内容（公共工具函数）
+ * @param message - 原始错误消息
+ * @returns 过滤后的安全消息
+ */
+export function filterSensitiveInfo(message: unknown): string {
+  if (typeof message !== 'string') return String(message)
+
+  // 过滤路径信息
+  let filtered = message.replace(/\/[\w\-./]+/g, '[PATH]')
+
+  // 过滤IP地址
+  filtered = filtered.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, '[IP]')
+
+  // 过滤端口号
+  filtered = filtered.replace(/:\d{2,5}/g, ':[PORT]')
+
+  return filtered
+}
+
+/**
+ * 安全获取错误消息：从 Error 对象中提取消息并过滤敏感信息
+ * @param err - 错误对象
+ * @param fallback - 默认错误消息
+ * @returns 过滤后的安全错误消息
+ */
+export function safeErrorMessage(err: unknown, fallback: string = '操作失败'): string {
+  const message = err instanceof Error ? err.message : String(err)
+  return filterSensitiveInfo(message || fallback)
+}

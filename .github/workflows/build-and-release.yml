@@ -21,7 +21,11 @@ jobs:
 
       - name: Read version from manifest
         run: |
-          APP_VERSION=$(grep "^version\s*=" manifest | sed 's/version\s*=\s*//' | tr -d ' ')
+          APP_VERSION=$(grep '^version[[:space:]]*=' manifest | sed 's/^version[[:space:]]*=[[:space:]]*//' | tr -d '[:space:]')
+          if [ -z "$APP_VERSION" ]; then
+            echo "ERROR: Failed to read version from manifest"
+            exit 1
+          fi
           echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
           echo "APP_VERSION=${APP_VERSION}"
 
@@ -33,7 +37,7 @@ jobs:
       - name: Inject version into source files
         run: |
           APP_HEADER="app/ui/src/components/AppHeader.vue"
-          USE_UPDATE="app/ui/src/composables/useUpdate.ts"
+          USE_UPDATE="app/ui/src/stores/useUpdateStore.ts"
 
           if [ -f "$APP_HEADER" ]; then
             sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$APP_HEADER"
@@ -42,7 +46,14 @@ jobs:
 
           if [ -f "$USE_UPDATE" ]; then
             sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$USE_UPDATE"
-            echo "Version ${APP_VERSION} injected into useUpdate.ts"
+            echo "Version ${APP_VERSION} injected into useUpdateStore.ts"
+          fi
+
+          # Verify no placeholder remains
+          if grep -rq '__APP_VERSION__' app/ui/src/; then
+            echo "ERROR: __APP_VERSION__ placeholder still exists in source files"
+            grep -rn '__APP_VERSION__' app/ui/src/
+            exit 1
           fi
 
       - name: Build Vue frontend
@@ -85,8 +96,12 @@ jobs:
         run: |
           FNPACK_URL="https://static2.fnnas.com/fnpack/fnpack-1.2.1-linux-amd64"
           wget -q "$FNPACK_URL" -O fnpack
+          if [ ! -s fnpack ]; then
+            echo "ERROR: fnpack download failed or file is empty"
+            exit 1
+          fi
           chmod +x fnpack
-          echo "fnpack downloaded"
+          echo "fnpack downloaded ($(stat -c%s fnpack) bytes)"
 
       - name: Verify project structure
         run: |
@@ -177,7 +192,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG="${{ github.ref_name }}"
-          CHANGELOG=$(grep "^changelog" manifest | sed 's/changelog\s*=\s*//' | sed 's/<br>/\n/g')
+          CHANGELOG=$(grep '^changelog[[:space:]]*=' manifest | sed 's/^changelog[[:space:]]*=[[:space:]]*//' | sed 's/<br>/\n/g')
           
           gh release create "$TAG" \
             "${PACKAGE_NAME}" \

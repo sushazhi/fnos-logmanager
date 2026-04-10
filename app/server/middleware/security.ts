@@ -107,18 +107,12 @@ function sanitizeObject(obj: Record<string, unknown>): Record<string, unknown> {
 
     for (const [key, value] of Object.entries(obj)) {
         if (typeof value === 'string') {
-            sanitized[key] = value
-                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                .replace(/javascript:/gi, '')
-                .replace(/on\w+\s*=/gi, '');
+            sanitized[key] = sanitizeString(value);
         } else if (Array.isArray(value)) {
             // 处理数组：递归处理每个元素，保持数组结构
             sanitized[key] = value.map(item => {
                 if (typeof item === 'string') {
-                    return item
-                        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                        .replace(/javascript:/gi, '')
-                        .replace(/on\w+\s*=/gi, '');
+                    return sanitizeString(item);
                 } else if (typeof item === 'object' && item !== null) {
                     return sanitizeObject(item as Record<string, unknown>);
                 }
@@ -132,6 +126,25 @@ function sanitizeObject(obj: Record<string, unknown>): Record<string, unknown> {
     }
 
     return sanitized;
+}
+
+/**
+ * 字符串净化：使用白名单方式防御 XSS
+ * 1. HTML 实体编码 < 和 >，防止任何 HTML 标签注入
+ * 2. 移除 javascript:/vbscript:/data: 协议
+ * 3. 移除事件处理器属性 on*=
+ */
+function sanitizeString(value: string): string {
+    return value
+        // HTML 实体编码尖括号，阻止所有 HTML 标签注入
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        // 移除危险协议
+        .replace(/javascript\s*:/gi, '')
+        .replace(/vbscript\s*:/gi, '')
+        .replace(/data\s*:/gi, '')
+        // 移除事件处理器（on*= 形式，允许空格）
+        .replace(/\bon\w+\s*=\s*/gi, '');
 }
 
 export function validateEnv(): { valid: boolean; errors: string[] } {

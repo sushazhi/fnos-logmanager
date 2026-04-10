@@ -6,6 +6,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import Logger from '../utils/logger';
+import * as sessionService from '../services/session';
 
 const logger = Logger.child({ module: 'NotifyWS' });
 
@@ -18,6 +19,15 @@ const clients: Map<WebSocket, NotifyClient> = new Map();
 let wss: WebSocketServer | null = null;
 
 /**
+ * 从请求头中解析 cookie 获取 session token
+ */
+function getSessionTokenFromRequest(req: any): string {
+    const cookieHeader = req.headers.cookie || '';
+    const match = cookieHeader.match(/session_token=([^;]+)/);
+    return match ? match[1] : '';
+}
+
+/**
  * 初始化通知 WebSocket 服务器
  */
 export function initNotifyWebSocket(server: Server): void {
@@ -28,10 +38,22 @@ export function initNotifyWebSocket(server: Server): void {
             const origin = info.origin || '';
             const host = info.req.headers.host || '';
             if (!origin || origin.includes(host) || origin.includes('5ddd.com')) {
-                callback(true);
+                // Origin 检查通过，继续验证 Session
             } else {
+                logger.warn({ origin, host }, 'NotifyWS connection rejected: origin mismatch');
                 callback(false, 403, 'Forbidden');
+                return;
             }
+
+            // 验证 Session Token
+            const token = getSessionTokenFromRequest(info.req);
+            if (!token || !sessionService.validateSession(token)) {
+                logger.warn('NotifyWS connection rejected: invalid or missing session token');
+                callback(false, 401, 'Unauthorized');
+                return;
+            }
+
+            callback(true);
         }
     });
 

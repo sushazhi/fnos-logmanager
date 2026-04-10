@@ -54,13 +54,26 @@ export function notFoundHandler(req: Request, res: Response, _next: NextFunction
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
   const requestId = generateRequestId();
   
-  // 记录错误日志
+  // 记录错误日志（过滤敏感字段）
+  const safeBody = req.body ? (() => {
+    const filtered: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(req.body as Record<string, unknown>)) {
+      // 过滤密码、密钥等敏感字段
+      if (/password|secret|token|key|credential/i.test(key)) {
+        filtered[key] = '[REDACTED]';
+      } else {
+        filtered[key] = value;
+      }
+    }
+    return filtered;
+  })() : undefined;
+
   logger.error({
     err,
     path: req.path,
     method: req.method,
     requestId,
-    body: req.body
+    body: safeBody
   }, '请求处理错误');
 
   // 处理 AppError

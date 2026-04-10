@@ -109,7 +109,7 @@ router.get('/docker/logs', validateToken, [
         const stdout = await execDocker(args, config.docker.logsTimeoutMs, config.docker.maxOutputBytes);
         res.json({ logs: filterSensitiveInfo(stdout) });
     } catch (e) {
-        res.status(500).json({ error: (e as Error).message });
+        res.status(500).json({ error: '获取Docker日志失败' });
     }
 });
 

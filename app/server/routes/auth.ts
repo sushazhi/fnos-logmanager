@@ -33,7 +33,14 @@ function isPrivateIP(ipAddr: string): boolean {
 
 router.post('/setup', validate([
     body('password').isLength({ min: 8 }).withMessage('密码至少8位')
-]), async (req: Request, res: Response, next: NextFunction) => {
+]), (req: Request, res: Response, next: NextFunction) => {
+    // CSRF 防护：要求 X-Requested-With header（跨站请求无法自定义此 header）
+    if (!req.headers['x-requested-with'] || req.headers['x-requested-with'] !== 'XMLHttpRequest') {
+        res.status(403).json({ success: false, error: '缺少必要的安全头' });
+        return;
+    }
+    next();
+}, async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { password } = req.body;
         const ip = getClientIP(req);
@@ -122,7 +129,7 @@ router.post('/login', validate(loginValidationRules), async (req: Request, res: 
     }
 });
 
-router.post('/logout', validateCSRF, (req: Request, res: Response) => {
+router.post('/logout', validateToken, validateCSRF, (req: Request, res: Response) => {
     const token = getSessionToken(req);
     if (token) {
         sessionService.deleteSession(token);

@@ -375,6 +375,14 @@ router.post('/backups/delete', validateToken, validateCSRF, sensitiveActionRateL
             return;
         }
 
+        // 验证备份文件路径在允许的备份目录内
+        const backupBaseDir = config.backup.baseDir;
+        const normalizedBackupPath = safePath(backupPath);
+        if (!normalizedBackupPath || !normalizedBackupPath.startsWith(backupBaseDir + '/')) {
+            res.status(403).json({ error: '不允许访问此备份文件' });
+            return;
+        }
+
         await backupService.deleteBackup(backupPath);
         auditService.addAuditLog('backup_delete', { path: backupPath }, req);
         res.json({ success: true, message: '备份已删除' });
