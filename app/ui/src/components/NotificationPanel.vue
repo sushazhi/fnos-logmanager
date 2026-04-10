@@ -189,7 +189,7 @@
           <div class="form-group" v-for="field in currentChannelFields" :key="field">
             <label>
               {{ getFieldLabel(field) }}
-              <a v-if="getFieldHelpUrl(field)" :href="getFieldHelpUrl(field)" target="_blank" class="help-link">?</a>
+              <a v-if="getFieldHelpUrl(field)" :href="getFieldHelpUrl(field)" target="_blank" rel="noopener noreferrer" class="help-link">?</a>
             </label>
             <input 
               :type="field.includes('password') || field.includes('secret') ? 'password' : 'text'" 

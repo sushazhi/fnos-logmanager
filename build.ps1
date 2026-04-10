@@ -112,7 +112,7 @@ Write-Host "[2/5] Build Vue frontend..." -ForegroundColor Yellow
 $UI_DIR = Join-Path $PROJECT_DIR "app\ui"
 $VERSION_PLACEHOLDER = "__APP_VERSION__"
 $appHeaderPath = Join-Path $UI_DIR "src\components\AppHeader.vue"
-$useUpdatePath = Join-Path $UI_DIR "src\composables\useUpdate.ts"
+$useUpdatePath = Join-Path $UI_DIR "src\stores\useUpdateStore.ts"
 $originalAppHeaderContent = $null
 $originalUseUpdateContent = $null
 
@@ -128,11 +128,11 @@ if (-not $SkipVueBuild) {
         }
         
         if (Test-Path $useUpdatePath) {
-            Write-Host "  Injecting version into useUpdate.js..." -ForegroundColor Yellow
+            Write-Host "  Injecting version into useUpdateStore.ts..." -ForegroundColor Yellow
             $originalUseUpdateContent = Get-Content $useUpdatePath -Raw -Encoding UTF8
             $useUpdateContent = $originalUseUpdateContent -replace [regex]::Escape($VERSION_PLACEHOLDER), $APP_VERSION
             [System.IO.File]::WriteAllText($useUpdatePath, $useUpdateContent, [System.Text.Encoding]::UTF8)
-            Write-Host "  Version $APP_VERSION injected into useUpdate.js" -ForegroundColor Green
+            Write-Host "  Version $APP_VERSION injected into useUpdateStore.ts" -ForegroundColor Green
         }
         
         try {
@@ -176,7 +176,7 @@ if (-not $SkipVueBuild) {
             }
             if ($null -ne $originalUseUpdateContent) {
                 [System.IO.File]::WriteAllText($useUpdatePath, $originalUseUpdateContent, [System.Text.Encoding]::UTF8)
-                Write-Host "  Restored original useUpdate.js" -ForegroundColor Green
+                Write-Host "  Restored original useUpdateStore.ts" -ForegroundColor Green
             }
         }
     }

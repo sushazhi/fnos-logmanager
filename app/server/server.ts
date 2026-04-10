@@ -52,7 +52,7 @@ const getLogUrl = (req: express.Request) => {
     return req.path;
 };
 
-app.set('trust proxy', true);
+app.set('trust proxy', process.env.TRUSTED_PROXIES ? process.env.TRUSTED_PROXIES.split(',').map(ip => ip.trim()) : ['127.0.0.1', '::1']);
 
 app.use(morgan((tokens, req, res) => {
     const status = tokens.status(req, res);

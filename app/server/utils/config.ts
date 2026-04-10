@@ -11,6 +11,9 @@ const config: AppConfig = {
         maxRequests: 100
     },
     auth: {
+        // 安全提示：allowQueryToken 允许通过 URL query 参数传递 session token
+        // 这会使 token 出现在访问日志、浏览器历史记录和 Referer 头中
+        // 仅在 WebSocket 连接等无法设置 cookie 的场景下启用，并限制到最小路径集合
         allowQueryToken: process.env.ALLOW_QUERY_TOKEN === 'true',
         queryTokenPaths: ['/api/auth/status', '/api/auth/csrf-token']
     },

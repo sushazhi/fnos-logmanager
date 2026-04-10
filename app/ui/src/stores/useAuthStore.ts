@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '../services/api'
+import { safeErrorMessage } from '../utils/request'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -21,7 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
       isLoggedIn.value = response.isLoggedIn
       return response
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '检查认证状态失败'
+      error.value = safeErrorMessage(err, '检查认证状态失败')
       throw err
     }
   }
@@ -38,7 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       return response
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '初始化失败'
+      error.value = safeErrorMessage(err, '初始化失败')
       throw err
     } finally {
       loading.value = false
@@ -56,7 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       return response
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '登录失败'
+      error.value = safeErrorMessage(err, '登录失败')
       throw err
     } finally {
       loading.value = false
@@ -69,7 +70,7 @@ export const useAuthStore = defineStore('auth', () => {
       isLoggedIn.value = false
       api.clearCSRFToken()
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '登出失败'
+      error.value = safeErrorMessage(err, '登出失败')
       throw err
     }
   }
@@ -83,7 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
       )
       return response
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '修改密码失败'
+      error.value = safeErrorMessage(err, '修改密码失败')
       throw err
     } finally {
       loading.value = false

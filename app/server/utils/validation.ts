@@ -33,27 +33,36 @@ export function safePath(inputPath: string): string | null {
 }
 
 /**
- * 检查路径是否为符号链接，或是否在符号链接之后
+ * 检查路径是否为符号链接，或路径链中是否包含符号链接
+ * 递归检查整个路径链，防止深层符号链接绕过
  */
 export function isSymlinkPath(filePath: string): boolean {
     try {
+        // 检查目标文件本身
         const stats = fs.lstatSync(filePath);
         if (stats.isSymbolicLink()) {
             return true;
         }
-        
-        // 检查父目录是否为符号链接
-        const parentDir = path.dirname(filePath);
-        if (parentDir !== filePath) {
+
+        // 递归检查路径中每个组件是否为符号链接
+        const parts = filePath.split(/[/\\]/);
+        let currentPath = filePath.startsWith('/') ? '/' : '';
+
+        for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            if (!part) continue;
+            currentPath = path.join(currentPath, part);
+
             try {
-                const parentStats = fs.lstatSync(parentDir);
-                if (parentStats.isSymbolicLink()) {
+                const partStats = fs.lstatSync(currentPath);
+                if (partStats.isSymbolicLink()) {
                     return true;
                 }
             } catch {
-                // 忽略错误
+                // 路径组件不存在，继续检查
             }
         }
+
         return false;
     } catch {
         // 文件不存在或其他错误

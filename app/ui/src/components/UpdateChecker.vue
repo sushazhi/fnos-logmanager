@@ -90,7 +90,9 @@ const safeChangelog = computed(() => {
   if (!updateInfo.value?.changelog) return ''
   return DOMPurify.sanitize(updateInfo.value.changelog, {
     ALLOWED_TAGS: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'h1', 'h2', 'h3', 'h4', 'code', 'pre'],
-    ALLOWED_ATTR: ['href', 'target', 'rel']
+    ALLOWED_ATTR: ['href', 'target', 'rel'],
+    // 限制链接只允许 GitHub 域名
+    ALLOWED_URI_REGEXP: /^https?:\/\/(github\.com|api\.github\.com|objects\.githubusercontent\.com)\//i
   })
 })
 

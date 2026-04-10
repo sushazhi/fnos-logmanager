@@ -2,7 +2,7 @@
   <footer class="footer">
     <p>飞牛应用日志管理 © 2026</p>
     <p>
-      <a href="https://github.com/sushazhi/fnos-logmanager/issues" target="_blank">
+      <a href="https://github.com/sushazhi/fnos-logmanager/issues" target="_blank" rel="noopener noreferrer">
         问题反馈
       </a>
     </p>

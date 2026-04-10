@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+﻿import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { UpdateInfo, UpdateStatus } from '../types'
 import api from '../services/api'

@@ -11,6 +11,7 @@ import Logger from '../utils/logger';
 import { isAllowedPath } from '../utils/validation';
 import config from '../utils/config';
 import { filterSensitiveInfo } from '../utils/filter';
+import * as sessionService from '../services/session';
 
 const logger = Logger.child({ module: 'LogStream' });
 
@@ -27,6 +28,15 @@ const clients: Map<WebSocket, StreamClient> = new Map();
 let wss: WebSocketServer | null = null;
 
 /**
+ * 从请求头中解析 cookie 获取 session token
+ */
+function getSessionTokenFromRequest(req: any): string {
+    const cookieHeader = req.headers.cookie || '';
+    const match = cookieHeader.match(/session_token=([^;]+)/);
+    return match ? match[1] : '';
+}
+
+/**
  * 初始化 WebSocket 服务器
  * 挂载到现有 HTTP 服务器上
  */
@@ -34,17 +44,28 @@ export function initLogStream(server: Server): void {
     wss = new WebSocketServer({ 
         server, 
         path: '/api/logs/stream',
-        // 验证 Origin 头
+        // 验证 Origin 头和 Session 认证
         verifyClient: (info, callback) => {
             // 允许同源和飞牛桌面端
             const origin = info.origin || '';
             const host = info.req.headers.host || '';
             if (!origin || origin.includes(host) || origin.includes('5ddd.com')) {
-                callback(true);
+                // Origin 检查通过，继续验证 Session
             } else {
                 logger.warn({ origin, host }, 'WebSocket connection rejected: origin mismatch');
                 callback(false, 403, 'Forbidden');
+                return;
             }
+
+            // 验证 Session Token
+            const token = getSessionTokenFromRequest(info.req);
+            if (!token || !sessionService.validateSession(token)) {
+                logger.warn('WebSocket connection rejected: invalid or missing session token');
+                callback(false, 401, 'Unauthorized');
+                return;
+            }
+
+            callback(true);
         }
     });
 

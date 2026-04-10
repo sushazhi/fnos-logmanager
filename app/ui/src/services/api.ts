@@ -5,7 +5,8 @@ import {
   ServerError,
   withRetry,
   RequestCanceller,
-  RequestDeduper 
+  RequestDeduper,
+  filterSensitiveInfo
 } from '../utils/request'
 
 const API_BASE = window.location.origin
@@ -79,7 +80,8 @@ async function request<T = unknown>(endpoint: string, options: RequestOptions = 
     const url = `${API_BASE}${endpoint}`
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
     }
 
     // 处理用户传入的 headers
@@ -167,26 +169,6 @@ async function request<T = unknown>(endpoint: string, options: RequestOptions = 
   }
 
   return executeRequest()
-}
-
-/**
- * 过滤错误信息中的敏感内容
- * @param message - 原始错误消息
- * @returns 过滤后的安全消息
- */
-function filterSensitiveInfo(message: unknown): string {
-  if (typeof message !== 'string') return String(message)
-
-  // 过滤路径信息
-  let filtered = message.replace(/\/[\w\-./]+/g, '[PATH]')
-
-  // 过滤IP地址
-  filtered = filtered.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, '[IP]')
-
-  // 过滤端口号
-  filtered = filtered.replace(/:\d{2,5}/g, ':[PORT]')
-
-  return filtered
 }
 
 export const api = {
