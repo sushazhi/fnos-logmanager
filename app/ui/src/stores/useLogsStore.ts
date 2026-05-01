@@ -236,11 +236,13 @@ export const useLogsStore = defineStore('logs', () => {
 
   async function exportLog(path: string, format: string = 'txt', isDocker: boolean = false): Promise<void> {
     const { setStatus } = useStatusStore()
+    const allowedFormats = ['txt', 'json', 'csv']
+    const safeFormat = allowedFormats.includes(format) ? format : 'txt'
     setStatus('正在导出日志...', 'loading')
     try {
       const baseApi = isDocker
-        ? `/api/docker/export?container=${encodeURIComponent(path)}&format=${encodeURIComponent(format)}`
-        : `/api/log/export?path=${encodeURIComponent(path)}&format=${encodeURIComponent(format)}`
+        ? `/api/docker/export?container=${encodeURIComponent(path)}&format=${encodeURIComponent(safeFormat)}`
+        : `/api/log/export?path=${encodeURIComponent(path)}&format=${encodeURIComponent(safeFormat)}`
       const url = `${window.location.origin}${baseApi}`
       const csrfToken = api.getCSRFToken()
       const response = await fetch(url, {
@@ -255,7 +257,7 @@ export const useLogsStore = defineStore('logs', () => {
       }
       const blob = await response.blob()
       const disposition = response.headers.get('Content-Disposition')
-      let filename = `log_export.${format}`
+      let filename = `log_export.${safeFormat}`
       if (disposition) {
         const match = disposition.match(/filename[^;=\n]*=((["']).*?\2|[^;\n]*)/)
         if (match && match[1]) {

@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { spawn } from 'child_process';
 import { query } from 'express-validator';
-import { validateToken } from '../middleware/auth';
+import { validateToken, validate } from '../middleware/auth';
 import { isValidContainerName } from '../utils/validation';
 import { filterSensitiveInfo } from '../utils/filter';
 import config from '../utils/config';
@@ -116,7 +116,7 @@ router.get('/docker/logs', validateToken, [
 router.get('/docker/export', validateToken, [
     query('container').notEmpty().isString(),
     query('format').optional().isIn(['txt', 'json', 'csv'])
-], async (req: Request, res: Response, _next: NextFunction) => {
+], validate, async (req: Request, res: Response, _next: NextFunction) => {
     try {
         const { container, format } = req.query;
 
@@ -136,7 +136,7 @@ router.get('/docker/export', validateToken, [
 
         const safeName = (container as string).replace(/[^a-zA-Z0-9._-]/g, '_');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const exportName = `docker_${safeName}_${timestamp}`;
+        const exportName = `docker_${safeName}_${timestamp}`.replace(/"/g, '\\"');
 
         if (exportFormat === 'txt') {
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');

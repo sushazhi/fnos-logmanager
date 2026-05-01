@@ -191,7 +191,7 @@ router.get('/logs/stats', validateToken, async (_req: Request, res: Response, ne
 router.get('/log/export', validateToken, [
     query('path').notEmpty().isString().isLength({ max: MAX_PATH_LENGTH }),
     query('format').optional().isIn(['txt', 'json', 'csv'])
-], async (req: Request, res: Response, next: NextFunction) => {
+], validate, async (req: Request, res: Response, next: NextFunction) => {
     try {
         const logPathStr = getQueryParam(req.query.path);
         if (!logPathStr) {
@@ -215,7 +215,7 @@ router.get('/log/export', validateToken, [
         const basename = logPathStr.split('/').pop() || 'log';
         const safeName = basename.replace(/[^a-zA-Z0-9._-]/g, '_');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const exportName = `${safeName}_${timestamp}`;
+        const exportName = `${safeName}_${timestamp}`.replace(/"/g, '\\"');
 
         auditService.addAuditLog('log_export', { path: safePath(logPathStr), format }, req);
 
@@ -232,7 +232,7 @@ router.get('/log/export', validateToken, [
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="${exportName}.json"`);
             res.json({
-                source: logPathStr,
+                source: safePath(logPathStr),
                 exportedAt: new Date().toISOString(),
                 totalLines: result.totalLines,
                 lines: data
