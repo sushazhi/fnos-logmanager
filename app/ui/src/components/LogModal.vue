@@ -6,6 +6,14 @@
         <span class="title">{{ title }}</span>
         <div class="header-actions">
           <span class="line-count">{{ totalLines }} 行{{ truncated ? ` / 共 ${totalLinesInFile} 行` : '' }}</span>
+          <div class="export-group">
+            <button class="export-btn" @click="toggleExportMenu" title="导出日志">导出</button>
+            <div class="export-menu" v-if="showExportMenu">
+              <button class="export-option" @click="handleExport('txt')">TXT 纯文本</button>
+              <button class="export-option" @click="handleExport('json')">JSON 结构化</button>
+              <button class="export-option" @click="handleExport('csv')">CSV 表格</button>
+            </div>
+          </div>
           <button class="close-btn" @click="$emit('close')">×</button>
         </div>
       </div>
@@ -74,15 +82,17 @@ const props = withDefaults(defineProps<Props>(), {
   loadingAll: false
 })
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
   loadAll: []
+  export: [format: string]
 }>()
 
 const searchQuery = ref('')
 const currentMatchIndex = ref(0)
 const logBody = ref<HTMLElement | null>(null)
 const currentLineIndex = ref(-1)
+const showExportMenu = ref(false)
 
 const LINE_HEIGHT = 24
 const BUFFER_SIZE = 10
@@ -273,12 +283,30 @@ function goToLastLine(): void {
   })
 }
 
+function toggleExportMenu(): void {
+  showExportMenu.value = !showExportMenu.value
+}
+
+function handleExport(format: string): void {
+  showExportMenu.value = false
+  emit('export', format)
+}
+
+function handleClickOutside(e: MouseEvent): void {
+  const target = e.target as HTMLElement
+  if (!target.closest('.export-group')) {
+    showExportMenu.value = false
+  }
+}
+
 onMounted(() => {
   handleScroll()
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
   cleanupSearch()
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -352,6 +380,57 @@ onUnmounted(() => {
 
 .close-btn:hover {
   color: var(--text-color, #333);
+}
+
+.export-group {
+  position: relative;
+}
+
+.export-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--primary-color, #667eea);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--primary-color, #667eea);
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.export-btn:hover {
+  background: var(--primary-color, #667eea);
+  color: white;
+}
+
+.export-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--card-bg, white);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1200;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.export-option {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-color, #333);
+  cursor: pointer;
+}
+
+.export-option:hover {
+  background: var(--bg-color, #f5f7fa);
+  color: var(--primary-color, #667eea);
 }
 
 .truncated-warning {
@@ -635,6 +714,25 @@ onUnmounted(() => {
 
   .close-btn:hover {
     color: var(--text-color-1);
+  }
+
+  .export-group {
+    order: 0;
+  }
+
+  .export-btn {
+    padding: 2px 8px;
+    font-size: 0.6875rem;
+  }
+
+  .export-menu {
+    right: 0;
+    min-width: 120px;
+  }
+
+  .export-option {
+    padding: 6px 10px;
+    font-size: 0.75rem;
   }
 
   .modal-search {

@@ -113,4 +113,63 @@ router.get('/docker/logs', validateToken, [
     }
 });
 
+router.get('/docker/export', validateToken, [
+    query('container').notEmpty().isString(),
+    query('format').optional().isIn(['txt', 'json', 'csv'])
+], async (req: Request, res: Response, _next: NextFunction) => {
+    try {
+        const { container, format } = req.query;
+
+        if (!container) {
+            res.status(400).json({ error: '缺少容器名称' });
+            return;
+        }
+
+        if (!isValidContainerName(container as string)) {
+            res.status(400).json({ error: '无效的容器名称' });
+            return;
+        }
+
+        const exportFormat = (format as string) || 'txt';
+        const stdout = await execDocker(['logs', container as string], config.docker.logsTimeoutMs, config.docker.maxOutputBytes);
+        const content = filterSensitiveInfo(stdout);
+
+        const safeName = (container as string).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const exportName = `docker_${safeName}_${timestamp}`;
+
+        if (exportFormat === 'txt') {
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${exportName}.txt"`);
+            res.send(content);
+        } else if (exportFormat === 'json') {
+            const lines = content.split('\n');
+            const data = lines.map((line: string, index: number) => ({
+                line: index + 1,
+                content: line
+            }));
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${exportName}.json"`);
+            res.json({
+                source: `docker:${container}`,
+                exportedAt: new Date().toISOString(),
+                totalLines: lines.length,
+                lines: data
+            });
+        } else if (exportFormat === 'csv') {
+            const lines = content.split('\n');
+            const csvLines = ['"line","content"'];
+            for (let i = 0; i < lines.length; i++) {
+                const escaped = lines[i].replace(/"/g, '""');
+                csvLines.push(`"${i + 1}","${escaped}"`);
+            }
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${exportName}.csv"`);
+            res.send(csvLines.join('\n'));
+        }
+    } catch (e) {
+        res.status(500).json({ error: '导出Docker日志失败' });
+    }
+});
+
 export default router;

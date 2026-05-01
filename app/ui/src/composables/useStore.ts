@@ -25,14 +25,14 @@ export function useStore() {
   const { status } = storeToRefs(statusStore)
   const { stats } = storeToRefs(statsStore)
   const { dirs, selectedDir } = storeToRefs(dirsStore)
-  const { logList, listType, showLogModal, showCleanModal, showSearchModal, logContent, logTitle, filterEnabled, logTruncated, logHasMore, logTotalLines } = storeToRefs(logsStore)
+  const { logList, listType, showLogModal, showCleanModal, showSearchModal, logContent, logTitle, filterEnabled, logTruncated, logHasMore, logTotalLines, logCurrentPath, logIsDocker } = storeToRefs(logsStore)
   const { dockerContainers } = storeToRefs(dockerStore)
   const { updateInfo, appVersion } = storeToRefs(updateStore)
 
   const { setStatus, confirm } = statusStore
   const { loadStats } = statsStore
   const { loadDirs, selectDir } = dirsStore
-  const { listLogs, searchLogs, viewLog, loadAllLines, truncateLog, deleteLog, executeClean, cleanEmptyDirs, clearList, loadFilterStatus, toggleFilter } = logsStore
+  const { listLogs, searchLogs, viewLog, loadAllLines, truncateLog, deleteLog, executeClean, cleanEmptyDirs, exportLog, clearList, loadFilterStatus, toggleFilter } = logsStore
   const { listDockerContainers, viewDockerLogs } = dockerStore
   const { checkForUpdates } = updateStore
 
@@ -66,6 +66,8 @@ export function useStore() {
     if (result) {
       logTitle.value = result.title
       logContent.value = result.content
+      logCurrentPath.value = container
+      logIsDocker.value = true
       showLogModal.value = true
     }
   }
@@ -82,6 +84,7 @@ export function useStore() {
     if (result) {
       logTitle.value = result.title
       logContent.value = result.content
+      logIsDocker.value = false
       showLogModal.value = true
     }
   }
@@ -137,6 +140,8 @@ export function useStore() {
     logTruncated,
     logHasMore,
     logTotalLines,
+    logCurrentPath,
+    logIsDocker,
     selectedDir,
     updateInfo,
     listType,
@@ -162,6 +167,7 @@ export function useStore() {
     backupLogs: handleBackupLogs,
     executeClean,
     cleanEmptyDirs,
+    exportLog,
     saveCSRFToken,
     fetchCSRFToken,
     checkForUpdates,

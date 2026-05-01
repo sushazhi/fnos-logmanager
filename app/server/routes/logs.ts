@@ -188,6 +188,71 @@ router.get('/logs/stats', validateToken, async (_req: Request, res: Response, ne
     }
 });
 
+router.get('/log/export', validateToken, [
+    query('path').notEmpty().isString().isLength({ max: MAX_PATH_LENGTH }),
+    query('format').optional().isIn(['txt', 'json', 'csv'])
+], async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const logPathStr = getQueryParam(req.query.path);
+        if (!logPathStr) {
+            res.status(400).json({ error: '缺少文件路径' });
+            return;
+        }
+
+        if (logPathStr.length > MAX_PATH_LENGTH) {
+            res.status(400).json({ error: '路径过长' });
+            return;
+        }
+
+        if (!isAllowedPath(logPathStr, config.logDirs)) {
+            res.status(403).json({ error: '不允许访问此文件' });
+            return;
+        }
+
+        const format = getQueryParam(req.query.format) || 'txt';
+        const result = await logFileService.readLogFile(logPathStr, { maxLines: 200000 });
+
+        const basename = logPathStr.split('/').pop() || 'log';
+        const safeName = basename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const exportName = `${safeName}_${timestamp}`;
+
+        auditService.addAuditLog('log_export', { path: safePath(logPathStr), format }, req);
+
+        if (format === 'txt') {
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${exportName}.txt"`);
+            res.send(filterSensitiveInfo(result.content));
+        } else if (format === 'json') {
+            const lines = result.content.split('\n');
+            const data = lines.map((line: string, index: number) => ({
+                line: index + 1,
+                content: line
+            }));
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${exportName}.json"`);
+            res.json({
+                source: logPathStr,
+                exportedAt: new Date().toISOString(),
+                totalLines: result.totalLines,
+                lines: data
+            });
+        } else if (format === 'csv') {
+            const lines = result.content.split('\n');
+            const csvLines = ['"line","content"'];
+            for (let i = 0; i < lines.length; i++) {
+                const escaped = lines[i].replace(/"/g, '""');
+                csvLines.push(`"${i + 1}","${escaped}"`);
+            }
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${exportName}.csv"`);
+            res.send(csvLines.join('\n'));
+        }
+    } catch (err) {
+        next(err);
+    }
+});
+
 router.get('/log/content', validateToken, [
     query('path').notEmpty().isString().isLength({ max: MAX_PATH_LENGTH }),
     query('maxLines').optional().isInt({ min: 100, max: 200000 }),

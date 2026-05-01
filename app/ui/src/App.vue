@@ -65,6 +65,7 @@
       :loading-all="loadingAllLines"
       @close="showLogModal = false"
       @load-all="handleLoadAllLines"
+      @export="handleExportLog"
     />
     
     <CleanModal 
@@ -140,6 +141,8 @@ const {
   logTitle,
   logTruncated,
   logTotalLines,
+  logCurrentPath,
+  logIsDocker,
   selectedDir,
   updateInfo,
   listType,
@@ -161,6 +164,7 @@ const {
   backupLogs,
   executeClean,
   cleanEmptyDirs,
+  exportLog,
   toggleFilter,
   checkForUpdates,
   clearList
@@ -182,6 +186,12 @@ async function handleLoadAllLines() {
     await loadAllLines()
   } finally {
     loadingAllLines.value = false
+  }
+}
+
+function handleExportLog(format) {
+  if (logCurrentPath.value) {
+    exportLog(logCurrentPath.value, format, logIsDocker.value)
   }
 }
 

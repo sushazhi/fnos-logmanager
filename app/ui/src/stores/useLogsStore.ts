@@ -17,6 +17,7 @@ export const useLogsStore = defineStore('logs', () => {
   const logHasMore = ref(false)
   const logTotalLines = ref(0)
   const logCurrentPath = ref('')
+  const logIsDocker = ref(false)
 
   async function loadFilterStatus(): Promise<void> {
     try {
@@ -103,6 +104,7 @@ export const useLogsStore = defineStore('logs', () => {
       logTitle.value = path
       logContent.value = data.content || '(空文件)'
       logCurrentPath.value = path
+      logIsDocker.value = false
       logTotalLines.value = data.totalLines || 0
       logTruncated.value = data.truncated || false
       logHasMore.value = data.hasMore || false
@@ -232,6 +234,46 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
+  async function exportLog(path: string, format: string = 'txt', isDocker: boolean = false): Promise<void> {
+    const { setStatus } = useStatusStore()
+    setStatus('正在导出日志...', 'loading')
+    try {
+      const baseApi = isDocker
+        ? `/api/docker/export?container=${encodeURIComponent(path)}&format=${encodeURIComponent(format)}`
+        : `/api/log/export?path=${encodeURIComponent(path)}&format=${encodeURIComponent(format)}`
+      const url = `${window.location.origin}${baseApi}`
+      const csrfToken = api.getCSRFToken()
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`导出失败: HTTP ${response.status}`)
+      }
+      const blob = await response.blob()
+      const disposition = response.headers.get('Content-Disposition')
+      let filename = `log_export.${format}`
+      if (disposition) {
+        const match = disposition.match(/filename[^;=\n]*=((["']).*?\2|[^;\n]*)/)
+        if (match && match[1]) {
+          filename = match[1].replace(/["']/g, '')
+        }
+      }
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(link.href)
+      setStatus('日志导出成功', 'success')
+    } catch (e) {
+      const error = e as Error
+      setStatus('导出失败: ' + error.message, 'error')
+    }
+  }
+
   return {
     logList,
     listType,
@@ -245,6 +287,7 @@ export const useLogsStore = defineStore('logs', () => {
     logHasMore,
     logTotalLines,
     logCurrentPath,
+    logIsDocker,
     loadFilterStatus,
     toggleFilter,
     listLogs,
@@ -255,6 +298,7 @@ export const useLogsStore = defineStore('logs', () => {
     deleteLog,
     executeClean,
     cleanEmptyDirs,
+    exportLog,
     clearList
   }
 })
