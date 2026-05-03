@@ -180,7 +180,7 @@ function escapeRegex(string) {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
@@ -191,7 +191,7 @@ function escapeRegex(string) {
   max-width: 95%;
   height: 100%;
   background: var(--card-bg);
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  box-shadow: -4px 0 20px var(--bg-color-3);
   display: flex;
   flex-direction: column;
   animation: slideIn var(--transition-slow) ease;
@@ -366,8 +366,8 @@ function escapeRegex(string) {
 }
 
 .highlight {
-  background: rgba(255, 176, 0, 0.3);
-  color: #B45309;
+  background: var(--warning-bg);
+  color: var(--warning-color);
   padding: 0 2px;
   border-radius: 2px;
 }

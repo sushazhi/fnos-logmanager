@@ -226,12 +226,12 @@ loadVisibleDirs()
 
 .dir-status.exists {
   color: var(--success-color);
-  background: rgba(0, 186, 173, 0.1);
+  background: var(--success-bg);
 }
 
 .dir-status.not-exists {
   color: var(--error-color);
-  background: rgba(250, 42, 45, 0.1);
+  background: var(--error-bg);
 }
 
 .log-dirs {
@@ -265,7 +265,7 @@ loadVisibleDirs()
 
 .log-dir-item.error {
   border-left-color: var(--error-color);
-  background: rgba(250, 42, 45, 0.1);
+  background: var(--error-bg);
   cursor: not-allowed;
 }
 

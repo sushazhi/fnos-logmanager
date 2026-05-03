@@ -31,7 +31,9 @@ import eventLoggerRoutes from './routes/eventLogger';
 import * as logMonitor from './services/logMonitor';
 import * as eventLoggerService from './services/eventLogger';
 import { initLogStream, closeLogStream } from './services/logStream';
+import { initDockerLogStream, closeDockerLogStream } from './services/dockerLogStream';
 import { initNotifyWebSocket, closeNotifyWebSocket } from './services/notifyWebSocket';
+import * as autoCleanService from './services/autoClean';
 
 const envValidation = validateEnv();
 if (!envValidation.valid) {
@@ -65,7 +67,7 @@ app.use(morgan((tokens, req, res) => {
 app.use(securityHeaders);
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 app.use(requestSizeLimit('10mb'));
 app.use(validateContentType);
 app.use(sanitizeInput);
@@ -90,6 +92,9 @@ const server = app.listen(config.port, '0.0.0.0', async () => {
     // 初始化 WebSocket 日志流服务
     initLogStream(server);
 
+    // 初始化 Docker 日志流 WebSocket 服务
+    initDockerLogStream(server);
+
     // 初始化通知 WebSocket 服务
     initNotifyWebSocket(server);
 
@@ -106,6 +111,13 @@ const server = app.listen(config.port, '0.0.0.0', async () => {
     } catch (err) {
         logger.error({ err }, '事件日志监控服务初始化失败');
     }
+
+    // 初始化自动清理服务
+    try {
+        await autoCleanService.init();
+    } catch (err) {
+        logger.error({ err }, '自动清理服务初始化失败');
+    }
 });
 
 server.setTimeout(120000);
@@ -116,7 +128,9 @@ process.on('SIGTERM', () => {
     logger.info('收到SIGTERM信号，正在关闭...');
     auditService.addAuditLog('SERVER_SHUTDOWN', { reason: 'SIGTERM' }).catch(() => {});
     closeLogStream();
+    closeDockerLogStream();
     closeNotifyWebSocket();
+    autoCleanService.shutdown().catch(() => {});
     server.close(() => {
         logger.info('服务已关闭');
         process.exit(0);
@@ -127,7 +141,9 @@ process.on('SIGINT', () => {
     logger.info('收到SIGINT信号，正在关闭...');
     auditService.addAuditLog('SERVER_SHUTDOWN', { reason: 'SIGINT' }).catch(() => {});
     closeLogStream();
+    closeDockerLogStream();
     closeNotifyWebSocket();
+    autoCleanService.shutdown().catch(() => {});
     server.close(() => {
         logger.info('服务已关闭');
         process.exit(0);

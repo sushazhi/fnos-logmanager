@@ -23,6 +23,8 @@ interface StreamClient {
 }
 
 // 活跃的流客户端
+const MAX_WS_CONNECTIONS = 20;
+
 const clients: Map<WebSocket, StreamClient> = new Map();
 
 let wss: WebSocketServer | null = null;
@@ -33,7 +35,9 @@ let wss: WebSocketServer | null = null;
 function getSessionTokenFromRequest(req: any): string {
     const cookieHeader = req.headers.cookie || '';
     const match = cookieHeader.match(/session_token=([^;]+)/);
-    return match ? match[1] : '';
+    if (match) return match[1];
+    const url = new URL(req.url || '', 'http://localhost');
+    return url.searchParams.get('token') || '';
 }
 
 /**
@@ -46,18 +50,6 @@ export function initLogStream(server: Server): void {
         path: '/api/logs/stream',
         // 验证 Origin 头和 Session 认证
         verifyClient: (info, callback) => {
-            // 允许同源和飞牛桌面端
-            const origin = info.origin || '';
-            const host = info.req.headers.host || '';
-            if (!origin || origin.includes(host) || origin.includes('5ddd.com')) {
-                // Origin 检查通过，继续验证 Session
-            } else {
-                logger.warn({ origin, host }, 'WebSocket connection rejected: origin mismatch');
-                callback(false, 403, 'Forbidden');
-                return;
-            }
-
-            // 验证 Session Token
             const token = getSessionTokenFromRequest(info.req);
             if (!token || !sessionService.validateSession(token)) {
                 logger.warn('WebSocket connection rejected: invalid or missing session token');
@@ -70,6 +62,12 @@ export function initLogStream(server: Server): void {
     });
 
     wss.on('connection', (ws, req) => {
+        if (clients.size >= MAX_WS_CONNECTIONS) {
+            logger.warn({ currentCount: clients.size }, 'WebSocket connection rejected: max connections reached');
+            ws.close(1013, 'Max connections reached');
+            return;
+        }
+
         const clientIp = req.socket.remoteAddress;
         logger.info({ clientIp }, 'WebSocket client connected');
 
@@ -78,13 +76,33 @@ export function initLogStream(server: Server): void {
                 const message = JSON.parse(data.toString());
                 handleMessage(ws, message);
             } catch (err) {
+                // 可能是 ping 字符串或非 JSON
+                if (data.toString() === 'ping') {
+                    ws.send('pong');
+                    return;
+                }
                 logger.warn({ err }, 'Invalid WebSocket message');
                 ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
             }
         });
 
+        // 心跳：检测连接存活
+        let isAlive = true;
+        ws.on('pong', () => { isAlive = true; });
+
+        const heartbeat = setInterval(() => {
+            if (!isAlive) {
+                logger.info('WebSocket heartbeat failed, terminating connection');
+                clearInterval(heartbeat);
+                return ws.terminate();
+            }
+            isAlive = false;
+            ws.ping();
+        }, 30000);
+
         ws.on('close', () => {
             logger.info({ clientIp }, 'WebSocket client disconnected');
+            clearInterval(heartbeat);
             cleanupClient(ws);
         });
 
@@ -105,6 +123,11 @@ export function initLogStream(server: Server): void {
  */
 function handleMessage(ws: WebSocket, message: any): void {
     switch (message.type) {
+        case 'ping': {
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+        }
+
         case 'subscribe': {
             const { filePath } = message;
             if (!filePath || typeof filePath !== 'string') {

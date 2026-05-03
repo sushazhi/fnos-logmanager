@@ -181,7 +181,10 @@ export function validateCSRFToken(sessionToken: string, csrfToken: string): bool
         scheduleSaveToDisk();
         return false;
     }
-    return stored.token === csrfToken;
+    const a = Buffer.from(stored.token, 'utf8');
+    const b = Buffer.from(csrfToken, 'utf8');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
 }
 
 export function cleanExpiredCSRFTokens(): void {

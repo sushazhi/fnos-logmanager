@@ -148,7 +148,7 @@ function formatDetails(details) {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -157,9 +157,9 @@ function formatDetails(details) {
 }
 
 .modal {
-  background: var(--card-bg, white);
+  background: var(--card-bg);
   border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-lg);
   width: 100%;
   overflow: hidden;
 }
@@ -169,7 +169,7 @@ function formatDetails(details) {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h3 {
@@ -182,30 +182,30 @@ function formatDetails(details) {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: var(--text-secondary, #888);
+  color: var(--text-color-3);
   padding: 0;
   line-height: 1;
 }
 
 .close-btn:hover {
-  color: var(--text-color, #333);
+  color: var(--text-color);
 }
 
 .filter-bar {
   display: flex;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--bg-color, #f5f7fa);
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  background: var(--bg-color-2);
+  border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
 }
 
 .filter-btn {
   padding: 6px 14px;
-  border: 1px solid var(--border-color, #ddd);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
-  background: var(--card-bg, white);
-  color: var(--text-color, #666);
+  background: var(--card-bg);
+  color: var(--text-color-2);
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
@@ -213,13 +213,13 @@ function formatDetails(details) {
 }
 
 .filter-btn:hover {
-  border-color: var(--primary-color, #667eea);
-  color: var(--primary-color, #667eea);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 .filter-btn.active {
-  background: var(--primary-color, #667eea);
-  border-color: var(--primary-color, #667eea);
+  background: var(--primary-color);
+  border-color: var(--primary-color);
   color: white;
 }
 
@@ -237,7 +237,7 @@ function formatDetails(details) {
 .loading, .empty {
   padding: 40px;
   text-align: center;
-  color: var(--text-secondary, #888);
+  color: var(--text-color-3);
 }
 
 .log-list {
@@ -248,23 +248,23 @@ function formatDetails(details) {
   padding: 12px;
   border-radius: 8px;
   margin-bottom: 8px;
-  background: var(--bg-color, #f5f5f5);
-  border-left: 4px solid var(--primary-color, #667eea);
+  background: var(--bg-color-2);
+  border-left: 4px solid var(--primary-color);
 }
 
 .log-item.danger {
-  border-left-color: #f44336;
-  background: #fff5f5;
+  border-left-color: var(--error-color);
+  background: var(--error-bg);
 }
 
 .log-item.warning {
-  border-left-color: #ff9800;
-  background: #fff8f0;
+  border-left-color: var(--warning-color);
+  background: var(--warning-bg);
 }
 
 .log-item.success {
-  border-left-color: #4caf50;
-  background: #f5fff5;
+  border-left-color: var(--success-color);
+  background: var(--success-bg);
 }
 
 .log-header {
@@ -386,17 +386,17 @@ function formatDetails(details) {
 
   .log-item.danger {
     border-left-color: var(--error-color);
-    background: rgba(250, 42, 45, 0.1);
+    background: var(--error-bg);
   }
 
   .log-item.warning {
     border-left-color: var(--warning-color);
-    background: rgba(255, 176, 0, 0.1);
+    background: var(--warning-bg);
   }
 
   .log-item.success {
     border-left-color: var(--success-color);
-    background: rgba(0, 186, 173, 0.1);
+    background: var(--success-bg);
   }
 
   .log-header {
@@ -537,15 +537,15 @@ function formatDetails(details) {
 }
 
 :global(.dark-theme) .log-item.danger {
-  background: rgba(250, 42, 45, 0.1);
+  background: var(--error-bg);
 }
 
 :global(.dark-theme) .log-item.warning {
-  background: rgba(255, 176, 0, 0.1);
+  background: var(--warning-bg);
 }
 
 :global(.dark-theme) .log-item.success {
-  background: rgba(0, 186, 173, 0.1);
+  background: var(--success-bg);
 }
 
 :global(.dark-theme) .log-ip {

@@ -21,14 +21,14 @@
       <button class="danger" @click="$emit('showClean')" title="清空或删除旧日志文件">
         清理
       </button>
+      <button class="warning" @click="$emit('showAutoClean')" title="配置定时自动清理策略">
+        自动清理
+      </button>
       <button class="warning" @click="$emit('cleanEmptyDirs')" title="删除已卸载应用的空文件夹">
         清理空文件夹
       </button>
       <button @click="$emit('backup')" title="备份日志到指定目录">
         备份
-      </button>
-      <button @click="$emit('refresh')" title="刷新统计数据">
-        刷新
       </button>
     </div>
 
@@ -79,6 +79,7 @@ defineEmits<{
   listLogs: []
   showSearch: []
   showClean: []
+  showAutoClean: []
   cleanEmptyDirs: []
   backup: []
   listArchives: []
@@ -117,11 +118,11 @@ button {
   gap: var(--spacing-xs);
   padding: var(--spacing-md) var(--spacing-sm);
   background: linear-gradient(135deg,
-    var(--card-color-1, #9b59b6) 0%,
-    var(--card-color-1-light, #b07cc6) 50%,
-    var(--card-color-2, #3498db) 100%
+    var(--card-color-1) 0%,
+    var(--card-color-1-light) 50%,
+    var(--card-color-2) 100%
   );
-  color: #4a4a4a;
+  color: var(--text-color);
   font-size: 0.875rem;
   font-weight: 600;
   border-radius: var(--radius-sm);
@@ -141,35 +142,35 @@ button:active {
 
 button.danger {
   background: linear-gradient(135deg,
-    var(--card-color-4, #e74c8c) 0%,
-    var(--card-color-4-light, #ec6a9d) 50%,
-    var(--card-color-3, #1abc9c) 100%
+    var(--card-color-4) 0%,
+    var(--card-color-4-light) 50%,
+    var(--card-color-3) 100%
   );
-  color: #4a4a4a;
+  color: var(--text-color);
 }
 
 button.danger:hover {
   background: linear-gradient(135deg,
-    var(--card-color-4-light, #ec6a9d) 0%,
-    var(--card-color-4, #e74c8c) 50%,
-    var(--card-color-3-light, #48c9b0) 100%
+    var(--card-color-4-light) 0%,
+    var(--card-color-4) 50%,
+    var(--card-color-3-light) 100%
   );
 }
 
 button.warning {
   background: linear-gradient(135deg,
-    #f39c12 0%,
-    #f1c40f 50%,
-    #e67e22 100%
+    var(--warning-color) 0%,
+    var(--warning-color) 50%,
+    var(--error-color) 100%
   );
-  color: #4a4a4a;
+  color: var(--text-color);
 }
 
 button.warning:hover {
   background: linear-gradient(135deg,
-    #f1c40f 0%,
-    #f39c12 50%,
-    #d35400 100%
+    var(--warning-color) 0%,
+    var(--warning-color) 50%,
+    var(--error-color) 100%
   );
 }
 
@@ -256,22 +257,22 @@ input:checked + .slider::before {
 }
 
 .status.success {
-  background: rgba(0, 186, 173, 0.1);
+  background: var(--success-bg);
   color: var(--success-color);
 }
 
 .status.error {
-  background: rgba(250, 42, 45, 0.1);
+  background: var(--error-bg);
   color: var(--error-color);
 }
 
 .status.warning {
-  background: rgba(255, 176, 0, 0.1);
+  background: var(--warning-bg);
   color: var(--warning-color);
 }
 
 .status.loading {
-  background: rgba(0, 125, 255, 0.1);
+  background: var(--info-bg);
   color: var(--info-color);
 }
 

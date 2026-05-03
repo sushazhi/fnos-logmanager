@@ -1,83 +1,86 @@
 :root {
-  /* 鸿蒙设计规范 - 字体系统 */
+  /* HarmonyOS NEXT 6.0 - 字体系统 */
   --base-font-size: 16px;
-  --font-family: 'HarmonyOS Sans', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family: 'HarmonyOS Sans', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacFontFont, sans-serif;
 
-  /* 主题色 - 莫兰迪渐变 */
-  --primary-gradient: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 33%, #a8edea 66%, #fed6e3 100%);
-  --primary-color: #5b9bd5;
-  --primary-hover: #4a8bc5;
-  --primary-pressed: #3a7bb5;
+  /* 主题色 - 鸿蒙蓝青 */
+  --primary-gradient: linear-gradient(135deg, #0A59F7 0%, #317AF7 50%, #54B2F7 100%);
+  --primary-color: #0A59F7;
+  --primary-hover: #0A50E0;
+  --primary-pressed: #0847C9;
 
-  /* 莫兰迪渐变 */
-  --rainbow-gradient: linear-gradient(
-    135deg,
-    #e0c3fc 0%,
-    #8ec5fc 33%,
-    #a8edea 66%,
-    #fed6e3 100%
-  );
-  --rainbow-gradient-animated: linear-gradient(
-    90deg,
-    #e0c3fc,
-    #8ec5fc,
-    #a8edea,
-    #fed6e3,
-    #e0c3fc
-  );
+  /* 鸿蒙渐变 */
+  --rainbow-gradient: linear-gradient(135deg, #0A59F7 0%, #317AF7 50%, #54B2F7 100%);
+  --rainbow-gradient-animated: linear-gradient(90deg, #0A59F7, #317AF7, #54B2F7, #0A59F7);
 
-  /* 统计卡片色系 */
-  --card-color-1: #9b59b6;
-  --card-color-1-light: #b07cc6;
-  --card-color-2: #3498db;
-  --card-color-2-light: #5dade2;
-  --card-color-3: #1abc9c;
-  --card-color-3-light: #48c9b0;
-  --card-color-4: #e74c8c;
-  --card-color-4-light: #ec6a9d;
+  /* 统计卡片色系 - 鸿蒙6.0纯净色 */
+  --card-color-1: #0A59F7;
+  --card-color-1-light: #317AF7;
+  --card-color-2: #54B2F7;
+  --card-color-2-light: #7DC8F8;
+  --card-color-3: #64BB5A;
+  --card-color-3-light: #86CD7E;
+  --card-color-4: #E84026;
+  --card-color-4-light: #F06048;
 
-  /* 语义色彩 */
-  --success-color: #27ae60;
-  --warning-color: #f39c12;
-  --error-color: #e74c3c;
-  --info-color: #3498db;
+  /* 语义色彩 - 鸿蒙6.0 */
+  --success-color: #64BB5A;
+  --warning-color: #E8B339;
+  --error-color: #E84026;
+  --info-color: #317AF7;
 
-  /* 背景色 - 日间模式(莫兰迪) */
-  --bg-color: #f5f3f0;
-  --bg-color-1: #faf9f7;
-  --bg-color-2: #f0ede9;
-  --bg-color-3: #e5e1dc;
-  --bg-color-4: #d5d0c9;
+  /* 语义背景色（低透明度） */
+  --success-bg: rgba(100, 187, 90, 0.1);
+  --warning-bg: rgba(232, 179, 57, 0.1);
+  --error-bg: rgba(232, 64, 38, 0.1);
+  --info-bg: rgba(49, 122, 247, 0.1);
+
+  /* 遮罩层 */
+  --overlay: rgba(0, 0, 0, 0.5);
+
+  /* 日志级别色 */
+  --log-debug-color: #9AA5B1;
+  --log-info-color: #317AF7;
+  --log-warning-color: #E8B339;
+  --log-error-color: #E84026;
+  --log-critical-color: #C8301E;
+
+  /* 背景色 - 日间模式(鸿蒙白) */
+  --bg-color: #F1F3F5;
+  --bg-color-1: #FFFFFF;
+  --bg-color-2: #F1F3F5;
+  --bg-color-3: #E8E8E8;
+  --bg-color-4: #D9D9D9;
 
   /* 卡片背景 */
-  --card-bg: #faf9f7;
-  --card-hover: #f0ede9;
+  --card-bg: #FFFFFF;
+  --card-hover: #F1F3F5;
 
-  /* 文字颜色 - 日间模式(莫兰迪) */
-  --text-color: #4a4a4a;
-  --text-color-1: #4a4a4a;
-  --text-color-2: #6b6b6b;
-  --text-color-3: #8e8e8e;
-  --text-color-4: #b0b0b0;
+  /* 文字颜色 - 日间模式 */
+  --text-color: #182431;
+  --text-color-1: #182431;
+  --text-color-2: #5A6A7A;
+  --text-color-3: #9AA5B1;
+  --text-color-4: #C4C7CC;
 
-  /* 边框颜色 - 日间模式(莫兰迪) */
-  --border-color: #e5e1dc;
-  --divider-color: #f0ede9;
+  /* 边框颜色 - 日间模式 */
+  --border-color: #E5E6E8;
+  --divider-color: #F1F3F5;
 
-  /* 阴影 - 莫兰迪柔和风格 */
-  --shadow-xs: 0 1px 2px rgba(74, 74, 74, 0.04);
-  --shadow-sm: 0 2px 4px rgba(74, 74, 74, 0.06);
-  --shadow-md: 0 4px 8px rgba(74, 74, 74, 0.08);
-  --shadow-lg: 0 8px 16px rgba(74, 74, 74, 0.1);
-  --shadow-xl: 0 12px 24px rgba(74, 74, 74, 0.12);
+  /* 阴影 - 鸿蒙6.0柔和扩散 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
 
-  /* 圆角 */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-2xl: 24px;
+  /* 圆角 - 鸿蒙6.0大圆角 */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
 
   /* 间距 */
   --spacing-xs: 4px;
@@ -88,42 +91,44 @@
   --spacing-2xl: 24px;
   --spacing-3xl: 32px;
 
-  /* 过渡 */
-  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 过渡 - 鸿蒙弹簧曲线 */
+  --transition-fast: 0.1s cubic-bezier(0.2, 0, 0, 1);
+  --transition-base: 0.2s cubic-bezier(0.2, 0, 0, 1);
+  --transition-slow: 0.35s cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* 深色模式 - 莫兰迪风格 */
+/* 深色模式 - 鸿蒙6.0 */
 .dark-theme {
-  /* 背景色 - 夜间模式(莫兰迪) */
-  --bg-color: #2a2a2a;
-  --bg-color-1: #353535;
-  --bg-color-2: #404040;
-  --bg-color-3: #4a4a4a;
-  --bg-color-4: #555555;
+  --primary-gradient: linear-gradient(135deg, #317AF7 0%, #54B2F7 50%, #7DC8F8 100%);
+
+  /* 背景色 - 夜间模式 */
+  --bg-color: #1A1A1A;
+  --bg-color-1: #202020;
+  --bg-color-2: #2A2A2A;
+  --bg-color-3: #333333;
+  --bg-color-4: #3D3D3D;
 
   /* 卡片背景 */
-  --card-bg: #353535;
-  --card-hover: #404040;
+  --card-bg: #202020;
+  --card-hover: #2A2A2A;
 
-  /* 文字颜色 - 夜间模式(莫兰迪) */
-  --text-color: #e8e4e0;
-  --text-color-1: #e8e4e0;
-  --text-color-2: #c5c0b8;
-  --text-color-3: #a09a90;
-  --text-color-4: #7a746a;
+  /* 文字颜色 - 夜间模式 */
+  --text-color: #E5E5E5;
+  --text-color-1: #E5E5E5;
+  --text-color-2: #A8A8A8;
+  --text-color-3: #7A7A7A;
+  --text-color-4: #5A5A5A;
 
-  /* 边框颜色 - 夜间模式(莫兰迪) */
-  --border-color: #4a4a4a;
-  --divider-color: #404040;
+  /* 边框颜色 - 夜间模式 */
+  --border-color: #333333;
+  --divider-color: #2A2A2A;
 
-  /* 阴影 - 夜间模式(莫兰迪) */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.6);
-  --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.7);
+  /* 阴影 - 夜间模式 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
 }
 
 * {
@@ -140,7 +145,7 @@ body {
   font-family: var(--font-family);
   background: var(--bg-color);
   color: var(--text-color);
-  line-height: 1.5;
+  line-height: 1.6;
   transition: background var(--transition-slow), color var(--transition-slow);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -173,7 +178,6 @@ h2 {
   letter-spacing: -0.01em;
 }
 
-/* 鸿蒙按钮样式 */
 button {
   cursor: pointer;
   border: none;
@@ -191,10 +195,9 @@ button:focus {
 }
 
 button:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
-/* 次要按钮 */
 .secondary {
   background: var(--bg-color-2) !important;
   color: var(--text-color-1) !important;
@@ -204,22 +207,19 @@ button:active {
   background: var(--bg-color-3) !important;
 }
 
-/* 危险按钮 */
 .danger {
   background: var(--error-color) !important;
 }
 
 .danger:hover {
-  background: #c0392b !important;
+  background: #C8301E !important;
 }
 
-/* 小尺寸按钮 */
 .small {
   padding: var(--spacing-xs) var(--spacing-sm) !important;
   font-size: 0.75rem !important;
 }
 
-/* 链接样式 */
 a {
   color: var(--primary-color);
   text-decoration: none;
@@ -230,7 +230,6 @@ a:hover {
   color: var(--primary-hover);
 }
 
-/* 响应式布局 */
 @media (max-width: 768px) {
   .container {
     padding: var(--spacing-md);
@@ -258,7 +257,6 @@ a:hover {
   }
 }
 
-/* 认证加载动画 */
 .auth-loading {
   position: fixed;
   top: 0;
@@ -287,7 +285,6 @@ a:hover {
   }
 }
 
-/* 彩虹渐变动画 */
 @keyframes rainbow-shift {
   0% {
     background-position: 0% 50%;

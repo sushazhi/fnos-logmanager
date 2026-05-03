@@ -43,17 +43,35 @@ export function clearCSRFToken(): void {
   sessionStorage.removeItem('logmanager_csrf_token')
 }
 
+let SESSION_TOKEN = ''
+
+export function setSessionToken(token: string): void {
+  SESSION_TOKEN = token || ''
+  if (token) {
+    sessionStorage.setItem('logmanager_session_token', token)
+  } else {
+    sessionStorage.removeItem('logmanager_session_token')
+  }
+}
+
+export function getSessionToken(): string {
+  return SESSION_TOKEN || sessionStorage.getItem('logmanager_session_token') || ''
+}
+
 export async function fetchCSRFToken(): Promise<string | null> {
   try {
     const response = await fetch(`${API_BASE}/api/auth/csrf-token`, {
       credentials: 'include'
     })
     if (response.ok) {
-      const data = await response.json() as { csrfToken: string }
+      const data = await response.json() as { csrfToken: string; sessionToken?: string }
       if (data.csrfToken) {
         setCSRFToken(data.csrfToken)
-        return data.csrfToken
       }
+      if (data.sessionToken) {
+        setSessionToken(data.sessionToken)
+      }
+      return data.csrfToken || null
     }
   } catch (e) {
     console.error('Failed to fetch CSRF token:', e)
@@ -198,6 +216,8 @@ export const api = {
 
   setCSRFToken,
   getCSRFToken,
+  setSessionToken,
+  getSessionToken,
   clearCSRFToken,
   fetchCSRFToken
 }
@@ -280,6 +300,57 @@ export const eventLoggerApi = {
   getSources: () => api.get<string[]>('/api/eventlogger/sources'),
   
   getAppNames: () => api.get<string[]>('/api/appnames')
+}
+
+export interface AutoCleanRule {
+  id: string
+  name: string
+  enabled: boolean
+  type: 'truncateLarge' | 'deleteOld' | 'deleteUninstalled'
+  threshold?: string
+  days?: number
+  schedule: string
+  lastRun?: string
+}
+
+export const autoCleanApi = {
+  getRules: () => api.get<{ rules: AutoCleanRule[] }>('/api/auto-clean/rules'),
+
+  addRule: (rule: Omit<AutoCleanRule, 'id' | 'lastRun'>) =>
+    api.post<{ rule: AutoCleanRule }>('/api/auto-clean/rules', rule),
+
+  updateRule: (id: string, updates: Partial<Omit<AutoCleanRule, 'id'>>) =>
+    api.put<{ rule: AutoCleanRule }>(`/api/auto-clean/rules/${id}`, updates),
+
+  deleteRule: (id: string) =>
+    api.delete<{ success: boolean }>(`/api/auto-clean/rules/${id}`),
+
+  toggleRule: (id: string) =>
+    api.post<{ rule: AutoCleanRule }>(`/api/auto-clean/rules/${id}/toggle`),
+
+  executeRule: (id: string) =>
+    api.post<{ cleaned: number; errors: string[] }>(`/api/auto-clean/rules/${id}/execute`)
+}
+
+export interface Bookmark {
+  id: string
+  name: string
+  path: string
+  isDocker?: boolean
+  createdAt: string
+}
+
+export const bookmarkApi = {
+  getAll: () => api.get<{ bookmarks: Bookmark[] }>('/api/bookmarks'),
+
+  add: (data: { name?: string; path: string; isDocker?: boolean }) =>
+    api.post<{ bookmark: Bookmark }>('/api/bookmarks', data),
+
+  delete: (id: string) =>
+    api.delete<{ success: boolean }>(`/api/bookmarks/${id}`),
+
+  update: (id: string, name: string) =>
+    api.put<{ bookmark: Bookmark }>(`/api/bookmarks/${id}`, { name })
 }
 
 export default api

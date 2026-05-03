@@ -109,7 +109,7 @@ import { ref, onMounted } from 'vue'
 import api from '../services/api'
 
 const emit = defineEmits<{
-  login: [csrfToken: string]
+  login: [csrfToken: string, sessionToken: string]
 }>()
 
 const password = ref('')
@@ -130,12 +130,19 @@ async function handleLogin(): Promise<void> {
   error.value = ''
 
   try {
-    const data = await api.post<{ success: boolean; csrfToken?: string; error?: string; message?: string }>('/api/auth/login', {
+    if (!api.getCSRFToken()) {
+      await api.fetchCSRFToken()
+    }
+
+    const data = await api.post<{ success: boolean; csrfToken?: string; sessionToken?: string; error?: string; message?: string }>('/api/auth/login', {
       password: password.value
     })
     if (data.success) {
       if (data.csrfToken) {
         api.setCSRFToken(data.csrfToken)
+      }
+      if (data.sessionToken) {
+        api.setSessionToken(data.sessionToken)
       }
 
       // 仅保存"记住我"偏好设置，不保存密码
@@ -146,7 +153,7 @@ async function handleLogin(): Promise<void> {
         localStorage.removeItem(REMEMBER_KEY)
       }
 
-      emit('login', data.csrfToken || '')
+      emit('login', data.csrfToken || '', data.sessionToken || '')
     }
   } catch (e) {
     const err = e as { message?: string; remaining?: number }
@@ -197,7 +204,7 @@ onMounted(() => {
 .bg-shape {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-color-3);
   animation: float 20s ease-in-out infinite;
 }
 
@@ -243,7 +250,7 @@ onMounted(() => {
   background: var(--card-bg);
   padding: var(--spacing-3xl);
   border-radius: var(--radius-xl);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--overlay);
   width: 100%;
   max-width: 400px;
   animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -284,7 +291,7 @@ onMounted(() => {
 
 .login-icon svg {
   display: block;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
+  filter: drop-shadow(0 4px 12px var(--bg-color-3));
 }
 
 .login-modal h2 {
@@ -354,7 +361,7 @@ onMounted(() => {
 .password-input input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(0, 125, 255, 0.1);
+  box-shadow: 0 0 0 3px var(--info-bg);
 }
 
 .password-input input::placeholder {
@@ -407,7 +414,7 @@ onMounted(() => {
   font-size: 0.875rem;
   margin-bottom: var(--spacing-lg);
   padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(250, 42, 45, 0.1);
+  background: var(--error-bg);
   border-radius: var(--radius-sm);
   animation: shake 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -432,7 +439,7 @@ onMounted(() => {
   font-size: 0.8125rem;
   margin-bottom: var(--spacing-lg);
   padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(255, 176, 0, 0.1);
+  background: var(--warning-bg);
   border-radius: var(--radius-sm);
 }
 
@@ -509,7 +516,7 @@ onMounted(() => {
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
-  box-shadow: 0 4px 12px rgba(0, 125, 255, 0.3);
+  box-shadow: 0 4px 12px var(--info-bg);
   position: relative;
   overflow: hidden;
 }
@@ -521,7 +528,7 @@ onMounted(() => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, var(--bg-color-3), transparent);
   transition: left 0.5s;
 }
 
@@ -531,7 +538,7 @@ onMounted(() => {
 
 .login-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 125, 255, 0.4);
+  box-shadow: 0 6px 20px var(--info-bg);
 }
 
 .login-btn:active:not(:disabled) {
@@ -553,7 +560,7 @@ onMounted(() => {
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--bg-color-3);
   border-top-color: white;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;

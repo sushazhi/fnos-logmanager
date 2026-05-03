@@ -1,13 +1,17 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { spawn } from 'child_process';
 import { query } from 'express-validator';
-import { validateToken, validate } from '../middleware/auth';
+import { validateToken, validate, checkValidation } from '../middleware/auth';
 import { isValidContainerName } from '../utils/validation';
 import { filterSensitiveInfo } from '../utils/filter';
+import { isFilterEnabled } from '../utils/filter';
+import * as sessionService from '../services/session';
 import config from '../utils/config';
 import { DockerContainer } from '../types';
 
 const router = express.Router();
+
+const dockerSseConnectionCounts = new Map<string, number>();
 
 function execDocker(args: string[], timeout: number = 60000, maxBytes: number = config.docker.maxOutputBytes): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -113,10 +117,116 @@ router.get('/docker/logs', validateToken, [
     }
 });
 
+router.get('/docker/tail', validateToken, [
+    query('container').notEmpty().isString(),
+    query('offset').optional().isInt()
+], checkValidation, async (req: Request, res: Response, _next: NextFunction) => {
+    const container = req.query.container as string;
+    if (!container || !isValidContainerName(container)) {
+        res.status(400).json({ error: '无效的容器名称' });
+        return;
+    }
+
+    try {
+        const offset = parseInt(req.query.offset as string, 10) || 0;
+        const stdout = await execDocker(['logs', container, '--since', '1m'], config.docker.logsTimeoutMs, config.docker.maxOutputBytes);
+        const lines = stdout.split('\n');
+        const newLines = offset < lines.length ? lines.slice(offset).join('\n') : '';
+        const content = isFilterEnabled() ? filterSensitiveInfo(newLines) : newLines;
+        res.json({ content, offset: lines.length });
+    } catch {
+        res.status(500).json({ error: '获取Docker日志增量失败' });
+    }
+});
+
+router.get('/docker/stream', [
+    query('container').notEmpty().isString(),
+    query('token').optional().isString()
+], checkValidation, async (req: Request, res: Response) => {
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const currentCount = dockerSseConnectionCounts.get(clientIp) || 0;
+    if (currentCount >= 3) {
+        res.status(429).json({ error: 'SSE 连接数超过限制' });
+        return;
+    }
+    dockerSseConnectionCounts.set(clientIp, currentCount + 1);
+
+    const sessionToken = (req.query.token as string) || req.cookies?.session_token;
+    if (!sessionToken || !sessionService.validateSession(sessionToken)) {
+        res.status(401).json({ error: '未认证' });
+        return;
+    }
+
+    const container = req.query.container as string;
+    if (!container || !isValidContainerName(container)) {
+        res.status(400).json({ error: '无效的容器名称' });
+        return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const sendEvent = (event: string, data: any): void => {
+        try {
+            res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        } catch { /* client disconnected */ }
+    };
+
+    sendEvent('connected', { message: 'Docker stream connected' });
+
+    const dockerProcess = spawn('docker', ['logs', container, '-f'], {
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let buffer = '';
+
+    const flushBuffer = (): void => {
+        if (buffer) {
+            const filtered = isFilterEnabled() ? filterSensitiveInfo(buffer) : buffer;
+            sendEvent('data', { content: filtered });
+            buffer = '';
+        }
+    };
+
+    const flushTimer = setInterval(flushBuffer, 500);
+
+    dockerProcess.stdout?.on('data', (data: Buffer) => {
+        buffer += data.toString();
+    });
+
+    dockerProcess.stderr?.on('data', (data: Buffer) => {
+        buffer += data.toString();
+    });
+
+    dockerProcess.on('error', (err) => {
+        sendEvent('error', { message: err.message });
+        clearInterval(flushTimer);
+        res.end();
+    });
+
+    dockerProcess.on('close', (code) => {
+        flushBuffer();
+        sendEvent('error', { message: `Docker process exited with code ${code}` });
+        clearInterval(flushTimer);
+        res.end();
+    });
+
+    req.on('close', () => {
+        clearInterval(flushTimer);
+        dockerProcess.kill();
+        const count = dockerSseConnectionCounts.get(clientIp) || 1;
+        if (count <= 1) dockerSseConnectionCounts.delete(clientIp);
+        else dockerSseConnectionCounts.set(clientIp, count - 1);
+    });
+});
+
 router.get('/docker/export', validateToken, [
     query('container').notEmpty().isString(),
     query('format').optional().isIn(['txt', 'json', 'csv'])
-], validate, async (req: Request, res: Response, _next: NextFunction) => {
+], checkValidation, async (req: Request, res: Response, _next: NextFunction) => {
     try {
         const { container, format } = req.query;
 

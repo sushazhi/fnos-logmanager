@@ -17,23 +17,42 @@ const appVersion = ref<string>('__APP_VERSION__')
 
 <style scoped>
 header {
-  background: linear-gradient(135deg,
-    var(--card-color-1, #9b59b6) 0%,
-    var(--card-color-2, #3498db) 33%,
-    var(--card-color-3, #1abc9c) 66%,
-    var(--card-color-4, #e74c8c) 100%
-  );
-  color: #4a4a4a;
+  background: var(--primary-gradient);
+  color: #fff;
   padding: var(--spacing-2xl);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-xl);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+header::after {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -15%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.04) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 .header-content {
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
 .title-section {
@@ -45,12 +64,13 @@ h1 {
   font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  line-height: 1.3;
 }
 
 .version {
   font-size: 0.75rem;
   font-weight: 400;
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 @media (max-width: 768px) {

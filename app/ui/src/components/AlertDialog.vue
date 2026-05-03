@@ -137,7 +137,7 @@ function fallbackCopy() {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -180,7 +180,7 @@ function fallbackCopy() {
 }
 
 .icon.warning {
-  background: #f59e0b;
+  background: var(--warning-color);
   color: white;
 }
 
@@ -258,7 +258,7 @@ function fallbackCopy() {
 }
 
 .btn.confirm.warning {
-  background: #f59e0b;
+  background: var(--warning-color);
 }
 
 /* Transition */

@@ -30,6 +30,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function setup(password: string) {
     try {
       loading.value = true
+      if (!api.getCSRFToken()) {
+        await api.fetchCSRFToken()
+      }
       const response = await api.post<{ success: boolean; error?: string }>('/api/auth/setup', { password })
       
       if (response.success) {

@@ -109,6 +109,9 @@ async function handleSetup(): Promise<void> {
   error.value = ''
   
   try {
+    if (!api.getCSRFToken()) {
+      await api.fetchCSRFToken()
+    }
     const data = await api.post<{ success: boolean; message?: string }>('/api/auth/setup', { password: password.value })
     if (data.success) {
       emit('setup')

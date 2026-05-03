@@ -19,6 +19,13 @@
     
     <StatsCard :stats="stats" />
     
+    <BookmarkBar 
+      :bookmarks="bookmarks"
+      @open-bookmark="handleOpenBookmark"
+      @delete-bookmark="handleDeleteBookmark"
+      @add-bookmark="handleAddBookmark"
+    />
+    
     <DirsCard 
       :dirs="dirs"
       :selected-dir="selectedDir"
@@ -40,6 +47,7 @@
       @open-settings="showSettings = true"
       @show-notification="showNotification = true"
       @show-event-logger="showEventLogger = true"
+      @show-auto-clean="showAutoClean = true"
     />
     
     <AppFooter />
@@ -63,9 +71,13 @@
       :truncated="logTruncated"
       :total-lines-in-file="logTotalLines"
       :loading-all="loadingAllLines"
+      :is-docker="logIsDocker"
+      :container-name="logCurrentPath"
+      :file-path="logCurrentPath"
       @close="showLogModal = false"
       @load-all="handleLoadAllLines"
       @export="handleExportLog"
+      @add-bookmark="handleLogModalAddBookmark"
     />
     
     <CleanModal 
@@ -102,6 +114,11 @@
       @close="showEventLogger = false"
     />
     
+    <AutoCleanPanel
+      v-if="showAutoClean"
+      @close="showAutoClean = false"
+    />
+    
     <ConfirmDialog ref="confirmDialog" />
   </div>
 </template>
@@ -110,8 +127,10 @@
 import { ref, onMounted } from 'vue'
 import { useStore, setConfirmFn } from './composables/useStore'
 import api from './services/api'
+import { bookmarkApi } from './services/api'
 import AppHeader from './components/AppHeader.vue'
 import StatsCard from './components/StatsCard.vue'
+import BookmarkBar from './components/BookmarkBar.vue'
 import DirsCard from './components/DirsCard.vue'
 import ActionsCard from './components/ActionsCard.vue'
 import LogListCard from './components/LogListCard.vue'
@@ -127,6 +146,7 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import AuditLog from './components/AuditLog.vue'
 import NotificationPanel from './components/NotificationPanel.vue'
 import EventLoggerPanel from './components/EventLoggerPanel.vue'
+import AutoCleanPanel from './components/AutoCleanPanel.vue'
 
 const {
   stats,
@@ -178,7 +198,57 @@ const confirmDialog = ref(null)
 const showAuditLog = ref(false)
 const showNotification = ref(false)
 const showEventLogger = ref(false)
+const showAutoClean = ref(false)
 const loadingAllLines = ref(false)
+const bookmarks = ref([])
+
+async function loadBookmarks() {
+  try {
+    const data = await bookmarkApi.getAll()
+    bookmarks.value = data.bookmarks || []
+  } catch (e) {
+    console.error('加载书签失败:', e)
+  }
+}
+
+async function handleOpenBookmark(bookmark) {
+  if (bookmark.isDocker) {
+    viewDockerLogs(bookmark.path)
+  } else {
+    viewLog(bookmark.path)
+  }
+}
+
+async function handleDeleteBookmark(id) {
+  try {
+    await bookmarkApi.delete(id)
+    bookmarks.value = bookmarks.value.filter(b => b.id !== id)
+  } catch (e) {
+    console.error('删除书签失败:', e)
+  }
+}
+
+async function handleAddBookmark(data) {
+  try {
+    const result = await bookmarkApi.add(data)
+    bookmarks.value.push(result.bookmark)
+  } catch (e) {
+    console.error('添加书签失败:', e)
+  }
+}
+
+async function handleLogModalAddBookmark() {
+  if (!logCurrentPath.value) return
+  const pathVal = logCurrentPath.value
+  const name = pathVal.split('/').pop() || pathVal
+  const isDocker = logIsDocker.value
+  try {
+    const result = await bookmarkApi.add({ path: pathVal, name, isDocker })
+    bookmarks.value.push(result.bookmark)
+  } catch (e) {
+    console.error('添加书签失败:', e)
+  }
+}
 
 async function handleLoadAllLines() {
   loadingAllLines.value = true
@@ -205,14 +275,18 @@ async function showConfirm(options) {
 
 setConfirmFn(showConfirm)
 
-function handleLogin(csrfToken) {
+function handleLogin(csrfToken, sessionToken) {
   isLoggedIn.value = true
   if (csrfToken) {
     api.setCSRFToken(csrfToken)
   }
+  if (sessionToken) {
+    api.setSessionToken(sessionToken)
+  }
   loadFilterStatus()
   refreshAll()
   checkForUpdates()
+  loadBookmarks()
 }
 
 function handleSetup() {
@@ -234,6 +308,7 @@ async function checkAuth() {
       loadFilterStatus()
       refreshAll()
       checkForUpdates()
+      loadBookmarks()
     } else {
       isLoggedIn.value = false
     }

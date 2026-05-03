@@ -4,6 +4,7 @@
  */
 
 import { ref, onUnmounted } from 'vue'
+import api from '../services/api'
 
 interface NotifyWSMessage {
   type: 'connected' | 'update'
@@ -27,6 +28,10 @@ export function useNotifyWebSocket() {
 
   function getWsUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const token = api.getSessionToken()
+    if (token) {
+      return `${protocol}//${window.location.host}/api/notifications/ws?token=${encodeURIComponent(token)}`
+    }
     return `${protocol}//${window.location.host}/api/notifications/ws`
   }
 

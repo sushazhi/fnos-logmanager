@@ -41,7 +41,7 @@ function submit() {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -49,7 +49,7 @@ function submit() {
 }
 
 .modal-content {
-  background: var(--card-bg, #ffffff);
+  background: var(--card-bg);
   color: var(--text-primary, #333);
   padding: 30px;
   border-radius: 12px;
@@ -84,7 +84,7 @@ function submit() {
 
 .modal-footer button {
   padding: 10px 20px;
-  background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary-color) 0%, var(--card-color-1-light) 100%));
   color: white;
   border: none;
   border-radius: 6px;

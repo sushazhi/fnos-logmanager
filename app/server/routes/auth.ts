@@ -13,8 +13,8 @@ const router = express.Router();
 
 const COOKIE_OPTIONS = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' || process.env.FORCE_HTTPS === 'true',
-    sameSite: 'strict' as const,
+    secure: process.env.FORCE_HTTPS === 'true',
+    sameSite: 'lax' as const,
     maxAge: 24 * 60 * 60 * 1000,
     path: '/',
     domain: process.env.COOKIE_DOMAIN || undefined
@@ -33,14 +33,7 @@ function isPrivateIP(ipAddr: string): boolean {
 
 router.post('/setup', validate([
     body('password').isLength({ min: 8 }).withMessage('密码至少8位')
-]), (req: Request, res: Response, next: NextFunction) => {
-    // CSRF 防护：要求 X-Requested-With header（跨站请求无法自定义此 header）
-    if (!req.headers['x-requested-with'] || req.headers['x-requested-with'] !== 'XMLHttpRequest') {
-        res.status(403).json({ success: false, error: '缺少必要的安全头' });
-        return;
-    }
-    next();
-}, async (req: Request, res: Response, next: NextFunction) => {
+]), validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { password } = req.body;
         const ip = getClientIP(req);
@@ -76,7 +69,7 @@ router.post('/setup', validate([
     }
 });
 
-router.post('/login', validate(loginValidationRules), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/login', validate(loginValidationRules), validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { password } = req.body;
         const ip = getClientIP(req);
@@ -122,6 +115,7 @@ router.post('/login', validate(loginValidationRules), async (req: Request, res: 
         res.json({
             success: true,
             csrfToken: csrfToken,
+            sessionToken: token,
             expiresIn: 24 * 60 * 60 * 1000
         });
     } catch (err) {

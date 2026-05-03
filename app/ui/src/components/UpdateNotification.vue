@@ -240,13 +240,13 @@ onMounted(() => {
 }
 
 .update-notification-btn-primary {
-  background: #3b82f6;
+  background: var(--primary-color);
   color: white;
   box-shadow: var(--shadow-md);
 }
 
 .update-notification-btn-primary:hover {
-  background: #2563eb;
+  background: var(--primary-hover);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
@@ -288,14 +288,14 @@ onMounted(() => {
 
 .progress {
   height: 100%;
-  background: #3b82f6;
+  background: var(--primary-color);
   transition: width 0.3s;
 }
 
 .progress-text {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #3b82f6;
+  color: var(--primary-color);
   margin: var(--spacing-sm) 0;
 }
 

@@ -8,6 +8,20 @@ import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'webhook' });
 
+function isPrivateUrl(urlStr: string): boolean {
+    try {
+        const url = new URL(urlStr);
+        const hostname = url.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+        if (hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) return true;
+        if (hostname.startsWith('169.254.') || hostname.startsWith('fd') || hostname === '0.0.0.0') return true;
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') return true;
+        return false;
+    } catch {
+        return true;
+    }
+}
+
 export const webhookChannel: NotifyChannel = {
     name: 'webhook',
     enabled: false,
@@ -24,6 +38,10 @@ export const webhookChannel: NotifyChannel = {
         const WEBHOOK_CONTENT_TYPE = getConfig('WEBHOOK_CONTENT_TYPE') || 'application/json';
 
         try {
+            if (isPrivateUrl(WEBHOOK_URL || '')) {
+                return { success: false, message: 'Webhook URL 不允许指向内网地址' };
+            }
+
             let body: string | undefined;
             const headers: Record<string, string> = {};
 

@@ -1,9 +1,13 @@
 import express, { Request, Response, NextFunction } from 'express';
+import fs from 'fs';
 import { query, body, ValidationChain } from 'express-validator';
 import * as logFileService from '../services/logFile';
 import * as auditService from '../services/audit';
 import * as backupService from '../services/backup';
-import { validateToken, validateCSRF, validate } from '../middleware/auth';
+import * as autoCleanService from '../services/autoClean';
+import * as bookmarkService from '../services/bookmark';
+import * as sessionService from '../services/session';
+import { validateToken, validateCSRF, validate, checkValidation } from '../middleware/auth';
 import { sensitiveActionRateLimit } from '../middleware/rateLimit';
 import { 
     safePath, 
@@ -16,6 +20,7 @@ import {
     isValidAction,
     isValidDays,
     isValidThreshold,
+    isValidContainerName,
     clamp
 } from '../utils/validation';
 import config from '../utils/config';
@@ -186,6 +191,159 @@ router.get('/logs/stats', validateToken, async (_req: Request, res: Response, ne
     } catch (err) {
         next(err);
     }
+});
+
+router.get('/log/tail', validateToken, [
+    query('path').notEmpty().isString().isLength({ max: MAX_PATH_LENGTH }),
+    query('offset').optional().isInt()
+], checkValidation, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const logPathStr = getQueryParam(req.query.path);
+        if (!logPathStr || !isAllowedPath(logPathStr, config.logDirs)) {
+            res.status(403).json({ error: '不允许访问此文件' });
+            return;
+        }
+        if (await isSymlinkPath(logPathStr)) {
+            res.status(403).json({ error: '不允许访问符号链接' });
+            return;
+        }
+
+        let offset = parseInt(req.query.offset as string, 10);
+        if (isNaN(offset) || offset < 0) offset = -1;
+
+        try {
+            const stat = await fs.promises.stat(logPathStr);
+            const fileSize = stat.size;
+
+            if (offset < 0) {
+                res.json({ content: '', offset: fileSize, totalSize: fileSize });
+                return;
+            }
+
+            if (offset >= fileSize) {
+                res.json({ content: '', offset: fileSize, totalSize: fileSize });
+                return;
+            }
+
+            const maxBytes = 512 * 1024;
+            const end = Math.min(offset + maxBytes, fileSize);
+            const stream = fs.createReadStream(logPathStr, { start: offset, end: end - 1, encoding: 'utf8' });
+            let content = '';
+            for await (const chunk of stream) {
+                content += chunk;
+            }
+
+            const filtered = isFilterEnabled() ? filterSensitiveInfo(content) : content;
+            res.json({ content: filtered, offset: end, totalSize: fileSize });
+        } catch (err) {
+            if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+                res.json({ content: '', offset: 0, totalSize: 0, deleted: true });
+            } else {
+                throw err;
+            }
+        }
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.get('/log/stream', [
+    query('path').notEmpty().isString().isLength({ max: MAX_PATH_LENGTH }),
+    query('token').optional().isString()
+], checkValidation, async (req: Request, res: Response) => {
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const sseConnectionCounts: Map<string, number> = (req.app.locals.sseLogConnectionCounts as Map<string, number>) || new Map();
+    const currentCount = sseConnectionCounts.get(clientIp) || 0;
+    if (currentCount >= 5) {
+        res.status(429).json({ error: 'SSE 连接数超过限制' });
+        return;
+    }
+    sseConnectionCounts.set(clientIp, currentCount + 1);
+    req.app.locals.sseLogConnectionCounts = sseConnectionCounts;
+
+    const sessionToken = (req.query.token as string) || req.cookies?.session_token;
+    if (!sessionToken || !sessionService.validateSession(sessionToken)) {
+        res.status(401).json({ error: '未认证' });
+        return;
+    }
+
+    const logPathStr = getQueryParam(req.query.path);
+    if (!logPathStr || !isAllowedPath(logPathStr, config.logDirs)) {
+        res.status(403).json({ error: '不允许访问此文件' });
+        return;
+    }
+    if (await isSymlinkPath(logPathStr)) {
+        res.status(403).json({ error: '不允许访问符号链接' });
+        return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const sendEvent = (event: string, data: any): void => {
+        try {
+            res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        } catch { /* client disconnected */ }
+    };
+
+    sendEvent('connected', { message: 'Stream connected' });
+
+    let lastSize = 0;
+    let lastPos = 0;
+
+    try {
+        const stat = await fs.promises.stat(logPathStr);
+        lastSize = stat.size;
+        lastPos = stat.size;
+    } catch { /* file may not exist yet */ }
+
+    const POLL_INTERVAL = 1000;
+    const timer = setInterval(async () => {
+        try {
+            const stat = await fs.promises.stat(logPathStr);
+            const currentSize = stat.size;
+
+            if (currentSize < lastSize) {
+                lastPos = 0;
+                lastSize = currentSize;
+                sendEvent('file_rotated', { path: safePath(logPathStr) });
+            }
+
+            if (currentSize > lastPos) {
+                const stream = fs.createReadStream(logPathStr, {
+                    start: lastPos,
+                    encoding: 'utf8'
+                });
+                let content = '';
+                for await (const chunk of stream) {
+                    content += chunk;
+                }
+                if (content) {
+                    const filtered = isFilterEnabled() ? filterSensitiveInfo(content) : content;
+                    sendEvent('data', { content: filtered, offset: lastPos, totalSize: currentSize });
+                }
+                lastPos = currentSize;
+                lastSize = currentSize;
+            }
+        } catch (err) {
+            if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+                sendEvent('file_deleted', { path: safePath(logPathStr) });
+            }
+        }
+    }, POLL_INTERVAL);
+
+    req.on('close', () => {
+        clearInterval(timer);
+        const counts = req.app.locals.sseLogConnectionCounts as Map<string, number> | undefined;
+        if (counts) {
+            const count = counts.get(clientIp) || 1;
+            if (count <= 1) counts.delete(clientIp);
+            else counts.set(clientIp, count - 1);
+        }
+    });
 });
 
 router.get('/log/export', validateToken, [
@@ -569,6 +727,232 @@ router.post('/dirs/clean-empty', validateToken, validateCSRF, sensitiveActionRat
             errors: result.errors,
             message: `已删除 ${result.cleaned} 个空文件夹`
         });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.get('/auto-clean/rules', validateToken, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+        const rules = await autoCleanService.getRules();
+        res.json({ rules });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.post('/auto-clean/rules', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { name, enabled, type, threshold, days, schedule } = req.body;
+
+        if (!name || typeof name !== 'string') {
+            res.status(400).json({ error: '规则名称不能为空' });
+            return;
+        }
+
+        if (!['truncateLarge', 'deleteOld', 'deleteUninstalled'].includes(type)) {
+            res.status(400).json({ error: '无效的清理类型' });
+            return;
+        }
+
+        if (!['hourly', 'daily', 'weekly'].includes(schedule) && isNaN(parseInt(schedule, 10))) {
+            res.status(400).json({ error: '无效的调度计划' });
+            return;
+        }
+
+        if (schedule && !isNaN(parseInt(schedule, 10)) && parseInt(schedule, 10) < 60000) {
+            res.status(400).json({ error: '自定义间隔最小为60000毫秒(1分钟)' });
+            return;
+        }
+
+        if (type === 'truncateLarge' && threshold && !isValidThreshold(threshold)) {
+            res.status(400).json({ error: '无效的大小阈值' });
+            return;
+        }
+
+        if (type === 'deleteOld' && days && !isValidDays(days)) {
+            res.status(400).json({ error: '天数必须在1-365之间' });
+            return;
+        }
+
+        const rule = await autoCleanService.addRule({
+            name,
+            enabled: enabled !== false,
+            type,
+            threshold: type === 'truncateLarge' ? threshold : undefined,
+            days: type === 'deleteOld' ? days : undefined,
+            schedule
+        });
+
+        auditService.addAuditLog('auto_clean_rule_add', { ruleId: rule.id, name: rule.name, type: rule.type }, req);
+        res.json({ rule });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.put('/auto-clean/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+
+        if (updates.type && !['truncateLarge', 'deleteOld', 'deleteUninstalled'].includes(updates.type)) {
+            res.status(400).json({ error: '无效的清理类型' });
+            return;
+        }
+
+        if (updates.schedule && !['hourly', 'daily', 'weekly'].includes(updates.schedule) && isNaN(parseInt(updates.schedule, 10))) {
+            res.status(400).json({ error: '无效的调度计划' });
+            return;
+        }
+
+        if (updates.threshold && !isValidThreshold(updates.threshold)) {
+            res.status(400).json({ error: '无效的大小阈值' });
+            return;
+        }
+
+        if (updates.days && !isValidDays(updates.days)) {
+            res.status(400).json({ error: '天数必须在1-365之间' });
+            return;
+        }
+
+        const rule = await autoCleanService.updateRule(id, updates);
+        if (!rule) {
+            res.status(404).json({ error: '规则不存在' });
+            return;
+        }
+
+        auditService.addAuditLog('auto_clean_rule_update', { ruleId: id, updates }, req);
+        res.json({ rule });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.delete('/auto-clean/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const deleted = await autoCleanService.deleteRule(id);
+        if (!deleted) {
+            res.status(404).json({ error: '规则不存在' });
+            return;
+        }
+
+        auditService.addAuditLog('auto_clean_rule_delete', { ruleId: id }, req);
+        res.json({ success: true });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.post('/auto-clean/rules/:id/toggle', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const rule = await autoCleanService.toggleRule(id);
+        if (!rule) {
+            res.status(404).json({ error: '规则不存在' });
+            return;
+        }
+
+        auditService.addAuditLog('auto_clean_rule_toggle', { ruleId: id, enabled: rule.enabled }, req);
+        res.json({ rule });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.post('/auto-clean/rules/:id/execute', validateToken, validateCSRF, sensitiveActionRateLimit(5, 300000), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const result = await autoCleanService.executeRuleNow(id);
+        if (!result) {
+            res.status(404).json({ error: '规则不存在' });
+            return;
+        }
+
+        auditService.addAuditLog('auto_clean_manual', { ruleId: id, cleaned: result.cleaned }, req);
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.get('/bookmarks', validateToken, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+        const bookmarks = await bookmarkService.loadBookmarks();
+        res.json({ bookmarks });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.post('/bookmarks', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { name, path: bookmarkPath, isDocker } = req.body;
+
+        if (!bookmarkPath || typeof bookmarkPath !== 'string') {
+            res.status(400).json({ error: '缺少路径' });
+            return;
+        }
+
+        if (bookmarkPath.length > MAX_PATH_LENGTH) {
+            res.status(400).json({ error: '路径过长' });
+            return;
+        }
+
+        if (isDocker) {
+            if (!isValidContainerName(bookmarkPath)) {
+                res.status(400).json({ error: '无效的容器名称' });
+                return;
+            }
+        } else {
+            if (!isAllowedPath(bookmarkPath, config.logDirs)) {
+                res.status(403).json({ error: '不允许访问此路径' });
+                return;
+            }
+        }
+
+        const displayName = (name && typeof name === 'string') ? name : bookmarkPath.split('/').pop() || bookmarkPath;
+        const bookmark = await bookmarkService.addBookmark(displayName, bookmarkPath, !!isDocker);
+        auditService.addAuditLog('bookmark_add', { id: bookmark.id, path: safePath(bookmarkPath), isDocker: !!isDocker }, req);
+        res.json({ bookmark });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.delete('/bookmarks/:id', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const deleted = await bookmarkService.deleteBookmark(id);
+        if (!deleted) {
+            res.status(404).json({ error: '书签不存在' });
+            return;
+        }
+        auditService.addAuditLog('bookmark_delete', { id }, req);
+        res.json({ success: true });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.put('/bookmarks/:id', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+
+        if (!name || typeof name !== 'string') {
+            res.status(400).json({ error: '名称不能为空' });
+            return;
+        }
+
+        const bookmark = await bookmarkService.updateBookmark(id, name);
+        if (!bookmark) {
+            res.status(404).json({ error: '书签不存在' });
+            return;
+        }
+        auditService.addAuditLog('bookmark_update', { id, name }, req);
+        res.json({ bookmark });
     } catch (err) {
         next(err);
     }

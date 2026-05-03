@@ -168,11 +168,11 @@ const stats = ref<EventLoggerStats | null>(null)
 const events = ref<EventLogEntry[]>([])
 
 const severityColors: Record<string, string> = {
-  debug: '#9ca3af',
-  info: '#3b82f6',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  critical: '#dc2626'
+  debug: 'var(--log-debug-color)',
+  info: 'var(--log-info-color)',
+  warning: 'var(--log-warning-color)',
+  error: 'var(--log-error-color)',
+  critical: 'var(--log-critical-color)'
 }
 
 function formatSeverity(severity: string): string {
@@ -297,7 +297,7 @@ onMounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -513,7 +513,7 @@ onMounted(() => {
 }
 
 .action-btn.start:hover:not(:disabled) {
-  background: #22c55e;
+  background: var(--success-color);
 }
 
 .action-btn.stop {
@@ -523,7 +523,7 @@ onMounted(() => {
 }
 
 .action-btn.stop:hover:not(:disabled) {
-  background: #dc2626;
+  background: var(--log-critical-color);
 }
 
 .stats-grid {
@@ -567,23 +567,23 @@ onMounted(() => {
 }
 
 .event-item.debug {
-  border-left-color: #9ca3af;
+  border-left-color: var(--log-debug-color);
 }
 
 .event-item.info {
-  border-left-color: #3b82f6;
+  border-left-color: var(--log-info-color);
 }
 
 .event-item.warning {
-  border-left-color: #f59e0b;
+  border-left-color: var(--log-warning-color);
 }
 
 .event-item.error {
-  border-left-color: #ef4444;
+  border-left-color: var(--log-error-color);
 }
 
 .event-item.critical {
-  border-left-color: #dc2626;
+  border-left-color: var(--log-critical-color);
 }
 
 .event-header {

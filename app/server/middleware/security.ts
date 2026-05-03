@@ -41,7 +41,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
         `style-src 'self' 'unsafe-inline'; ` +
         `img-src 'self' data:; ` +
         `font-src 'self' data:; ` +
-        `connect-src 'self' https://api.github.com; ` +
+        `connect-src 'self' ws: wss: https://api.github.com; ` +
         `frame-ancestors ${frameAncestors}; ` +
         `base-uri 'self'; ` +
         `form-action 'self'; ` +

@@ -175,17 +175,17 @@ onMounted(() => {
 }
 
 .version-info:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--bg-color-3);
 }
 
 .version-text {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-color-3);
 }
 
 .update-badge {
   font-size: 11px;
-  color: #fbbf24;
+  color: var(--warning-color);
   font-weight: 600;
   animation: pulse 2s infinite;
 }
@@ -201,7 +201,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -209,13 +209,13 @@ onMounted(() => {
 }
 
 .update-dialog {
-  background: #1e293b;
+  background: var(--text-color);
   border-radius: 12px;
   width: 90%;
   max-width: 500px;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 25px -5px var(--overlay);
 }
 
 .dialog-header {
@@ -223,19 +223,19 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid var(--text-color-1);
 }
 
 .dialog-header h3 {
   margin: 0;
   font-size: 18px;
-  color: #e2e8f0;
+  color: var(--bg-color-2);
 }
 
 .close-btn {
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-color-3);
   font-size: 24px;
   cursor: pointer;
   padding: 0;
@@ -243,7 +243,7 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-  color: #e2e8f0;
+  color: var(--bg-color-2);
 }
 
 .dialog-body {
@@ -258,8 +258,8 @@ onMounted(() => {
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #334155;
-  border-top-color: #3b82f6;
+  border: 3px solid var(--text-color-1);
+  border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
@@ -279,29 +279,29 @@ onMounted(() => {
 
 .version-compare p {
   margin: 8px 0;
-  color: #94a3b8;
+  color: var(--text-color-3);
 }
 
 .version-compare strong {
-  color: #e2e8f0;
+  color: var(--bg-color-2);
 }
 
 .changelog {
   margin: 20px 0;
   text-align: left;
-  background: #0f172a;
+  background: var(--text-color);
   border-radius: 8px;
   padding: 16px;
 }
 
 .changelog h4 {
   margin: 0 0 12px 0;
-  color: #e2e8f0;
+  color: var(--bg-color-2);
   font-size: 14px;
 }
 
 .changelog-content {
-  color: #94a3b8;
+  color: var(--text-color-3);
   font-size: 13px;
   line-height: 1.6;
   max-height: 200px;
@@ -336,21 +336,21 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: #3b82f6;
+  background: var(--primary-color);
   color: white;
 }
 
 .btn-primary:hover {
-  background: #2563eb;
+  background: var(--primary-hover);
 }
 
 .btn-secondary {
-  background: #475569;
-  color: #e2e8f0;
+  background: var(--text-color-2);
+  color: var(--bg-color-2);
 }
 
 .btn-secondary:hover {
-  background: #64748b;
+  background: var(--text-color-2);
 }
 
 .updating {
@@ -360,7 +360,7 @@ onMounted(() => {
 .progress-bar {
   width: 100%;
   height: 8px;
-  background: #334155;
+  background: var(--text-color-1);
   border-radius: 4px;
   overflow: hidden;
   margin-bottom: 12px;
@@ -368,19 +368,19 @@ onMounted(() => {
 
 .progress {
   height: 100%;
-  background: #3b82f6;
+  background: var(--primary-color);
   transition: width 0.3s;
 }
 
 .progress-text {
   font-size: 24px;
   font-weight: 600;
-  color: #3b82f6;
+  color: var(--primary-color);
   margin: 8px 0;
 }
 
 .update-message {
-  color: #94a3b8;
+  color: var(--text-color-3);
   font-size: 14px;
 }
 
@@ -392,7 +392,7 @@ onMounted(() => {
 .check-icon {
   width: 60px;
   height: 60px;
-  background: #10b981;
+  background: var(--success-color);
   color: white;
   border-radius: 50%;
   display: flex;
@@ -404,12 +404,12 @@ onMounted(() => {
 
 .up-to-date p {
   margin: 8px 0;
-  color: #94a3b8;
+  color: var(--text-color-3);
 }
 
 .up-to-date .version-text {
   font-size: 16px;
-  color: #e2e8f0;
+  color: var(--bg-color-2);
   font-weight: 600;
 }
 </style>

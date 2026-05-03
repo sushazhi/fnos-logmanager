@@ -2,20 +2,32 @@
  * 日志搜索 Composable
  * 使用 Web Worker 在后台线程执行搜索，避免阻塞主线程
  * 对小量数据（< 1000 行）直接在主线程搜索，避免 Worker 通信开销
+ * 支持关键词/正则模式，搜索总是不区分大小写
  */
 
 import { ref, watch, type Ref } from 'vue'
+
+type SearchMode = 'keyword' | 'regex'
 
 interface MatchPosition {
   lineIndex: number
   charIndex: number
 }
 
-const WORKER_THRESHOLD = 1000 // 超过此行数使用 Worker
+interface SearchOptions {
+  mode: SearchMode
+}
 
-export function useLogSearch(allLines: Ref<string[]>, searchQuery: Ref<string>) {
+const WORKER_THRESHOLD = 1000
+
+export function useLogSearch(
+  allLines: Ref<string[]>,
+  searchQuery: Ref<string>,
+  searchOptions: Ref<SearchOptions>
+) {
   const matchPositions = ref<MatchPosition[]>([])
   const isSearching = ref(false)
+  const searchError = ref('')
 
   let worker: Worker | null = null
   let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -37,84 +49,113 @@ export function useLogSearch(allLines: Ref<string[]>, searchQuery: Ref<string>) 
     }
   }
 
-  /**
-   * 在主线程中搜索（小量数据）
-   */
-  function searchInMainThread(lines: string[], query: string): MatchPosition[] {
-    const lowerQuery = query.toLowerCase()
+  function searchInMainThread(
+    lines: string[],
+    query: string,
+    options: SearchOptions
+  ): MatchPosition[] {
+    const { mode } = options
+    searchError.value = ''
+
     const positions: MatchPosition[] = []
-    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const line = lines[lineIndex]
-      const lowerLine = line.toLowerCase()
-      let searchPos = 0
-      let pos = lowerLine.indexOf(lowerQuery, searchPos)
-      while (pos !== -1) {
-        positions.push({ lineIndex, charIndex: pos })
-        searchPos = pos + 1
-        pos = lowerLine.indexOf(lowerQuery, searchPos)
+
+    if (mode === 'regex') {
+      let regex: RegExp
+      try {
+        regex = new RegExp(query, 'gi')
+      } catch (err) {
+        searchError.value = `无效的正则表达式: ${query}`
+        return []
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        regex.lastIndex = 0
+        let match = regex.exec(line)
+        while (match !== null) {
+          positions.push({ lineIndex: i, charIndex: match.index })
+          if (match[0].length === 0) regex.lastIndex++
+          match = regex.exec(line)
+        }
+      }
+    } else {
+      const searchQueryStr = query.toLowerCase()
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        const searchLine = line.toLowerCase()
+        let searchPos = 0
+        let pos = searchLine.indexOf(searchQueryStr, searchPos)
+        while (pos !== -1) {
+          positions.push({ lineIndex: i, charIndex: pos })
+          searchPos = pos + 1
+          pos = searchLine.indexOf(searchQueryStr, searchPos)
+        }
       }
     }
+
     return positions
   }
 
-  /**
-   * 在 Worker 中搜索（大量数据）
-   */
-  function searchInWorker(lines: string[], query: string): void {
+  function searchInWorker(
+    lines: string[],
+    query: string,
+    options: SearchOptions
+  ): void {
     isSearching.value = true
+    searchError.value = ''
     const w = getWorker()
 
     w.onmessage = (e: MessageEvent) => {
       if (e.data.type === 'searchResult') {
         matchPositions.value = e.data.positions
         isSearching.value = false
+      } else if (e.data.type === 'error') {
+        searchError.value = e.data.message
+        matchPositions.value = []
+        isSearching.value = false
       }
     }
 
     w.onerror = () => {
-      // Worker 出错时降级到主线程搜索
-      matchPositions.value = searchInMainThread(lines, query)
+      matchPositions.value = searchInMainThread(lines, query, options)
       isSearching.value = false
     }
 
-    w.postMessage({ type: 'search', lines, query })
+    w.postMessage({
+      type: 'search',
+      lines,
+      query,
+      mode: options.mode
+    })
   }
 
-  /**
-   * 执行搜索（带 debounce）
-   */
   function performSearch(): void {
-    if (searchTimer) {
-      clearTimeout(searchTimer)
-    }
+    if (searchTimer) clearTimeout(searchTimer)
 
     const query = searchQuery.value.trim()
     if (!query) {
       matchPositions.value = []
       isSearching.value = false
+      searchError.value = ''
       return
     }
 
-    // 300ms debounce，避免频繁搜索
     searchTimer = setTimeout(() => {
       const lines = allLines.value
+      const options = searchOptions.value
 
       if (lines.length < WORKER_THRESHOLD) {
-        // 小量数据直接在主线程搜索
-        matchPositions.value = searchInMainThread(lines, query)
+        matchPositions.value = searchInMainThread(lines, query, options)
       } else {
-        // 大量数据使用 Worker
-        searchInWorker(lines, query)
+        searchInWorker(lines, query, options)
       }
     }, 300)
   }
 
-  // 监听搜索关键词变化
-  watch(searchQuery, () => {
+  watch([searchQuery, searchOptions], () => {
     performSearch()
-  })
+  }, { deep: true })
 
-  // 监听内容变化时重新搜索
   watch(allLines, () => {
     if (searchQuery.value.trim()) {
       performSearch()
@@ -122,15 +163,14 @@ export function useLogSearch(allLines: Ref<string[]>, searchQuery: Ref<string>) 
   }, { deep: false })
 
   function cleanup(): void {
-    if (searchTimer) {
-      clearTimeout(searchTimer)
-    }
+    if (searchTimer) clearTimeout(searchTimer)
     terminateWorker()
   }
 
   return {
     matchPositions,
     isSearching,
+    searchError,
     performSearch,
     cleanup
   }

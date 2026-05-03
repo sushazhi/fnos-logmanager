@@ -4,6 +4,7 @@
  */
 
 import { ref, onUnmounted } from 'vue'
+import api from '../services/api'
 
 interface StreamMessage {
   type: 'connected' | 'subscribed' | 'unsubscribed' | 'data' | 'file_rotated' | 'file_deleted' | 'error'
@@ -30,6 +31,10 @@ export function useLogStream() {
 
   function getWsUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const token = api.getSessionToken()
+    if (token) {
+      return `${protocol}//${window.location.host}/api/logs/stream?token=${encodeURIComponent(token)}`
+    }
     return `${protocol}//${window.location.host}/api/logs/stream`
   }
 

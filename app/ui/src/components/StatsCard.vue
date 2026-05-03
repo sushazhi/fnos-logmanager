@@ -113,45 +113,45 @@ defineProps<{
 /* 渐变色卡片 */
 .stat-card-blue {
   background: linear-gradient(135deg,
-    var(--card-color-1, #9b59b6) 0%,
-    var(--card-color-1-light, #b07cc6) 50%,
-    var(--card-color-1, #9b59b6) 100%
+    var(--card-color-1) 0%,
+    var(--card-color-1-light) 50%,
+    var(--card-color-1) 100%
   );
-  color: #4a4a4a;
+  color: var(--text-color);
 }
 
 .stat-card-green {
   background: linear-gradient(135deg,
-    var(--card-color-2, #3498db) 0%,
-    var(--card-color-2-light, #5dade2) 50%,
-    var(--card-color-2, #3498db) 100%
+    var(--card-color-2) 0%,
+    var(--card-color-2-light) 50%,
+    var(--card-color-2) 100%
   );
-  color: #4a4a4a;
+  color: var(--text-color);
 }
 
 .stat-card-orange {
   background: linear-gradient(135deg,
-    var(--card-color-3, #1abc9c) 0%,
-    var(--card-color-3-light, #48c9b0) 50%,
-    var(--card-color-3, #1abc9c) 100%
+    var(--card-color-3) 0%,
+    var(--card-color-3-light) 50%,
+    var(--card-color-3) 100%
   );
-  color: #4a4a4a;
+  color: var(--text-color);
 }
 
 .stat-card-red {
   background: linear-gradient(135deg,
-    var(--card-color-4, #e74c8c) 0%,
-    var(--card-color-4-light, #ec6a9d) 50%,
-    var(--card-color-4, #e74c8c) 100%
+    var(--card-color-4) 0%,
+    var(--card-color-4-light) 50%,
+    var(--card-color-4) 100%
   );
-  color: #4a4a4a;
+  color: var(--text-color);
 }
 
 .stat-card-blue::before,
 .stat-card-green::before,
 .stat-card-orange::before,
 .stat-card-red::before {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
+  background: linear-gradient(135deg, var(--bg-color-3) 0%, transparent 100%);
 }
 
 .stat-icon {
@@ -161,16 +161,16 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--bg-color-3);
   border-radius: var(--radius-sm);
   backdrop-filter: blur(10px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px var(--bg-color-3);
 }
 
 .stat-icon svg {
   width: 24px;
   height: 24px;
-  color: #2D3748;
+  color: var(--text-color);
 }
 
 .stat-content {
