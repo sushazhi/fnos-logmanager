@@ -115,7 +115,16 @@ function getActionText(action) {
     'backup_delete': '备份删除',
     'backups_clean': '备份清理',
     'auth_failed': '认证失败',
-    'csrf_failed': 'CSRF验证失败'
+    'csrf_failed': 'CSRF验证失败',
+    'bookmark_add': '添加书签',
+    'bookmark_delete': '删除书签',
+    'bookmark_update': '更新书签',
+    'autoclean_add': '添加清理规则',
+    'autoclean_delete': '删除清理规则',
+    'autoclean_update': '更新清理规则',
+    'autoclean_trigger': '触发自动清理',
+    'dirs_clean_empty': '清理空文件夹',
+    'log_export': '日志导出'
   }
   return actionMap[action] || action
 }

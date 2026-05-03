@@ -36,22 +36,19 @@
             </div>
             <div class="form-row">
               <label>执行计划</label>
-              <select v-model="newRule.schedule">
-                <option value="hourly">每小时</option>
-                <option value="daily">每天凌晨3点</option>
-                <option value="weekly">每周日凌晨3点</option>
-                <option value="custom">自定义间隔</option>
-                <option value="cron">Cron表达式</option>
-              </select>
-            </div>
-            <div class="form-row" v-if="newRule.schedule === 'custom'">
-              <label>间隔(秒)</label>
-              <input type="number" v-model.number="newRule.customInterval" min="60" placeholder="例如: 3600">
-            </div>
-            <div class="form-row" v-if="newRule.schedule === 'cron'">
-              <label>Cron表达式 (分 时 日 月 周)</label>
-              <input type="text" v-model="newRule.cronExpression" placeholder="例如: 0 3 * * * (每天3点)">
-              <span class="hint">格式: 分(0-59) 时(0-23) 日(1-31) 月(1-12) 周(0-6,0=周日)</span>
+              <div class="schedule-row">
+                <select v-model="newRule.schedule">
+                  <option value="hourly">每小时</option>
+                  <option value="daily">每天凌晨3点</option>
+                  <option value="weekly">每周日凌晨3点</option>
+                  <option value="custom">自定义间隔</option>
+                  <option value="cron">Cron表达式</option>
+                </select>
+                <input v-if="newRule.schedule === 'custom'" type="number" v-model.number="newRule.customInterval" min="60" placeholder="间隔秒数" class="schedule-input">
+                <input v-if="newRule.schedule === 'cron'" type="text" v-model="newRule.cronExpression" placeholder="0 3 * * *" class="schedule-input">
+              </div>
+              <span class="hint" v-if="newRule.schedule === 'custom'">最小60秒</span>
+              <span class="hint" v-if="newRule.schedule === 'cron'">格式: 分(0-59) 时(0-23) 日(1-31) 月(1-12) 周(0-6,0=周日)</span>
             </div>
             <div class="form-actions">
               <button class="secondary" @click="showAddForm = false">取消</button>
@@ -403,6 +400,35 @@ onMounted(() => {
 
 .form-row input:focus,
 .form-row select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.schedule-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.schedule-row select {
+  flex-shrink: 0;
+  width: auto;
+  max-width: 50%;
+}
+
+.schedule-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  font-size: 0.8125rem;
+  background: var(--card-bg);
+  color: var(--text-color-1);
+  box-sizing: border-box;
+}
+
+.schedule-input:focus {
   outline: none;
   border-color: var(--primary-color);
 }
