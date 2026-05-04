@@ -74,7 +74,8 @@
       :is-docker="logIsDocker"
       :container-name="logCurrentPath"
       :file-path="logCurrentPath"
-      @close="showLogModal = false"
+      @close="handleCloseLogModal"
+      @back="showLogModal = false"
       @load-all="handleLoadAllLines"
       @export="handleExportLog"
       @add-bookmark="handleLogModalAddBookmark"
@@ -126,6 +127,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useStore, setConfirmFn } from './composables/useStore'
+import { useLogsStore } from './stores/useLogsStore'
 import api from './services/api'
 import { bookmarkApi } from './services/api'
 import AppHeader from './components/AppHeader.vue'
@@ -163,6 +165,8 @@ const {
   logTotalLines,
   logCurrentPath,
   logIsDocker,
+  activeTabId,
+  logTabs,
   selectedDir,
   updateInfo,
   listType,
@@ -182,6 +186,8 @@ const {
   listDockerContainers,
   viewDockerLogs,
   backupLogs,
+  removeTab,
+  switchTab,
   executeClean,
   cleanEmptyDirs,
   exportLog,
@@ -235,6 +241,13 @@ async function handleAddBookmark(data) {
   } catch (e) {
     console.error('添加书签失败:', e)
   }
+}
+
+function handleCloseLogModal() {
+  const logsStore = useLogsStore()
+  logsStore.logTabs.splice(0)
+  logsStore.activeTabId = ''
+  showLogModal.value = false
 }
 
 async function handleLogModalAddBookmark() {
@@ -324,18 +337,19 @@ function loadSavedSettings() {
   try {
     const saved = localStorage.getItem('logmanager_settings')
     if (saved) {
-      const settings = JSON.parse(saved)  // 添加错误处理
+      const settings = JSON.parse(saved)
       const root = document.documentElement
+      const validColorRegex = /^#[0-9a-fA-F]{6}$/
       
-      if (settings.fontSize) {
+      if (typeof settings.fontSize === 'number' && settings.fontSize >= 10 && settings.fontSize <= 24) {
         root.style.setProperty('--base-font-size', `${settings.fontSize}px`)
       }
       
-      if (settings.primaryColor) {
+      if (typeof settings.primaryColor === 'string' && validColorRegex.test(settings.primaryColor)) {
         root.style.setProperty('--primary-color', settings.primaryColor)
       }
       
-      if (settings.theme) {
+      if (settings.theme === 'dark' || settings.theme === 'light' || settings.theme === 'auto') {
         const isDark = settings.theme === 'dark' || 
           (settings.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
         if (isDark) {

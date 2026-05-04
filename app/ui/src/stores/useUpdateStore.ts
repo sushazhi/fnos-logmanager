@@ -64,7 +64,8 @@ export const useUpdateStore = defineStore('update', () => {
     try {
       const response = await fetch(`${API_BASE}/api/update/check`, {
         credentials: 'include',
-        cache: 'no-store'
+        cache: 'no-store',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
       })
       if (!response.ok) return null
 
@@ -105,7 +106,8 @@ export const useUpdateStore = defineStore('update', () => {
   async function getUpdateStatus(): Promise<UpdateStatus> {
     try {
       const response = await fetch(`${API_BASE}/api/update/status`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
       })
       if (!response.ok) {
         throw new Error('获取更新状态失败')

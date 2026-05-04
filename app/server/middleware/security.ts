@@ -21,15 +21,13 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     // 构建 frame-ancestors
     let frameAncestors: string;
     if (isIpAddress) {
-        // IP 地址：允许该 IP 的所有端口（http 和 https）
-        frameAncestors = `'self' http://${hostBase}:* https://${hostBase}:* https://*.5ddd.com http://*.5ddd.com`;
+        frameAncestors = `'self' http://${hostBase}:* https://${hostBase}:*`;
     } else {
-        // 域名提取主域名支持子域名通配符
         const domainParts = hostBase.split('.');
         const mainDomain = domainParts.length >= 2 
             ? domainParts.slice(-2).join('.') 
             : hostBase;
-        frameAncestors = `'self' https://*.${mainDomain} http://*.${mainDomain} https://*.5ddd.com http://*.5ddd.com`;
+        frameAncestors = `'self' https://*.${mainDomain} http://*.${mainDomain}`;
     }
 
     const cspNonce = crypto.randomBytes(16).toString('base64');
@@ -41,7 +39,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
         `style-src 'self' 'unsafe-inline'; ` +
         `img-src 'self' data:; ` +
         `font-src 'self' data:; ` +
-        `connect-src 'self' ws: wss: https://api.github.com; ` +
+        `connect-src 'self' https://api.github.com; ` +
         `frame-ancestors ${frameAncestors}; ` +
         `base-uri 'self'; ` +
         `form-action 'self'; ` +

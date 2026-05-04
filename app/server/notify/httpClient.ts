@@ -111,3 +111,18 @@ export const $ = {
 };
 
 export default httpClient;
+
+export function isPrivateUrl(urlStr: string): boolean {
+    try {
+        const url = new URL(urlStr);
+        const hostname = url.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') return true;
+        if (hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('169.254.')) return true;
+        if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true;
+        if (hostname.startsWith('fd') || hostname.startsWith('fe80')) return true;
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') return true;
+        return false;
+    } catch {
+        return true;
+    }
+}

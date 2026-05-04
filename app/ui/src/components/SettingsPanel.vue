@@ -133,10 +133,10 @@ const passwordError = ref<string>('')
 const passwordSuccess = ref<string>('')
 
 const colors: ColorOption[] = [
-  { name: '紫色', value: '#9b59b6', gradient: 'linear-gradient(135deg, var(--card-color-1) 0%, var(--card-color-1-light) 100%)' },
-  { name: '蓝色', value: '#3498db', gradient: 'linear-gradient(135deg, var(--card-color-2) 0%, var(--card-color-2-light) 100%)' },
-  { name: '青色', value: '#1abc9c', gradient: 'linear-gradient(135deg, var(--card-color-3) 0%, var(--card-color-3-light) 100%)' },
-  { name: '粉色', value: '#e74c8c', gradient: 'linear-gradient(135deg, var(--card-color-4) 0%, var(--card-color-4-light) 100%)' },
+  { name: '紫色', value: '#9b59b6', gradient: 'linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%)' },
+  { name: '蓝色', value: '#3498db', gradient: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)' },
+  { name: '青色', value: '#1abc9c', gradient: 'linear-gradient(135deg, #1abc9c 0%, #16a085 100%)' },
+  { name: '粉色', value: '#e74c8c', gradient: 'linear-gradient(135deg, #e74c8c 0%, #c0392b 100%)' },
   { name: '莫兰迪渐变', value: '#8ec5fc', gradient: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 33%, #a8edea 66%, #fed6e3 100%)' },
 ]
 

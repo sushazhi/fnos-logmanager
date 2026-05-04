@@ -1,7 +1,18 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <div class="modal active" @click.self="$emit('close')">
+  <div class="modal active non-blocking">
     <div class="modal-content large">
+      <div class="tab-bar" v-if="logsStore.logTabs.length > 0">
+        <div 
+          v-for="tab in logsStore.logTabs" 
+          :key="tab.id"
+          :class="['tab-item', { active: tab.id === logsStore.activeTabId }]"
+          @click="handleSwitchTab(tab.id)"
+        >
+          <span class="tab-title" :title="tab.filePath">{{ tab.title }}</span>
+          <span class="tab-close" @click.stop="handleCloseTab(tab.id)">×</span>
+        </div>
+      </div>
       <div class="modal-header">
         <span class="title">{{ title }}</span>
         <div class="header-actions">
@@ -30,6 +41,10 @@
           <button class="action-btn" @click="$emit('addBookmark')" title="添加书签">
             <span class="action-icon">☆</span>
             <span class="action-text">书签</span>
+          </button>
+          <button class="action-btn back-btn" @click="$emit('back')" title="返回主页">
+            <span class="action-icon">↩</span>
+            <span class="action-text">主页</span>
           </button>
           <button class="close-btn" @click="$emit('close')">×</button>
         </div>
@@ -100,6 +115,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from
 import DOMPurify from 'dompurify'
 import { useLogSearch } from '../composables/useLogSearch'
 import api from '../services/api'
+import { useLogsStore } from '../stores/useLogsStore'
 
 interface Props {
   title?: string
@@ -123,8 +139,19 @@ const props = withDefaults(defineProps<Props>(), {
   filePath: ''
 })
 
+const logsStore = useLogsStore()
+
+function handleSwitchTab(tabId: string): void {
+  logsStore.switchTab(tabId)
+}
+
+function handleCloseTab(tabId: string): void {
+  logsStore.removeTab(tabId)
+}
+
 const emit = defineEmits<{
   close: []
+  back: []
   loadAll: []
   export: [format: string]
   addBookmark: []
@@ -299,13 +326,14 @@ function getRegexMatchLength(line: string, charIndex: number): number {
 
 function escapeHtml(text: string): string {
   if (!text) return ''
-  // 移除 ANSI 转义码（颜色代码等）
   const ansiRegex = /\x1b\[[0-9;]*m/g
   return text
     .replace(ansiRegex, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function escapeRegex(str: string): string {
@@ -421,6 +449,10 @@ function toggleTail(): void {
       if (token) {
         headers['X-Session-Token'] = token
       }
+      const csrfToken = sessionStorage.getItem('csrfToken')
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken
+      }
 
       const response = await fetch(url, { credentials: 'include', headers })
       if (!response.ok) {
@@ -493,11 +525,69 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.tab-bar {
+  display: flex;
+  align-items: center;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  padding: 0 8px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+  transition: all 0.2s;
+  min-width: 0;
+}
+.tab-item:hover {
+  color: var(--text-primary, #333);
+  background: var(--hover-bg, rgba(0,0,0,0.04));
+}
+.tab-item.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  font-weight: 500;
+}
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.tab-close {
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 3px;
+  color: var(--text-secondary, #999);
+}
+.tab-close:hover {
+  color: var(--danger-color, #e74c3c);
+  background: var(--hover-bg, rgba(0,0,0,0.08));
+}
 .modal {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
+  height: 100%;
+  z-index: 1000;
+}
+.modal.non-blocking {
+  pointer-events: none;
+  background: transparent;
+}
+.modal.non-blocking .modal-content {
+  pointer-events: auto;
+}
+.modal.active {
   height: 100%;
   background: var(--overlay);
   display: flex;

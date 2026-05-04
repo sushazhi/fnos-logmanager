@@ -34,7 +34,7 @@ function generateId(): string {
 /**
  * 获取通知设置
  */
-router.get('/settings', validateToken, (_req: Request, res: Response) => {
+router.get('/settings', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
     const settings = notificationStore.getSettings();
     res.json({ settings });
 });
@@ -89,7 +89,7 @@ router.post('/settings', validateToken, validateCSRF, async (req: Request, res: 
 /**
  * 获取所有渠道
  */
-router.get('/channels', validateToken, (_req: Request, res: Response) => {
+router.get('/channels', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
     const channels = notificationStore.getChannels();
     res.json({ channels });
 });
@@ -97,7 +97,7 @@ router.get('/channels', validateToken, (_req: Request, res: Response) => {
 /**
  * 获取支持的渠道类型
  */
-router.get('/channels/types', validateToken, (_req: Request, res: Response) => {
+router.get('/channels/types', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
     const types: NotificationChannel[] = [
         'bark', 'dingtalk', 'feishu', 'feishu_app', 'wecom', 'wecom_app', 'wechat_bot',
         'telegram', 'serverchan', 'pushplus',
@@ -139,11 +139,33 @@ router.post('/channels', validateToken, validateCSRF, sensitiveActionRateLimit(1
             return;
         }
 
+        const ALLOWED_CONFIG_KEYS = new Set([
+            'BARK_PUSH', 'BARK_ICON', 'BARK_SOUND', 'BARK_GROUP', 'BARK_LEVEL', 'BARK_ARCHIVE', 'BARK_URL',
+            'DINGTALK_TOKEN', 'DINGTALK_SECRET',
+            'FEISHU_WEBHOOK', 'FEISHU_SECRET',
+            'WECOM_KEY', 'WECOM_PROXY', 'WECOM_QYDX_AGENT_ID', 'WECOM_QYDX_CORP_ID', 'WECOM_QYDX_SECRET', 'WECOM_QYDX_TO_USER',
+            'WECHAT_BOT_KEY',
+            'TG_BOT_TOKEN', 'TG_USER_ID', 'TG_API_HOST',
+            'SERVERCHAN_KEY', 'SERVERCHAN_URL',
+            'PUSHPLUS_TOKEN', 'PUSHPLUS_TOPIC',
+            'WEBHOOK_URL', 'WEBHOOK_METHOD', 'WEBHOOK_CONTENT_TYPE',
+            'NTFY_URL', 'NTFY_TOPIC', 'NTFY_PRIORITY', 'NTFY_TOKEN', 'NTFY_USERNAME', 'NTFY_PASSWORD', 'NTFY_ACTIONS',
+            'GOTIFY_URL', 'GOTIFY_TOKEN', 'GOTIFY_PRIORITY',
+            'PUSHDEER_KEY', 'PUSHDEER_URL',
+            'QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_OPENID', 'QQ_GROUP_OPENID',
+        ]);
+        const filteredConfig: Record<string, string> = {};
+        for (const [key, value] of Object.entries(config)) {
+            if (ALLOWED_CONFIG_KEYS.has(key) && typeof value === 'string') {
+                filteredConfig[key] = value;
+            }
+        }
+
         const channelConfig: NotificationChannelConfig = {
             channel,
             name,
             enabled: true,
-            ...config
+            ...filteredConfig
         };
 
         await notificationStore.addChannel(channelConfig);
@@ -203,8 +225,8 @@ router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveAction
 
         // QQ机器人特殊处理：如果没有openID，启动WebSocket监听等待捕获
         if (channelName === 'QQ' || channelName === 'qqbot') {
-            const hasOpenId = getConfig('QQ_OPENID');
-            const hasGroupOpenId = getConfig('QQ_GROUP_OPENID');
+            const hasOpenId = channel.qqOpenId || getConfig('QQ_OPENID');
+            const hasGroupOpenId = channel.qqGroupOpenId || getConfig('QQ_GROUP_OPENID');
             // 先检查是否已捕获到 openID
             const captured = getCapturedOpenIds();
             if (!hasOpenId && !hasGroupOpenId && (captured.openId || captured.groupOpenId)) {
@@ -249,7 +271,7 @@ router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveAction
 /**
  * 获取所有规则
  */
-router.get('/rules', validateToken, (_req: Request, res: Response) => {
+router.get('/rules', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
     const rules = notificationStore.getRules();
     res.json({ rules });
 });
@@ -257,7 +279,7 @@ router.get('/rules', validateToken, (_req: Request, res: Response) => {
 /**
  * 获取单个规则
  */
-router.get('/rules/:id', validateToken, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/rules/:id', validateToken, apiRateLimit(30, 60000), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const ruleId = req.params.id;
         const rule = notificationStore.getRule(ruleId);
@@ -425,7 +447,7 @@ router.post('/rules/:id/test', validateToken, validateCSRF, async (req: Request,
 /**
  * 获取通知历史
  */
-router.get('/history', validateToken, [
+router.get('/history', validateToken, apiRateLimit(30, 60000), [
     query('limit').optional().isInt({ min: 1, max: 500 })
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -454,7 +476,7 @@ router.post('/history/clean', validateToken, validateCSRF, async (_req: Request,
 /**
  * 获取统计信息
  */
-router.get('/stats', validateToken, (_req: Request, res: Response) => {
+router.get('/stats', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
     const stats = notificationStore.getStats();
     res.json({ stats });
 });
@@ -464,7 +486,7 @@ router.get('/stats', validateToken, (_req: Request, res: Response) => {
 /**
  * 获取监控状态
  */
-router.get('/monitor/status', validateToken, (_req: Request, res: Response) => {
+router.get('/monitor/status', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
     const status = logMonitor.getStatus();
     res.json({ status });
 });
@@ -503,16 +525,21 @@ router.post('/monitor/check', validateToken, validateCSRF, async (_req: Request,
 
 // ==================== QQ机器人事件回调 ====================
 
-router.post('/qqbot/event', (req: Request, res: Response) => {
+router.post('/qqbot/event', apiRateLimit(30, 60000), (req: Request, res: Response) => {
     try {
-        handleQQBotEvent(req.body);
+        const body = req.body;
+        if (!body || typeof body !== 'object' || !body.t) {
+            res.status(400).json({ code: 1, message: 'invalid event' });
+            return;
+        }
+        handleQQBotEvent(body);
         res.json({ code: 0 });
     } catch {
         res.json({ code: 0 });
     }
 });
 
-router.get('/qqbot/captured', validateToken, (_req: Request, res: Response) => {
+router.get('/qqbot/captured', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
     res.json(getCapturedOpenIds());
 });
 

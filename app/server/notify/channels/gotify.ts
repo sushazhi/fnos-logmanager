@@ -3,7 +3,7 @@
  */
 import Logger from '../../utils/logger';
 import { NotifyChannel, NotifyResult } from '../types';
-import { $ } from '../httpClient';
+import { $, isPrivateUrl } from '../httpClient';
 import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'gotify' });
@@ -24,6 +24,10 @@ export const gotifyChannel: NotifyChannel = {
             const GOTIFY_PRIORITY = getConfig('GOTIFY_PRIORITY') || 0;
 
             const url = `${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}`;
+            if (isPrivateUrl(url)) {
+                resolve({ success: false, message: 'GOTIFY_URL 指向内网地址，不允许' });
+                return;
+            }
             const body = `title=${encodeURIComponent(text)}&message=${encodeURIComponent(desp)}&priority=${GOTIFY_PRIORITY}`;
 
             $.post({

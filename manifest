@@ -30,4 +30,4 @@ desktop_uidir = ui
 desktop_applaunchname = logmanager.Application
 
 # 更新日志
-changelog = v0.6.0<br>1. 日志实时追踪<br>2. 自动清理策略<br>3. 日志书签收藏
+changelog = v0.5.48<br>1. 多标签页同时查看多个日志文件<br>2. 日志实时追踪(tail -f)<br>3. 自动清理策略(cron/自定义间隔)<br>4. 日志书签收藏

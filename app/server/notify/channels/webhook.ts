@@ -3,24 +3,10 @@
  */
 import Logger from '../../utils/logger';
 import { NotifyChannel, NotifyResult } from '../types';
-import { httpClient } from '../httpClient';
+import { httpClient, isPrivateUrl } from '../httpClient';
 import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'webhook' });
-
-function isPrivateUrl(urlStr: string): boolean {
-    try {
-        const url = new URL(urlStr);
-        const hostname = url.hostname;
-        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
-        if (hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) return true;
-        if (hostname.startsWith('169.254.') || hostname.startsWith('fd') || hostname === '0.0.0.0') return true;
-        if (url.protocol !== 'http:' && url.protocol !== 'https:') return true;
-        return false;
-    } catch {
-        return true;
-    }
-}
 
 export const webhookChannel: NotifyChannel = {
     name: 'webhook',

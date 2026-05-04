@@ -3,7 +3,7 @@
  */
 import Logger from '../../utils/logger';
 import { NotifyChannel, NotifyResult } from '../types';
-import { $ } from '../httpClient';
+import { $, isPrivateUrl } from '../httpClient';
 import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'ntfy' });
@@ -36,6 +36,10 @@ export const ntfyChannel: NotifyChannel = {
             const NTFY_ACTIONS = getConfig('NTFY_ACTIONS');
 
             const url = `${NTFY_URL}/${NTFY_TOPIC}`;
+            if (isPrivateUrl(url)) {
+                resolve({ success: false, message: 'NTFY_URL 指向内网地址，不允许' });
+                return;
+            }
             const headers: Record<string, string> = {
                 Title: encodeRFC2047(text),
                 Priority: NTFY_PRIORITY,

@@ -3,7 +3,7 @@
  */
 import Logger from '../../utils/logger';
 import { NotifyChannel, NotifyResult } from '../types';
-import { $ } from '../httpClient';
+import { $, isPrivateUrl } from '../httpClient';
 import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'telegram' });
@@ -24,6 +24,10 @@ export const telegramChannel: NotifyChannel = {
             const TG_API_HOST = getConfig('TG_API_HOST') || 'https://api.telegram.org';
 
             const url = `${TG_API_HOST}/bot${TG_BOT_TOKEN}/sendMessage`;
+            if (isPrivateUrl(url)) {
+                resolve({ success: false, message: 'TG_API_HOST 指向内网地址，不允许' });
+                return;
+            }
             const content = `${text}\n\n${desp}`.substring(0, 4096);
 
             const body = {

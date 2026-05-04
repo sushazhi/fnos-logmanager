@@ -133,15 +133,14 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   // 未知错误
   logger.error({ err, requestId }, '未预期的错误');
 
-  // 生产环境隐藏错误详情
   const isProduction = process.env.NODE_ENV === 'production' || process.env.FORCE_HTTPS === 'true';
   
   res.status(500).json({
     success: false,
     error: {
       code: 'INTERNAL_ERROR',
-      message: isProduction ? '服务器内部错误' : err.message || '服务器内部错误',
-      details: isProduction ? undefined : err.stack
+      message: isProduction ? '服务器内部错误' : (err.message || '服务器内部错误').substring(0, 200),
+      details: undefined
     },
     meta: {
       timestamp: Date.now(),

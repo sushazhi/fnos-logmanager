@@ -6,7 +6,7 @@
         <p>请输入访问Token:</p>
         <div class="form-group">
           <input 
-            type="text" 
+            type="password" 
             v-model="token" 
             placeholder="输入Token"
             @keyup.enter="submit"

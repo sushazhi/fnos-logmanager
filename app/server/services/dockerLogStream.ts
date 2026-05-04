@@ -45,6 +45,22 @@ export function initDockerLogStream(server: Server): void {
                 return;
             }
 
+            const origin = info.req.headers.origin || '';
+            if (origin) {
+                const host = info.req.headers.host || '';
+                try {
+                    const originHost = new URL(origin).host;
+                    if (originHost !== host) {
+                        logger.warn({ origin, host }, 'Docker WS connection rejected: origin mismatch');
+                        callback(false, 403, 'Forbidden');
+                        return;
+                    }
+                } catch {
+                    callback(false, 403, 'Forbidden');
+                    return;
+                }
+            }
+
             callback(true);
         }
     });

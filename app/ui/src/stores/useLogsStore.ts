@@ -1,8 +1,19 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import type { LogItem, ListType, LogsResponse, CleanType } from '../types'
 import api from '../services/api'
 import { useStatusStore } from './useStatusStore'
+
+export interface LogTab {
+  id: string
+  title: string
+  content: string
+  filePath: string
+  isDocker: boolean
+  truncated: boolean
+  hasMore: boolean
+  totalLines: number
+}
 
 export const useLogsStore = defineStore('logs', () => {
   const logList = ref<LogItem[]>([])
@@ -18,6 +29,10 @@ export const useLogsStore = defineStore('logs', () => {
   const logTotalLines = ref(0)
   const logCurrentPath = ref('')
   const logIsDocker = ref(false)
+
+  const logTabs = ref<LogTab[]>([])
+  const activeTabId = ref<string>('')
+  const activeTab = computed(() => logTabs.value.find(t => t.id === activeTabId.value) || null)
 
   async function loadFilterStatus(): Promise<void> {
     try {
@@ -93,6 +108,13 @@ export const useLogsStore = defineStore('logs', () => {
 
   async function viewLog(path: string, maxLines: number = 5000): Promise<void> {
     const { setStatus } = useStatusStore()
+    const existing = logTabs.value.find(t => t.filePath === path && !t.isDocker)
+    if (existing) {
+      activeTabId.value = existing.id
+      syncFromActiveTab()
+      showLogModal.value = true
+      return
+    }
     setStatus('正在加载日志内容...', 'loading')
     try {
       const data = await api.get<{
@@ -101,13 +123,17 @@ export const useLogsStore = defineStore('logs', () => {
         truncated?: boolean
         hasMore?: boolean
       }>(`/api/log/content?path=${encodeURIComponent(path)}&maxLines=${maxLines}`)
-      logTitle.value = path
-      logContent.value = data.content || '(空文件)'
-      logCurrentPath.value = path
-      logIsDocker.value = false
-      logTotalLines.value = data.totalLines || 0
-      logTruncated.value = data.truncated || false
-      logHasMore.value = data.hasMore || false
+      const tab: LogTab = {
+        id: `log_${Date.now()}`,
+        title: path.split('/').pop() || path,
+        content: data.content || '(空文件)',
+        filePath: path,
+        isDocker: false,
+        totalLines: data.totalLines || 0,
+        truncated: data.truncated || false,
+        hasMore: data.hasMore || false
+      }
+      addTab(tab)
       showLogModal.value = true
       setStatus('日志加载完成', 'success')
     } catch (e) {
@@ -234,6 +260,64 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
+  function addTab(tab: LogTab): void {
+    const existing = logTabs.value.find(t => t.filePath === tab.filePath && t.isDocker === tab.isDocker)
+    if (existing) {
+      activeTabId.value = existing.id
+      syncFromActiveTab()
+      return
+    }
+    logTabs.value.push(tab)
+    activeTabId.value = tab.id
+    syncFromActiveTab()
+  }
+
+  function removeTab(tabId: string): void {
+    const idx = logTabs.value.findIndex(t => t.id === tabId)
+    if (idx === -1) return
+    logTabs.value.splice(idx, 1)
+    if (logTabs.value.length === 0) {
+      activeTabId.value = ''
+      showLogModal.value = false
+      return
+    }
+    if (activeTabId.value === tabId) {
+      const newIdx = Math.min(idx, logTabs.value.length - 1)
+      activeTabId.value = logTabs.value[newIdx].id
+      syncFromActiveTab()
+    }
+  }
+
+  function switchTab(tabId: string): void {
+    syncToTab(activeTabId.value)
+    activeTabId.value = tabId
+    syncFromActiveTab()
+  }
+
+  function syncFromActiveTab(): void {
+    const tab = activeTab.value
+    if (!tab) return
+    logTitle.value = tab.title
+    logContent.value = tab.content
+    logCurrentPath.value = tab.filePath
+    logIsDocker.value = tab.isDocker
+    logTotalLines.value = tab.totalLines
+    logTruncated.value = tab.truncated
+    logHasMore.value = tab.hasMore
+  }
+
+  function syncToTab(tabId: string): void {
+    const tab = logTabs.value.find(t => t.id === tabId)
+    if (!tab) return
+    tab.title = logTitle.value
+    tab.content = logContent.value
+    tab.filePath = logCurrentPath.value
+    tab.isDocker = logIsDocker.value
+    tab.totalLines = logTotalLines.value
+    tab.truncated = logTruncated.value
+    tab.hasMore = logHasMore.value
+  }
+
   async function exportLog(path: string, format: string = 'txt', isDocker: boolean = false): Promise<void> {
     const { setStatus } = useStatusStore()
     const allowedFormats = ['txt', 'json', 'csv']
@@ -290,6 +374,9 @@ export const useLogsStore = defineStore('logs', () => {
     logTotalLines,
     logCurrentPath,
     logIsDocker,
+    logTabs,
+    activeTabId,
+    activeTab,
     loadFilterStatus,
     toggleFilter,
     listLogs,
@@ -301,6 +388,9 @@ export const useLogsStore = defineStore('logs', () => {
     executeClean,
     cleanEmptyDirs,
     exportLog,
-    clearList
+    clearList,
+    addTab,
+    removeTab,
+    switchTab
   }
 })

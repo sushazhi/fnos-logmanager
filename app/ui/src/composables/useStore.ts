@@ -1,4 +1,5 @@
 import type { LogItem } from '../types'
+import { computed } from 'vue'
 import { setConfirmFn } from './useStatus'
 import { setCSRFToken, fetchCSRFToken } from '../services/api'
 import { storeToRefs } from 'pinia'
@@ -26,13 +27,16 @@ export function useStore() {
   const { stats } = storeToRefs(statsStore)
   const { dirs, selectedDir } = storeToRefs(dirsStore)
   const { logList, listType, showLogModal, showCleanModal, showSearchModal, logContent, logTitle, filterEnabled, logTruncated, logHasMore, logTotalLines, logCurrentPath, logIsDocker } = storeToRefs(logsStore)
+  const logTabs = computed(() => logsStore.logTabs)
+  const activeTabId = computed(() => logsStore.activeTabId)
+  const activeTab = computed(() => logsStore.activeTab)
   const { dockerContainers } = storeToRefs(dockerStore)
   const { updateInfo, appVersion } = storeToRefs(updateStore)
 
   const { setStatus, confirm } = statusStore
   const { loadStats } = statsStore
   const { loadDirs, selectDir } = dirsStore
-  const { listLogs, searchLogs, viewLog, loadAllLines, truncateLog, deleteLog, executeClean, cleanEmptyDirs, exportLog, clearList, loadFilterStatus, toggleFilter } = logsStore
+  const { listLogs, searchLogs, viewLog, loadAllLines, truncateLog, deleteLog, executeClean, cleanEmptyDirs, exportLog, clearList, loadFilterStatus, toggleFilter, addTab, removeTab, switchTab } = logsStore
   const { listDockerContainers, viewDockerLogs } = dockerStore
   const { checkForUpdates } = updateStore
 
@@ -62,12 +66,25 @@ export function useStore() {
   }
 
   async function handleViewDockerLogs(container: string): Promise<void> {
+    const existing = logTabs.value.find((t: { filePath: string; isDocker: boolean }) => t.filePath === container && t.isDocker)
+    if (existing) {
+      switchTab(existing.id)
+      showLogModal.value = true
+      return
+    }
     const result = await viewDockerLogs(container)
     if (result) {
-      logTitle.value = result.title
-      logContent.value = result.content
-      logCurrentPath.value = container
-      logIsDocker.value = true
+      const tab = {
+        id: `docker_${Date.now()}`,
+        title: container,
+        content: result.content,
+        filePath: container,
+        isDocker: true,
+        totalLines: 0,
+        truncated: false,
+        hasMore: false
+      }
+      addTab(tab)
       showLogModal.value = true
     }
   }
@@ -80,11 +97,25 @@ export function useStore() {
   }
 
   async function handleViewArchive(path: string): Promise<void> {
+    const existing = logTabs.value.find((t: { filePath: string; isDocker: boolean }) => t.filePath === path && !t.isDocker)
+    if (existing) {
+      switchTab(existing.id)
+      showLogModal.value = true
+      return
+    }
     const result = await viewArchive(path)
     if (result) {
-      logTitle.value = result.title
-      logContent.value = result.content
-      logIsDocker.value = false
+      const tab = {
+        id: `archive_${Date.now()}`,
+        title: path.split('/').pop() || path,
+        content: result.content,
+        filePath: path,
+        isDocker: false,
+        totalLines: 0,
+        truncated: false,
+        hasMore: false
+      }
+      addTab(tab)
       showLogModal.value = true
     }
   }

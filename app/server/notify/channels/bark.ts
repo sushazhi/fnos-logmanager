@@ -3,7 +3,7 @@
  */
 import Logger from '../../utils/logger';
 import { NotifyChannel, NotifyResult, NotifyParams } from '../types';
-import { $ } from '../httpClient';
+import { $, isPrivateUrl } from '../httpClient';
 import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'bark' });
@@ -30,6 +30,11 @@ export const barkChannel: NotifyChannel = {
             // 兼容BARK本地用户只填写设备码的情况
             if (!BARK_PUSH.startsWith('http')) {
                 BARK_PUSH = `https://api.day.app/${BARK_PUSH}`;
+            }
+
+            if (isPrivateUrl(BARK_PUSH)) {
+                resolve({ success: false, message: 'BARK_PUSH 指向内网地址，不允许' });
+                return;
             }
 
             const body = {

@@ -867,15 +867,10 @@ function confirmDeleteChannel(name: string): void {
 
 async function testChannel(name: string): Promise<void> {
   try {
-    // 先检查是否是 QQ 机器人且没有配置 openid
     const channel = channels.value.find(c => c.name === name)
-    if (channel && channel.channel === 'qqbot') {
-      const hasOpenId = channel.qqOpenId || newChannel.value.config?.qqOpenId
-      const hasGroupOpenId = channel.qqGroupOpenId || newChannel.value.config?.qqGroupOpenId
-      if (!hasOpenId && !hasGroupOpenId) {
-        showAlert('提示', '未配置 OpenID，测试将启动监听模式。\n\n请在 60 秒内给 QQ 机器人发送消息，系统会自动获取 OpenID。', 'warning')
-      }
-    }
+    const isQqbot = channel && channel.channel === 'qqbot'
+    const hasOpenId = isQqbot && (channel.qqOpenId || newChannel.value.config?.qqOpenId)
+    const hasGroupOpenId = isQqbot && (channel.qqGroupOpenId || newChannel.value.config?.qqGroupOpenId)
 
     const data = await api.post(`/api/notifications/channels/${name}/test`) as {
       result: {
@@ -893,11 +888,9 @@ async function testChannel(name: string): Promise<void> {
       let message = '测试通知发送成功'
       let copyText = ''
 
-      // 如果返回了 openid，显示并自动填入
       if (data.result.openid) {
         message += `\n\n获取到用户 OpenID: ${data.result.openid}`
         copyText = data.result.openid
-        // 如果正在编辑该渠道，自动填入
         if (editingChannel.value && editingChannel.value.name === name) {
           newChannel.value.config.qqOpenId = data.result.openid
         }
@@ -911,53 +904,81 @@ async function testChannel(name: string): Promise<void> {
       }
 
       showAlert('成功', message, 'success', copyText)
-    } else {
-      // 检查是否是获取 openid 的情况
-      if (data.result.openid || data.result.groupOpenid) {
-        let message = '已获取到 OpenID：'
-        let copyText = ''
-        if (data.result.openid) {
-          message += `\n用户 OpenID: ${data.result.openid}`
-          copyText = data.result.openid
-          if (editingChannel.value && editingChannel.value.name === name) {
-            newChannel.value.config.qqOpenId = data.result.openid
-          }
+    } else if (data.result.openid || data.result.groupOpenid) {
+      let message = '已获取到 OpenID：'
+      let copyText = ''
+      if (data.result.openid) {
+        message += `\n用户 OpenID: ${data.result.openid}`
+        copyText = data.result.openid
+        if (editingChannel.value && editingChannel.value.name === name) {
+          newChannel.value.config.qqOpenId = data.result.openid
         }
-        if (data.result.groupOpenid) {
-          message += `\n群 OpenID: ${data.result.groupOpenid}`
-          copyText = data.result.groupOpenid
-          if (editingChannel.value && editingChannel.value.name === name) {
-            newChannel.value.config.qqGroupOpenId = data.result.groupOpenid
-          }
-        }
-        showAlert('获取成功', message, 'success', copyText)
-      } else {
-        // 如果返回了 openid，显示并自动填入
-        if (data.result.openid || data.result.groupOpenid) {
-          let message = '已获取到 OpenID：\n'
-          if (data.result.openid) {
-            message += `用户 OpenID: ${data.result.openid}\n`
-            if (editingChannel.value && editingChannel.value.name === name) {
-              newChannel.value.config.qqOpenId = data.result.openid
-            }
-          }
-          if (data.result.groupOpenid) {
-            message += `群 OpenID: ${data.result.groupOpenid}\n`
-            if (editingChannel.value && editingChannel.value.name === name) {
-              newChannel.value.config.qqGroupOpenId = data.result.groupOpenid
-            }
-          }
-          message += '\n请保存配置后再测试发送通知'
-          showAlert('获取成功', message, 'success', data.result.openid || data.result.groupOpenid)
-        } else {
-          showAlert('失败', '测试通知发送失败: ' + (resultMsg || '未知错误'), 'error')
-        }
+        const ch = channels.value.find(c => c.name === name)
+        if (ch) ch.qqOpenId = data.result.openid
       }
+      if (data.result.groupOpenid) {
+        message += `\n群 OpenID: ${data.result.groupOpenid}`
+        copyText = data.result.groupOpenid
+        if (editingChannel.value && editingChannel.value.name === name) {
+          newChannel.value.config.qqGroupOpenId = data.result.groupOpenid
+        }
+        const ch = channels.value.find(c => c.name === name)
+        if (ch) ch.qqGroupOpenId = data.result.groupOpenid
+      }
+      message += '\n\n已自动填入，请保存后再测试发送'
+      showAlert('获取成功', message, 'success', copyText)
+    } else if (isQqbot && !hasOpenId && !hasGroupOpenId && resultMsg.includes('监听')) {
+      showAlert('提示', '已启动监听，请给QQ机器人发消息...\n系统会自动检测', 'warning')
+      pollCapturedOpenId(name)
+    } else {
+      showAlert('失败', '测试通知发送失败: ' + (resultMsg || '未知错误'), 'error')
     }
   } catch (e) {
     console.error('测试渠道失败:', e)
     showAlert('错误', '测试渠道失败', 'error')
   }
+}
+
+function pollCapturedOpenId(name: string): void {
+  let attempts = 0
+  const maxAttempts = 20
+  const timer = setInterval(async () => {
+    attempts++
+    try {
+      const captured = await api.get('/api/notifications/qqbot/captured') as {
+        openId: string | null;
+        groupOpenId: string | null;
+      }
+      if (captured.openId || captured.groupOpenId) {
+        clearInterval(timer)
+        let message = '已获取到 OpenID：'
+        let copyText = ''
+        if (captured.openId) {
+          message += `\n用户 OpenID: ${captured.openId}`
+          copyText = captured.openId
+          if (editingChannel.value && editingChannel.value.name === name) {
+            newChannel.value.config.qqOpenId = captured.openId
+          }
+          const ch = channels.value.find(c => c.name === name)
+          if (ch) ch.qqOpenId = captured.openId
+        }
+        if (captured.groupOpenId) {
+          message += `\n群 OpenID: ${captured.groupOpenId}`
+          copyText = captured.groupOpenId
+          if (editingChannel.value && editingChannel.value.name === name) {
+            newChannel.value.config.qqGroupOpenId = captured.groupOpenId
+          }
+          const ch = channels.value.find(c => c.name === name)
+          if (ch) ch.qqGroupOpenId = captured.groupOpenId
+        }
+        message += '\n\n已自动填入，请保存后再测试发送'
+        showAlert('获取成功', message, 'success', copyText)
+      }
+    } catch { /* ignore */ }
+    if (attempts >= maxAttempts) {
+      clearInterval(timer)
+    }
+  }, 3000)
 }
 
 function closeRuleModal(): void {

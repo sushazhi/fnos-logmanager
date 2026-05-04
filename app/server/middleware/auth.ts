@@ -44,14 +44,13 @@ export function validateToken(req: Request, res: Response, next: NextFunction): 
         // URL解析失败，继续处理
     }
 
-    const isSameOrigin =
-        referer.includes('/app-center/') ||
-        referer.includes('/desktop/') ||
-        origin.includes(host) ||
-        referer.startsWith(`http://${host}`) ||
-        referer.startsWith(`https://${host}`) ||
-        refererHost === hostBase ||
-        originHost === hostBase;
+    let isSameOrigin = false;
+    if (origin && host) {
+        isSameOrigin = originHost === hostBase || origin === `http://${host}` || origin === `https://${host}`;
+    }
+    if (!isSameOrigin && referer && host) {
+        isSameOrigin = refererHost === hostBase || referer.startsWith(`http://${host}/`) || referer.startsWith(`https://${host}/`);
+    }
 
     const token = getSessionToken(req);
     (req as AuthenticatedRequest).clientIP = clientIP;
