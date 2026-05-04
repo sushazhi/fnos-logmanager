@@ -33,7 +33,7 @@ function isPrivateIP(ipAddr: string): boolean {
 
 router.post('/setup', validate([
     body('password').isLength({ min: 8 }).withMessage('密码至少8位')
-]), validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+]), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { password } = req.body;
         const ip = getClientIP(req);
@@ -69,7 +69,7 @@ router.post('/setup', validate([
     }
 });
 
-router.post('/login', validate(loginValidationRules), validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/login', validate(loginValidationRules), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { password } = req.body;
         const ip = getClientIP(req);

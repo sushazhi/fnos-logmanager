@@ -881,10 +881,13 @@ async function testChannel(name: string): Promise<void> {
       result: {
         success: boolean;
         error?: string;
+        message?: string;
         openid?: string;
         groupOpenid?: string;
       }
     }
+
+    const resultMsg = data.result.message || data.result.error || ''
 
     if (data.result.success) {
       let message = '测试通知发送成功'
@@ -929,12 +932,25 @@ async function testChannel(name: string): Promise<void> {
         }
         showAlert('获取成功', message, 'success', copyText)
       } else {
-        // 检查是否是 QQ 机器人监听超时的情况
-        const errorMsg = data.result.error || ''
-        if (channel && channel.channel === 'qqbot' && errorMsg.includes('60秒')) {
-          showAlert('提示', '监听超时，未获取到 OpenID。\n\n请确保在 60 秒内给 QQ 机器人发送了消息。', 'warning')
+        // 如果返回了 openid，显示并自动填入
+        if (data.result.openid || data.result.groupOpenid) {
+          let message = '已获取到 OpenID：\n'
+          if (data.result.openid) {
+            message += `用户 OpenID: ${data.result.openid}\n`
+            if (editingChannel.value && editingChannel.value.name === name) {
+              newChannel.value.config.qqOpenId = data.result.openid
+            }
+          }
+          if (data.result.groupOpenid) {
+            message += `群 OpenID: ${data.result.groupOpenid}\n`
+            if (editingChannel.value && editingChannel.value.name === name) {
+              newChannel.value.config.qqGroupOpenId = data.result.groupOpenid
+            }
+          }
+          message += '\n请保存配置后再测试发送通知'
+          showAlert('获取成功', message, 'success', data.result.openid || data.result.groupOpenid)
         } else {
-          showAlert('失败', '测试通知发送失败: ' + (errorMsg || '未知错误'), 'error')
+          showAlert('失败', '测试通知发送失败: ' + (resultMsg || '未知错误'), 'error')
         }
       }
     }
@@ -1107,9 +1123,9 @@ onMounted(async () => {
     loadAppNames()
   ])
   
-  // 优先使用 WebSocket，降级到轮询
-  connectWS(['monitor', 'history', 'rules'])
-  
+  // 使用 HTTP 轮询获取通知更新
+  connectWS()
+
   // 降级轮询：WebSocket 未连接时使用轮询
   refreshTimer = setInterval(() => {
     if (!wsConnected.value) {

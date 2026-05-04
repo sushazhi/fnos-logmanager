@@ -10,6 +10,8 @@ import * as notificationService from '../services/notification';
 import * as logMonitor from '../services/logMonitor';
 import { validateToken, validateCSRF } from '../middleware/auth';
 import { sensitiveActionRateLimit, apiRateLimit } from '../middleware/rateLimit';
+import { handleQQBotEvent, getCapturedOpenIds, startQQBotListener, stopQQBotListener } from '../notify/channels/qqbot';
+import { getConfig } from '../notify/config';
 import {
     NotificationChannelConfig,
     NotificationRule,
@@ -187,7 +189,7 @@ router.delete('/channels/:name', validateToken, validateCSRF, sensitiveActionRat
 /**
  * 测试渠道
  */
-router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveActionRateLimit(5, 300000), [
+router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveActionRateLimit(5, 60000), [
     param('name').isString().isLength({ max: 100 }).withMessage('渠道名称无效')
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -197,6 +199,42 @@ router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveAction
         if (!channel) {
             res.status(404).json({ error: '渠道不存在' });
             return;
+        }
+
+        // QQ机器人特殊处理：如果没有openID，启动WebSocket监听等待捕获
+        if (channelName === 'QQ' || channelName === 'qqbot') {
+            const hasOpenId = getConfig('QQ_OPENID');
+            const hasGroupOpenId = getConfig('QQ_GROUP_OPENID');
+            // 先检查是否已捕获到 openID
+            const captured = getCapturedOpenIds();
+            if (!hasOpenId && !hasGroupOpenId && (captured.openId || captured.groupOpenId)) {
+                res.json({
+                    result: {
+                        success: false,
+                        message: '已获取到 OpenID，请保存后再测试发送',
+                        openid: captured.openId,
+                        groupOpenid: captured.groupOpenId
+                    }
+                });
+                return;
+            }
+            if (!hasOpenId && !hasGroupOpenId) {
+                // 先确保配置已设入通知系统（testChannel内部会setConfig）
+                await notificationService.testChannel(channel);
+                // 启动监听（不等待，立即返回）
+                const listenResult = await startQQBotListener();
+                if (listenResult.success) {
+                    res.json({
+                        result: {
+                            success: false,
+                            message: '已启动监听，请在60秒内给QQ机器人发消息。发完后再次点击"测试"查看是否获取到openID'
+                        }
+                    });
+                } else {
+                    res.json({ result: { success: false, message: '启动监听失败: ' + listenResult.message } });
+                }
+                return;
+            }
         }
 
         const result = await notificationService.testChannel(channel);
@@ -461,6 +499,31 @@ router.post('/monitor/check', validateToken, validateCSRF, async (_req: Request,
     } catch (err) {
         next(err);
     }
+});
+
+// ==================== QQ机器人事件回调 ====================
+
+router.post('/qqbot/event', (req: Request, res: Response) => {
+    try {
+        handleQQBotEvent(req.body);
+        res.json({ code: 0 });
+    } catch {
+        res.json({ code: 0 });
+    }
+});
+
+router.get('/qqbot/captured', validateToken, (_req: Request, res: Response) => {
+    res.json(getCapturedOpenIds());
+});
+
+router.post('/qqbot/listen/start', validateToken, validateCSRF, async (_req: Request, res: Response) => {
+    const result = await startQQBotListener();
+    res.json(result);
+});
+
+router.post('/qqbot/listen/stop', validateToken, validateCSRF, (_req: Request, res: Response) => {
+    stopQQBotListener();
+    res.json({ success: true, message: '监听已停止' });
 });
 
 export default router;

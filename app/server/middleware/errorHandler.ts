@@ -76,14 +76,16 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     body: safeBody
   }, '请求处理错误');
 
-  // 处理 AppError
-  if (err instanceof AppError) {
+  // 处理 AppError (instanceof + 属性双重检查，防止跨模块 instanceof 失效)
+  const isAppError = err instanceof AppError || ((err as any)?.isOperational && typeof (err as any)?.statusCode === 'number');
+  if (isAppError) {
+    const appErr = err as AppError;
     const response: ApiResponse = {
       success: false,
       error: {
-        code: err.code,
-        message: err.message,
-        details: err.details
+        code: appErr.code,
+        message: appErr.message,
+        details: appErr.details
       },
       meta: {
         timestamp: Date.now(),
@@ -91,7 +93,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
       }
     };
 
-    res.status(err.statusCode).json(response);
+    res.status(appErr.statusCode).json(response);
     return;
   }
 

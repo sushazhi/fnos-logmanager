@@ -1,116 +1,55 @@
 /**
  * 通知实时推送 Composable
- * 使用 WebSocket 替代轮询，接收监控状态和通知历史更新
+ * 使用 HTTP 轮询替代 WebSocket（fnOS iframe 代理不支持 WebSocket 长连接）
  */
 
 import { ref, onUnmounted } from 'vue'
 import api from '../services/api'
 
-interface NotifyWSMessage {
-  type: 'connected' | 'update'
-  channel?: string
-  data?: any
-  timestamp?: number
-}
-
-type NotifyChannel = 'monitor' | 'history' | 'rules'
-
 export function useNotifyWebSocket() {
-  const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
   const lastMonitorUpdate = ref<any>(null)
   const lastHistoryUpdate = ref<any>(null)
   const lastRulesUpdate = ref<any>(null)
 
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  let reconnectAttempts = 0
-  const MAX_RECONNECT = 5
+  let pollTimer: ReturnType<typeof setInterval> | null = null
+  const POLL_INTERVAL = 5000
 
-  function getWsUrl(): string {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const token = api.getSessionToken()
-    if (token) {
-      return `${protocol}//${window.location.host}/api/notifications/ws?token=${encodeURIComponent(token)}`
-    }
-    return `${protocol}//${window.location.host}/api/notifications/ws`
-  }
-
-  function connect(channels: NotifyChannel[] = ['monitor', 'history', 'rules']): void {
-    if (ws.value && ws.value.readyState === WebSocket.OPEN) return
-
+  async function pollUpdates(): Promise<void> {
     try {
-      const socket = new WebSocket(getWsUrl())
+      const [statusRes, historyRes, rulesRes] = await Promise.allSettled([
+        api.get<{ status?: any }>('/api/notifications/monitor/status'),
+        api.get<{ history?: any[] }>('/api/notifications/history?limit=5'),
+        api.get<{ rules?: any[] }>('/api/notifications/rules')
+      ])
 
-      socket.onopen = () => {
-        isConnected.value = true
-        reconnectAttempts = 0
-        // 订阅频道
-        socket.send(JSON.stringify({ type: 'subscribe', channels }))
+      if (statusRes.status === 'fulfilled' && statusRes.value?.status) {
+        lastMonitorUpdate.value = statusRes.value.status
+      }
+      if (historyRes.status === 'fulfilled' && historyRes.value?.history) {
+        lastHistoryUpdate.value = historyRes.value.history
+      }
+      if (rulesRes.status === 'fulfilled' && rulesRes.value?.rules) {
+        lastRulesUpdate.value = rulesRes.value.rules
       }
 
-      socket.onmessage = (event) => {
-        try {
-          const message: NotifyWSMessage = JSON.parse(event.data)
-          handleMessage(message)
-        } catch {
-          // Ignore
-        }
-      }
-
-      socket.onclose = () => {
-        isConnected.value = false
-        ws.value = null
-        attemptReconnect(channels)
-      }
-
-      socket.onerror = () => {
-        // Error handled by onclose
-      }
-
-      ws.value = socket
+      isConnected.value = true
     } catch {
-      // WebSocket not available, fall back to polling
+      isConnected.value = false
     }
   }
 
-  function handleMessage(message: NotifyWSMessage): void {
-    if (message.type === 'update' && message.channel) {
-      switch (message.channel) {
-        case 'monitor':
-          lastMonitorUpdate.value = message.data
-          break
-        case 'history':
-          lastHistoryUpdate.value = message.data
-          break
-        case 'rules':
-          lastRulesUpdate.value = message.data
-          break
-      }
-    }
-  }
-
-  function attemptReconnect(channels: NotifyChannel[]): void {
-    if (reconnectAttempts >= MAX_RECONNECT) return
-    if (reconnectTimer) return
-
-    const delay = 1000 * Math.pow(2, reconnectAttempts)
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null
-      reconnectAttempts++
-      connect(channels)
-    }, delay)
+  function connect(): void {
+    if (pollTimer) return
+    isConnected.value = true
+    pollUpdates()
+    pollTimer = setInterval(pollUpdates, POLL_INTERVAL)
   }
 
   function disconnect(): void {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-      reconnectTimer = null
-    }
-    reconnectAttempts = MAX_RECONNECT
-
-    if (ws.value) {
-      ws.value.close()
-      ws.value = null
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
     }
     isConnected.value = false
   }
