@@ -98,9 +98,9 @@ defineExpose({
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   margin-top: var(--spacing-sm);
-  background: var(--card-bg);
+  background: var(--bg-color-2);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
 }
 
 .bookmark-list {
@@ -117,11 +117,11 @@ defineExpose({
   align-items: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-xs) var(--spacing-sm);
-  background: var(--bg-color-2);
-  border: 1px solid var(--border-color);
+  background: var(--bg-color-1);
+  border: 1px solid var(--bg-color-4);
   border-radius: var(--radius-xs);
   font-size: 0.8125rem;
-  color: var(--text-color);
+  color: var(--text-color-2);
   cursor: pointer;
   transition: all var(--transition-fast);
   white-space: nowrap;
@@ -132,17 +132,18 @@ defineExpose({
   background: var(--info-bg);
   border-color: var(--primary-color);
   color: var(--primary-color);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
 }
 
 .bookmark-tag.docker {
   background: var(--info-bg);
   border-color: var(--info-color);
+  color: var(--info-color);
 }
 
 .bookmark-tag.docker:hover {
-  background: var(--info-bg);
   border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 .bookmark-icon {
@@ -161,19 +162,24 @@ defineExpose({
   background: none;
   color: var(--text-color-3);
   cursor: pointer;
-  font-size: 0.875rem;
-  padding: 0 2px;
-  line-height: 1;
+  font-size: 0.75rem;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
   flex-shrink: 0;
-  transition: color var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .bookmark-tag:hover .bookmark-delete {
-  display: inline;
+  display: inline-flex;
 }
 
 .bookmark-delete:hover {
   color: var(--error-color);
+  background: var(--error-bg);
 }
 
 .add-btn {
@@ -182,7 +188,7 @@ defineExpose({
   justify-content: center;
   width: 28px;
   height: 28px;
-  border: 1px dashed var(--border-color);
+  border: 1px dashed var(--bg-color-4);
   border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-color-3);
@@ -213,7 +219,7 @@ defineExpose({
 
 .add-input {
   padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--bg-color-4);
   border-radius: var(--radius-xs);
   font-size: 0.8125rem;
   background: var(--bg-color-1);
@@ -241,7 +247,7 @@ defineExpose({
 .add-confirm,
 .add-cancel {
   padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--bg-color-4);
   border-radius: var(--radius-xs);
   font-size: 0.8125rem;
   cursor: pointer;

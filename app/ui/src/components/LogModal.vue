@@ -528,33 +528,36 @@ onUnmounted(() => {
 .tab-bar {
   display: flex;
   align-items: center;
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
-  padding: 0 8px;
+  background: var(--bg-color-2);
+  border-bottom: 1px solid var(--bg-color-4);
+  padding: 0 var(--spacing-sm);
   overflow-x: auto;
   flex-shrink: 0;
+  gap: var(--spacing-xs);
 }
 .tab-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
   cursor: pointer;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
-  font-size: 13px;
-  color: var(--text-secondary, #666);
-  transition: all 0.2s;
+  font-size: 0.8125rem;
+  color: var(--text-color-2);
+  transition: all var(--transition-fast);
   min-width: 0;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
 }
 .tab-item:hover {
-  color: var(--text-primary, #333);
-  background: var(--hover-bg, rgba(0,0,0,0.04));
+  color: var(--text-color-1);
+  background: var(--info-bg);
 }
 .tab-item.active {
   color: var(--primary-color);
   border-bottom-color: var(--primary-color);
   font-weight: 500;
+  background: var(--bg-color-1);
 }
 .tab-title {
   overflow: hidden;
@@ -562,15 +565,20 @@ onUnmounted(() => {
   max-width: 160px;
 }
 .tab-close {
-  font-size: 14px;
+  font-size: 0.75rem;
   line-height: 1;
-  padding: 0 2px;
-  border-radius: 3px;
-  color: var(--text-secondary, #999);
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-color-3);
+  transition: all var(--transition-fast);
 }
 .tab-close:hover {
-  color: var(--danger-color, #e74c3c);
-  background: var(--hover-bg, rgba(0,0,0,0.08));
+  color: var(--error-color);
+  background: var(--error-bg);
 }
 .modal {
   position: fixed;
