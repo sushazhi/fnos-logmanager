@@ -31,8 +31,16 @@ start_process() {
         error_exit "无法创建数据目录 ${TRIM_PKGVAR}"
     fi
     
-    if ! mkdir -p "/vol1/@appshare/log-backup"; then
-        error_exit "无法创建备份目录 /vol1/@appshare/log-backup"
+    CONFIG_FILE="${TRIM_PKGVAR}/config/config.json"
+    BACKUP_DIR="/vol1/@appshare/logmanager/backup"
+    if [ -f "$CONFIG_FILE" ]; then
+        CONFIG_BACKUP=$(grep -o '"backup_dir"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" 2>/dev/null | grep -o '"[^"]*"$' | tr -d '"')
+        if [ -n "$CONFIG_BACKUP" ]; then
+            BACKUP_DIR="$CONFIG_BACKUP"
+        fi
+    fi
+    if ! mkdir -p "$BACKUP_DIR"; then
+        error_exit "无法创建备份目录 $BACKUP_DIR"
     fi
     
     FILTER_FILE="${TRIM_PKGVAR}/.filter_sensitive"
@@ -74,7 +82,7 @@ start_process() {
         error_exit "服务器文件不存在: $SERVER_DIR/server.js"
     fi
     
-    PORT=$PORT LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" FILTER_SENSITIVE="$FILTER_SENSITIVE" node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
+    PORT=$PORT LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
     local pid=$!
     printf "%s" "$pid" > "$PID_FILE"
     

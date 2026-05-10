@@ -6,7 +6,7 @@ echo "正在准备升级..."
 
 APP_NAME="logmanager"
 DATA_DIR="${TRIM_PKGVAR}"
-BACKUP_DIR="/vol1/@appshare/log-backup/.upgrade-backup"
+BACKUP_DIR="/vol1/@appshare/logmanager/backup/.upgrade-backup"
 MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
 
 # 停止服务

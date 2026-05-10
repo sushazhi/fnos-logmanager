@@ -15,8 +15,10 @@ if ! mkdir -p "${TRIM_PKGTMP}"; then
     exit 1
 fi
 
-if ! mkdir -p "/vol1/@appshare/log-backup"; then
-    echo "Error: 无法创建备份目录 /vol1/@appshare/log-backup" > "$TRIM_TEMP_LOGFILE"
+BACKUP_DIR="/vol1/@appshare/logmanager/backup"
+
+if ! mkdir -p "$BACKUP_DIR"; then
+    echo "Error: 无法创建备份目录 $BACKUP_DIR" > "$TRIM_TEMP_LOGFILE"
     exit 1
 fi
 

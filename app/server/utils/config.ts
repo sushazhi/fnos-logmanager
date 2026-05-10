@@ -64,7 +64,16 @@ const config: AppConfig = {
         maxPreviewBytes: parseInt(process.env.LOGFILE_MAX_PREVIEW_BYTES || String(10 * 1024 * 1024), 10)
     },
     backup: {
-        baseDir: process.env.BACKUP_BASE_DIR || '/vol1/@appshare/log-backup',
+        baseDir: process.env.BACKUP_BASE_DIR || (() => {
+            try {
+                const configPath = path.join(process.env.LOGMANAGER_DATA_DIR || '/vol1/@appdata/logmanager', 'config', 'config.json');
+                if (fs.existsSync(configPath)) {
+                    const fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                    if (fileConfig.backup_dir) return fileConfig.backup_dir;
+                }
+            } catch { /* ignore */ }
+            return '/vol1/@appshare/logmanager/backup';
+        })(),
         maxFiles: parseInt(process.env.BACKUP_MAX_FILES || '1000', 10),
         maxFileSizeBytes: parseInt(process.env.BACKUP_MAX_FILE_BYTES || String(200 * 1024 * 1024), 10),
         maxTotalBytes: parseInt(process.env.BACKUP_MAX_TOTAL_BYTES || String(2 * 1024 * 1024 * 1024), 10)

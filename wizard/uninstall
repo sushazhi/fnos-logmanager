@@ -28,7 +28,7 @@
       },
       {
         "type": "tips",
-        "helpText": "💡 日志备份目录位于: /vol1/@appshare/log-backup/"
+        "helpText": "💡 日志备份目录位于: /vol1/@appshare/logmanager/backup/"
       }
     ]
   }
