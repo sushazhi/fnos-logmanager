@@ -12,6 +12,8 @@ if ! mkdir -p "$CONFIG_DIR"; then
     exit 1
 fi
 
+BACKUP_DIR="/vol1/@appshare/logmanager/backup"
+
 # 创建配置文件
 cat > "$CONFIG_DIR/config.json" << EOF
 {
@@ -23,7 +25,7 @@ cat > "$CONFIG_DIR/config.json" << EOF
         "/vol1/@appshare",
         "/var/log/apps"
     ],
-    "backup_dir": "/vol1/@appshare/log-backup",
+    "backup_dir": "$BACKUP_DIR",
     "archive_extensions": [
         ".gz", ".bz2", ".xz", ".zip",
         ".tar", ".tar.gz", ".tar.bz2", ".tar.xz", ".7z", ".rar"
@@ -42,17 +44,6 @@ fi
 FILTER_SENSITIVE="${wizard_filter_sensitive:-true}"
 if ! echo "$FILTER_SENSITIVE" > "${TRIM_PKGVAR}/.filter_sensitive"; then
     echo "Error: 无法保存过滤设置" > "$TRIM_TEMP_LOGFILE"
-    exit 1
-fi
-
-cat > "${TRIM_PKGVAR}/env.sh" << EOF
-APP_NAME="$APP_NAME"
-LOG_BACKUP_DIR="/vol1/@appshare/log-backup"
-FILTER_SENSITIVE="$FILTER_SENSITIVE"
-EOF
-
-if [ $? -ne 0 ]; then
-    echo "Error: 无法创建环境配置文件" > "$TRIM_TEMP_LOGFILE"
     exit 1
 fi
 

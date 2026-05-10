@@ -26,7 +26,7 @@ async function ensureDir(dir: string): Promise<void> {
 function isSafeBackupBase(dir: string): boolean {
     const normalized = safePath(dir);
     if (!normalized) return false;
-    return normalized.startsWith('/vol') && normalized.includes('/@appshare');
+    return normalized.startsWith('/') && !normalized.startsWith('/etc') && !normalized.startsWith('/proc') && !normalized.startsWith('/sys');
 }
 
 function isLogFile(filename: string): boolean {

@@ -2,7 +2,7 @@
     "data-share": {
         "shares": [
             {
-                "name": "log-backup",
+                "name": "logmanager",
                 "permission": {
                     "rw": ["logmanager"]
                 }

@@ -200,7 +200,7 @@ configManager.define({
 // ============================================
 configManager.define({
     key: 'backup.baseDir',
-    defaultValue: '/vol1/@appshare/log-backup',
+    defaultValue: '/vol1/@appshare/logmanager/backup',
     envKey: 'BACKUP_BASE_DIR',
     description: '备份基础目录'
 });
