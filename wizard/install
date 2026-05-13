@@ -13,26 +13,6 @@
       {
         "type": "tips",
         "helpText": "⚙️ <b>功能特点：</b><br>- 集中查看所有应用日志<br>- 日志文件大小统计与管理<br>- 日志清理与压缩功能<br>- 日志备份与归档<br>- 支持查看归档日志内容"
-      },
-      {
-        "type": "text",
-        "field": "wizard_app_port",
-        "label": "应用端口",
-        "initValue": "8090",
-        "rules": [
-          {
-            "required": true,
-            "message": "请输入端口号"
-          },
-          {
-            "pattern": "^[0-9]+$",
-            "message": "端口号必须是数字"
-          }
-        ]
-      },
-      {
-        "type": "tips",
-        "helpText": "💡 安装完成后，首次访问时需要设置登录密码"
       }
     ]
   }

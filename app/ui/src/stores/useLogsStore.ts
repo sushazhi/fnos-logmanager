@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { LogItem, ListType, LogsResponse, CleanType } from '../types'
-import api from '../services/api'
+import api, { API_BASE } from '../services/api'
 import { useStatusStore } from './useStatusStore'
 
 export interface LogTab {
@@ -327,7 +327,7 @@ export const useLogsStore = defineStore('logs', () => {
       const baseApi = isDocker
         ? `/api/docker/export?container=${encodeURIComponent(path)}&format=${encodeURIComponent(safeFormat)}`
         : `/api/log/export?path=${encodeURIComponent(path)}&format=${encodeURIComponent(safeFormat)}`
-      const url = `${window.location.origin}${baseApi}`
+      const url = `${window.location.origin}${API_BASE}${baseApi}`
       const csrfToken = api.getCSRFToken()
       const response = await fetch(url, {
         credentials: 'include',

@@ -9,7 +9,9 @@ import {
   filterSensitiveInfo
 } from '../utils/request'
 
-const API_BASE = window.location.origin
+export const API_BASE = window.location.pathname.startsWith('/app/logmanager')
+  ? '/app/logmanager'
+  : ''
 
 // CSRF Token 存储说明：
 // 使用 sessionStorage 存储 CSRF Token，相比 localStorage 更安全：

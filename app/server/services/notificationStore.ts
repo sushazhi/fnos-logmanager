@@ -47,8 +47,8 @@ let historyFilePath: string | null = null;
  * 初始化存储模块
  */
 export async function init(): Promise<void> {
-    // 使用配置目录下的通知配置文件
-    const configDir = path.dirname(config.auditLogFile);
+    // 使用 config 目录下的通知配置文件（重装不覆盖）
+    const configDir = path.join(config.dataDir, 'config');
     configFilePath = path.join(configDir, DEFAULT_CONFIG_FILE);
     historyFilePath = path.join(configDir, HISTORY_FILE);
 

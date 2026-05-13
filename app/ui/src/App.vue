@@ -128,6 +128,7 @@
 import { ref, onMounted } from 'vue'
 import { useStore, setConfirmFn } from './composables/useStore'
 import { useLogsStore } from './stores/useLogsStore'
+import { applyThemeColor } from './composables/useThemeColor'
 import api from './services/api'
 import { bookmarkApi } from './services/api'
 import AppHeader from './components/AppHeader.vue'
@@ -346,7 +347,7 @@ function loadSavedSettings() {
       }
       
       if (typeof settings.primaryColor === 'string' && validColorRegex.test(settings.primaryColor)) {
-        root.style.setProperty('--primary-color', settings.primaryColor)
+        applyThemeColor(settings.primaryColor)
       }
       
       if (settings.theme === 'dark' || settings.theme === 'light' || settings.theme === 'auto') {

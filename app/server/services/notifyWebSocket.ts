@@ -7,6 +7,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import Logger from '../utils/logger';
 import * as sessionService from '../services/session';
+import * as notificationStore from '../services/notificationStore';
+import * as logMonitor from '../services/logMonitor';
 
 const logger = Logger.child({ module: 'NotifyWS' });
 
@@ -99,6 +101,18 @@ export function initNotifyWebSocket(server: Server): void {
         });
 
         ws.send(JSON.stringify({ type: 'connected' }));
+
+        // 连接后自动推送当前状态
+        try {
+            const status = logMonitor.getStatus();
+            ws.send(JSON.stringify({ type: 'status', data: status }));
+            const rules = notificationStore.getRules();
+            ws.send(JSON.stringify({ type: 'rules', data: rules }));
+            const history = notificationStore.getHistory(5);
+            ws.send(JSON.stringify({ type: 'history', data: history }));
+        } catch (err) {
+            logger.warn({ err }, 'NotifyWS: 初始状态推送失败');
+        }
     });
 
     logger.info('Notification WebSocket server initialized');

@@ -27,6 +27,25 @@ function getSessionToken(req: Request): string {
     return '';
 }
 
+export function getGatewayUser(req: Request): { uid: string; isAdmin: boolean; username: string } | null {
+    const uid = req.headers['x-trim-uid'] as string;
+    if (!uid) return null;
+    return {
+        uid,
+        isAdmin: req.headers['x-trim-isadmin'] === 'true',
+        username: (req.headers['x-trim-username'] as string) || ''
+    };
+}
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+    const gatewayUser = getGatewayUser(req);
+    if (gatewayUser && !gatewayUser.isAdmin) {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: '需要管理员权限' } });
+        return;
+    }
+    next();
+}
+
 export function validateToken(req: Request, res: Response, next: NextFunction): void {
     const clientIP = getClientIP(req);
 
@@ -55,6 +74,19 @@ export function validateToken(req: Request, res: Response, next: NextFunction): 
     const token = getSessionToken(req);
     (req as AuthenticatedRequest).clientIP = clientIP;
 
+    const isGatewayMode = !!process.env.GATEWAY_SOCKET;
+    if (isGatewayMode && req.headers['x-trim-uid']) {
+        if (token && sessionService.validateSession(token)) {
+            (req as AuthenticatedRequest).sessionToken = token;
+        } else {
+            const uid = req.headers['x-trim-uid'] as string;
+            const newToken = sessionService.createSession(uid);
+            (req as AuthenticatedRequest).sessionToken = newToken;
+        }
+        next();
+        return;
+    }
+
     if (!token) {
         auditService.addAuditLog('auth_failed', { path: req.path, clientIP, isSameOrigin }, req);
         next(new AuthenticationError());
@@ -73,6 +105,12 @@ export function validateToken(req: Request, res: Response, next: NextFunction): 
 
 export function validateCSRF(req: Request, res: Response, next: NextFunction): void {
     if (req.method === 'GET' || req.method === 'HEAD') {
+        next();
+        return;
+    }
+
+    const isGatewayMode = !!process.env.GATEWAY_SOCKET;
+    if (isGatewayMode && req.headers['x-trim-uid']) {
         next();
         return;
     }

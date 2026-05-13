@@ -4,6 +4,12 @@
 
 ## 功能特点
 
+- **统一网关接入**
+  - 通过 fnOS 统一网关访问，无需独立端口
+  - 网关自动校验登录态，免密码登录
+  - 原生 WebSocket 实时通信（日志流+通知推送）
+  - 支持 fnOS V1.1.31+
+
 - **多目录支持** 
   - 支持管理多个日志目录
   - 存储空间应用日志 (@appdata/@appshare 等)
@@ -28,7 +34,7 @@
 
 - **实时追踪** 
   - 类似 tail -f 的实时日志追踪
-  - HTTP 轮询方式，兼容 fnOS iframe 反向代理
+  - 原生 WebSocket 实时推送（统一网关模式）
   - 支持文件日志和 Docker 容器日志实时追踪
   - 自动滚动到最新行
 
@@ -67,7 +73,7 @@
   - 日志级别过滤
   - 冷却时间与静默时段设置
   - QQ 机器人 openID 自动获取（WebSocket 监听 + 前端轮询）
-  - 通知状态 HTTP 轮询实时更新（兼容 fnOS 代理环境）
+  - 通知状态 WebSocket 实时推送
 
 - **系统日志监控** 
   - 监控系统事件日志
@@ -76,11 +82,12 @@
   - 事件统计与历史记录
 
 - **安全特性**
+  - 统一网关认证（X-Trim-* Header）+ 应用密码双重认证
   - Argon2id 密码哈希
   - 登录失败锁定（5次失败锁定30分钟）
   - 敏感信息自动过滤
   - 审计日志记录
-  - CSRF 验证（X-Requested-With 头检查，兼容 fnOS 代理环境）
+  - CSRF 验证（网关模式自动跳过）
   - 路径遍历防护（三重检查：isAllowedPath + safePath + isSymlinkPath）
   - Docker 容器名白名单验证
   - 命令注入防护（spawn 数组参数，非 shell 拼接）
@@ -146,15 +153,15 @@
 
 1. 下载最新的 `.fpk` 文件 from [Releases](../../releases)
 2. 在飞牛 NAS 应用中心安装
-3. 首次访问时设置登录密码
+3. 通过 fnOS 桌面图标访问，网关自动校验登录态
 
-> **注意**：本应用仅在 ARM64 架构测试通过，AMD64 架构请自测。
+> **系统要求**：fnOS V1.1.31 及以上版本（统一网关支持）
 
 ## 使用方法
 
-### 登录
+### 访问
 
-首次访问时设置密码，后续使用设置的密码登录。
+通过 fnOS 桌面点击应用图标即可访问，统一网关自动完成登录认证，无需输入密码。
 
 ### 主要功能
 
@@ -162,7 +169,7 @@
 |------|------|
 | 查看日志 | 点击日志列表中的"查看"按钮，深色终端风格显示 |
 | 多标签页 | 同时打开多个日志文件，标签栏切换，非阻塞模式 |
-| 实时追踪 | 查看日志时点击"追踪"按钮，HTTP 轮询实时获取新内容 |
+| 实时追踪 | 查看日志时点击"追踪"按钮，WebSocket 实时推送新内容 |
 | 导出日志 | 点击"导出"按钮，选择 TXT/JSON/CSV 格式 |
 | 书签收藏 | 点击"书签"按钮收藏常用日志，书签栏快速访问 |
 | 搜索日志 | 支持关键词和正则模式搜索，自动高亮匹配 |
@@ -215,10 +222,10 @@
 
 ```bash
 # Windows
-.\build.ps1 -Version 0.5.0
+.\build.ps1 -Version 0.6.2
 
 # 或使用 GitHub Actions
-git tag v0.5.0
+git tag v0.6.2
 git push --tags
 ```
 
@@ -230,10 +237,10 @@ git push --tags
 │       └── build-and-release.yml   # GitHub Actions
 ├── app/
 │   ├── server/                     # 后端服务
-│   │   ├── server.ts
+│   │   ├── server.ts               # 入口（统一网关前缀剥离+Unix Socket/TCP双模式）
 │   │   ├── errors/                 # 错误类型定义
 │   │   ├── middleware/             # 中间件
-│   │   │   ├── auth.ts             # 认证/CSRF/验证
+│   │   │   ├── auth.ts             # 认证/CSRF（网关模式X-Trim-* Header自动登录）
 │   │   │   ├── security.ts         # CSP/安全头/输入净化
 │   │   │   ├── rateLimit.ts        # 速率限制
 │   │   │   └── errorHandler.ts     # 统一错误处理
@@ -276,18 +283,19 @@ git push --tags
 │       │   │   └── ...
 │       │   ├── composables/
 │       │   │   ├── useLogSearch.ts  # 搜索逻辑（Web Worker）
-│       │   │   ├── useLogStream.ts  # 日志流 composable
-│       │   │   ├── useNotifyWebSocket.ts # 通知HTTP轮询
+│       │   │   ├── useLogStream.ts  # 日志流 WebSocket（网关路径适配）
+│       │   │   ├── useNotifyWebSocket.ts # 通知 WebSocket（网关路径适配）
 │       │   │   └── useStore.ts      # 统一 Store
 │       │   ├── workers/
 │       │   │   └── logSearch.worker.ts # 搜索 Web Worker
 │       │   ├── stores/             # Pinia stores
 │       │   │   └── useLogsStore.ts # 日志Store（多标签管理）
 │       │   ├── services/
-│       │   │   └── api.ts          # API 服务（CSRF/认证/重试）
+│       │   │   └── api.ts          # API 服务（CSRF/认证/重试/网关前缀适配）
 │       │   ├── styles/
 │       │   │   └── main.css        # 全局样式（鸿蒙6.0 CSS 变量）
 │       │   └── ...
+│       ├── config                   # 统一网关配置（gatewaySocket+gatewayPrefix）
 │       ├── images/
 │       └── vite.config.ts
 ├── cmd/                            # 应用脚本
@@ -318,20 +326,22 @@ git push --tags
 - **安全**: DOMPurify 3.3.3
 
 ### 架构特点
+- **统一网关**: Unix Socket + 前缀剥离，无需独立端口
+- **认证体系**: 网关 X-Trim-* Header 自动登录 + 应用密码可选
 - **状态管理**: Pinia 统一管理应用状态（含多标签页管理）
 - **错误处理**: 统一的错误类型和响应格式（isOperational + statusCode 双重检查）
 - **性能优化**: 流式读取、缓存机制、请求去重、Web Worker 搜索
 - **类型安全**: 完整的 TypeScript 类型定义
 - **UI 体系**: 鸿蒙 NEXT 6.0 CSS 变量色彩体系
-- **fnOS 适配**: HTTP 轮询替代 WebSocket/SSE，非阻塞日志窗口，Cookie SameSite=Lax
 
 ## 安全说明
 
+- 统一网关认证（X-Trim-* Header 自动登录）+ 应用密码双重认证
+- 网关模式下 CSRF/内网 IP 检查自动跳过（网关已校验）
 - 密码使用 Argon2id 加密存储
 - 登录失败 5 次锁定 30 分钟
 - 敏感信息（密码、密钥等）自动过滤
 - 审计日志记录所有敏感操作
-- CSRF 验证（X-Requested-With 头检查，兼容 fnOS 代理环境）
 - 路径遍历防护（isAllowedPath + safePath + isSymlinkPath 三重检查）
 - Docker 容器名白名单验证，命令参数数组化防注入
 - XSS 防护：所有 v-html 经 DOMPurify 净化，escapeHtml 转义引号

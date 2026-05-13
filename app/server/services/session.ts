@@ -11,7 +11,7 @@ const sessions = new Map<string, Session>();
 const csrfTokens = new Map<string, CSRFToken>();
 
 // 持久化文件路径
-const SESSION_FILE = path.join(config.dataDir, '.sessions.json');
+const SESSION_FILE = path.join(config.dataDir, 'config', '.sessions.json');
 
 // 脏标记，用于延迟写入
 let dirty = false;
@@ -75,8 +75,8 @@ function saveToDisk(): void {
 
     try {
         // 确保数据目录存在
-        if (!fs.existsSync(config.dataDir)) {
-            fs.mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
+        if (!fs.existsSync(path.join(config.dataDir, 'config'))) {
+            fs.mkdirSync(path.join(config.dataDir, 'config'), { recursive: true, mode: 0o700 });
         }
 
         const data = {

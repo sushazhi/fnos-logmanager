@@ -2,9 +2,10 @@ import express from 'express';
 import path from 'path';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import http from 'http';
+import stream from 'stream';
 import Logger from './utils/logger';
 
-// 设置时区为东八区（中国标准时间）
 process.env.TZ = 'Asia/Shanghai';
 
 const logger = Logger.child({ module: 'Server' });
@@ -47,6 +48,10 @@ if (!depsCheck.valid) {
     process.exit(1);
 }
 
+const GATEWAY_SOCKET = process.env.GATEWAY_SOCKET || '';
+const SOCKET_PATH = GATEWAY_SOCKET ? path.join(GATEWAY_SOCKET) : '';
+const GATEWAY_PREFIX = '/app/logmanager';
+
 const app = express();
 
 const getLogUrl = (req: express.Request) => {
@@ -75,6 +80,16 @@ app.use(rateLimit);
 
 app.use(express.static(path.join(__dirname, '../ui')));
 
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.includes('.')) {
+        res.sendFile(path.join(__dirname, '../ui/index.html'), (err) => {
+            if (err) next(err);
+        });
+        return;
+    }
+    next();
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api', logRoutes);
 app.use('/api', dockerRoutes);
@@ -85,40 +100,85 @@ app.use('/api/eventlogger', eventLoggerRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-const server = app.listen(config.port, '0.0.0.0', async () => {
-    logger.info({ port: config.port }, '飞牛日志管理服务已启动');
-    auditService.addAuditLog('SERVER_START', { port: config.port }).catch(() => {});
+const server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
+    const originalUrl = req.url || '/';
+    if (GATEWAY_SOCKET) {
+        if (req.url === GATEWAY_PREFIX) {
+            res.writeHead(302, { 'Location': GATEWAY_PREFIX + '/' });
+            res.end();
+            return;
+        }
+        if (req.url && req.url.startsWith(GATEWAY_PREFIX + '/')) {
+            req.url = req.url.slice(GATEWAY_PREFIX.length);
+        } else if (req.url && req.url.startsWith(GATEWAY_PREFIX)) {
+            req.url = req.url.slice(GATEWAY_PREFIX.length) || '/';
+        }
+    }
+    app(req, res);
+});
 
-    // 初始化 WebSocket 日志流服务
+server.on('upgrade', (req: http.IncomingMessage, socket: stream.Duplex, head: Buffer) => {
+    if (GATEWAY_SOCKET && req.url) {
+        if (req.url.startsWith(GATEWAY_PREFIX + '/')) {
+            req.url = req.url.slice(GATEWAY_PREFIX.length);
+        } else if (req.url.startsWith(GATEWAY_PREFIX)) {
+            req.url = req.url.slice(GATEWAY_PREFIX.length) || '/';
+        }
+    }
+});
+
+async function startServer() {
     initLogStream(server);
-
-    // 初始化 Docker 日志流 WebSocket 服务
     initDockerLogStream(server);
-
-    // 初始化通知 WebSocket 服务
     initNotifyWebSocket(server);
 
-    // 初始化日志监控服务
     try {
         await logMonitor.init();
     } catch (err) {
         logger.error({ err }, '日志监控服务初始化失败');
     }
 
-    // 初始化事件日志监控服务
     try {
         await eventLoggerService.init(config.eventLogger);
     } catch (err) {
         logger.error({ err }, '事件日志监控服务初始化失败');
     }
 
-    // 初始化自动清理服务
     try {
         await autoCleanService.init();
     } catch (err) {
         logger.error({ err }, '自动清理服务初始化失败');
     }
-});
+}
+
+function listenServer(): void {
+    if (SOCKET_PATH) {
+        try {
+            const fs = require('fs');
+            if (fs.existsSync(SOCKET_PATH)) {
+                fs.unlinkSync(SOCKET_PATH);
+            }
+        } catch { /* ignore */ }
+        
+        server.listen(SOCKET_PATH, async () => {
+            try {
+                const fs = require('fs');
+                fs.chmodSync(SOCKET_PATH, 0o777);
+            } catch { /* ignore */ }
+            logger.info({ socket: SOCKET_PATH }, '飞牛日志管理服务已启动（网关模式）');
+            auditService.addAuditLog('SERVER_START', { mode: 'gateway', socket: SOCKET_PATH }).catch(() => {});
+            await startServer();
+        });
+    } else {
+        server.listen(config.port, '0.0.0.0', async () => {
+            logger.info({ port: config.port }, '飞牛日志管理服务已启动');
+            auditService.addAuditLog('SERVER_START', { mode: 'direct', port: config.port }).catch(() => {});
+            await startServer();
+        });
+    }
+}
+
+listenServer();
 
 server.setTimeout(120000);
 server.keepAliveTimeout = 65000;

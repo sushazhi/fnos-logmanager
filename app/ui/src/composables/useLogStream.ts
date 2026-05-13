@@ -31,11 +31,13 @@ export function useLogStream() {
 
   function getWsUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const base = `${protocol}//${window.location.host}`
     const token = api.getSessionToken()
-    if (token) {
-      return `${protocol}//${window.location.host}/api/logs/stream?token=${encodeURIComponent(token)}`
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
+    if (window.location.pathname.startsWith('/app/logmanager')) {
+      return `${base}/app/logmanager/api/logs/stream${tokenParam}`
     }
-    return `${protocol}//${window.location.host}/api/logs/stream`
+    return `${base}/api/logs/stream${tokenParam}`
   }
 
   function connect(): void {

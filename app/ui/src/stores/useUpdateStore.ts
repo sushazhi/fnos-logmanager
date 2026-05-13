@@ -1,12 +1,11 @@
 ﻿import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { UpdateInfo, UpdateStatus } from '../types'
-import api from '../services/api'
+import api, { API_BASE } from '../services/api'
 
 const APP_VERSION = '__APP_VERSION__'
 const REPO_OWNER = 'sushazhi'
 const REPO_NAME = 'fnos-logmanager'
-const API_BASE = window.location.origin
 
 const DEBUG_MODE = new URLSearchParams(window.location.search).has('debug')
 
@@ -62,7 +61,7 @@ export const useUpdateStore = defineStore('update', () => {
 
   async function checkForUpdates(): Promise<UpdateInfo | null> {
     try {
-      const response = await fetch(`${API_BASE}/api/update/check`, {
+      const response = await fetch(`${window.location.origin}${API_BASE}/api/update/check`, {
         credentials: 'include',
         cache: 'no-store',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -105,7 +104,7 @@ export const useUpdateStore = defineStore('update', () => {
 
   async function getUpdateStatus(): Promise<UpdateStatus> {
     try {
-      const response = await fetch(`${API_BASE}/api/update/status`, {
+      const response = await fetch(`${window.location.origin}${API_BASE}/api/update/status`, {
         credentials: 'include',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       })
@@ -159,7 +158,7 @@ export const useUpdateStore = defineStore('update', () => {
           }
           setTimeout(() => {
             const checkServer = setInterval(() => {
-              fetch(`${API_BASE}/api/update/status`, {
+              fetch(`${window.location.origin}${API_BASE}/api/update/status`, {
                 credentials: 'include'
               }).then(response => {
                 if (response.ok) {
@@ -185,7 +184,7 @@ export const useUpdateStore = defineStore('update', () => {
       }
 
       try {
-        const statusResponse = await fetch(`${API_BASE}/api/update/status`, {
+        const statusResponse = await fetch(`${window.location.origin}${API_BASE}/api/update/status`, {
           credentials: 'include'
         })
         const statusData = await statusResponse.json() as UpdateStatus

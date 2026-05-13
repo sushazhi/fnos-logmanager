@@ -36,7 +36,7 @@ export function rateLimit(req: Request, res: Response, next: NextFunction): void
     next();
 }
 
-export function apiRateLimit(maxRequests: number = 60, windowMs: number = 60000) {
+export function apiRateLimit(maxRequests: number = 180, windowMs: number = 60000) {
     return (req: Request, res: Response, next: NextFunction): void => {
         const ip = getClientIP(req);
         const now = Date.now();
@@ -62,7 +62,7 @@ export function apiRateLimit(maxRequests: number = 60, windowMs: number = 60000)
     };
 }
 
-export function sensitiveActionRateLimit(maxRequests: number = 10, windowMs: number = 300000) {
+export function sensitiveActionRateLimit(maxRequests: number = 30, windowMs: number = 300000) {
     return (req: Request, res: Response, next: NextFunction): void => {
         const ip = getClientIP(req);
         const now = Date.now();

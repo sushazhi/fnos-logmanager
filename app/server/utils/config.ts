@@ -8,7 +8,7 @@ const config: AppConfig = {
     sessionExpiry: 24 * 60 * 60 * 1000,
     rateLimit: {
         windowMs: 60000,
-        maxRequests: 100
+        maxRequests: 300
     },
     auth: {
         // 安全提示：allowQueryToken 允许通过 URL query 参数传递 session token
@@ -112,9 +112,9 @@ const config: AppConfig = {
     initTimestampFile: ''
 };
 
-config.passwordFile = path.join(config.dataDir, '.password');
-config.auditLogFile = path.join(config.dataDir, 'audit.log');
-config.initTimestampFile = path.join(config.dataDir, '.init-time');
+config.passwordFile = path.join(config.dataDir, 'config', '.password');
+config.auditLogFile = path.join(config.dataDir, 'config', 'audit.log');
+config.initTimestampFile = path.join(config.dataDir, 'config', '.init-time');
 
 const configFile = path.join(config.dataDir, 'config', 'config.json');
 try {

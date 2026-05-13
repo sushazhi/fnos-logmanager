@@ -34,7 +34,7 @@ function generateId(): string {
 /**
  * 获取通知设置
  */
-router.get('/settings', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
+router.get('/settings', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
     const settings = notificationStore.getSettings();
     res.json({ settings });
 });
@@ -89,7 +89,7 @@ router.post('/settings', validateToken, validateCSRF, async (req: Request, res: 
 /**
  * 获取所有渠道
  */
-router.get('/channels', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
+router.get('/channels', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
     const channels = notificationStore.getChannels();
     res.json({ channels });
 });
@@ -97,7 +97,7 @@ router.get('/channels', validateToken, apiRateLimit(30, 60000), (_req: Request, 
 /**
  * 获取支持的渠道类型
  */
-router.get('/channels/types', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
+router.get('/channels/types', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
     const types: NotificationChannel[] = [
         'bark', 'dingtalk', 'feishu', 'feishu_app', 'wecom', 'wecom_app', 'wechat_bot',
         'telegram', 'serverchan', 'pushplus',
@@ -271,7 +271,7 @@ router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveAction
 /**
  * 获取所有规则
  */
-router.get('/rules', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
+router.get('/rules', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
     const rules = notificationStore.getRules();
     res.json({ rules });
 });
@@ -279,7 +279,7 @@ router.get('/rules', validateToken, apiRateLimit(30, 60000), (_req: Request, res
 /**
  * 获取单个规则
  */
-router.get('/rules/:id', validateToken, apiRateLimit(30, 60000), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/rules/:id', validateToken, apiRateLimit(120, 60000), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const ruleId = req.params.id;
         const rule = notificationStore.getRule(ruleId);
@@ -447,7 +447,7 @@ router.post('/rules/:id/test', validateToken, validateCSRF, async (req: Request,
 /**
  * 获取通知历史
  */
-router.get('/history', validateToken, apiRateLimit(30, 60000), [
+router.get('/history', validateToken, apiRateLimit(120, 60000), [
     query('limit').optional().isInt({ min: 1, max: 500 })
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -476,7 +476,7 @@ router.post('/history/clean', validateToken, validateCSRF, async (_req: Request,
 /**
  * 获取统计信息
  */
-router.get('/stats', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
+router.get('/stats', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
     const stats = notificationStore.getStats();
     res.json({ stats });
 });
@@ -486,7 +486,7 @@ router.get('/stats', validateToken, apiRateLimit(30, 60000), (_req: Request, res
 /**
  * 获取监控状态
  */
-router.get('/monitor/status', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
+router.get('/monitor/status', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
     const status = logMonitor.getStatus();
     res.json({ status });
 });
@@ -525,7 +525,7 @@ router.post('/monitor/check', validateToken, validateCSRF, async (_req: Request,
 
 // ==================== QQ机器人事件回调 ====================
 
-router.post('/qqbot/event', apiRateLimit(30, 60000), (req: Request, res: Response) => {
+router.post('/qqbot/event', apiRateLimit(120, 60000), (req: Request, res: Response) => {
     try {
         const body = req.body;
         if (!body || typeof body !== 'object' || !body.t) {
@@ -539,7 +539,7 @@ router.post('/qqbot/event', apiRateLimit(30, 60000), (req: Request, res: Respons
     }
 });
 
-router.get('/qqbot/captured', validateToken, apiRateLimit(30, 60000), (_req: Request, res: Response) => {
+router.get('/qqbot/captured', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
     res.json(getCapturedOpenIds());
 });
 

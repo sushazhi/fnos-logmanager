@@ -39,7 +39,8 @@ router.post('/setup', validate([
         const ip = getClientIP(req);
         (req as AuthenticatedRequest).clientIP = ip;
 
-        if (!isPrivateIP(ip)) {
+        const isGatewayMode = !!process.env.GATEWAY_SOCKET;
+        if (!isGatewayMode && !isPrivateIP(ip)) {
             res.status(403).json({
                 success: false,
                 error: '仅允许内网访问'
@@ -156,9 +157,27 @@ router.get('/status', async (req: Request, res: Response) => {
     const hasPassword = await passwordService.isPasswordSet();
     const sessionToken = getSessionToken(req);
     const isLoggedIn = sessionToken && sessionService.validateSession(sessionToken);
+    const isGatewayMode = !!process.env.GATEWAY_SOCKET;
+
+    if (isGatewayMode && !isLoggedIn) {
+        const uid = req.headers['x-trim-uid'] as string;
+        if (uid) {
+            const token = sessionService.createSession(uid);
+            const csrfToken = sessionService.getCSRFToken(token);
+            res.cookie('session_token', token, COOKIE_OPTIONS);
+            res.json({
+                initialized: true,
+                isLoggedIn: true,
+                csrfToken,
+                sessionToken: token,
+                sessionExpiry: 24 * 60 * 60 * 1000
+            });
+            return;
+        }
+    }
 
     res.json({
-        initialized: hasPassword,
+        initialized: isGatewayMode ? true : hasPassword,
         isLoggedIn: !!isLoggedIn,
         sessionExpiry: 24 * 60 * 60 * 1000
     });

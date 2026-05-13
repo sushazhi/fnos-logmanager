@@ -6,7 +6,6 @@ PID_FILE="${TRIM_PKGVAR}/app.pid"
 SERVER_DIR="${TRIM_APPDEST}/server"
 
 export PATH=/var/apps/nodejs_v24/target/bin:$PATH
-PORT="${wizard_app_port:-${TRIM_SERVICE_PORT:-8090}}"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
@@ -25,7 +24,7 @@ start_process() {
         return 0
     fi
     
-    log_msg "Starting $APP_NAME on port $PORT..."
+    log_msg "Starting $APP_NAME..."
     
     if ! mkdir -p "${TRIM_PKGVAR}"; then
         error_exit "无法创建数据目录 ${TRIM_PKGVAR}"
@@ -52,7 +51,6 @@ start_process() {
     fi
     
     if [ ! -d "$SERVER_DIR" ]; then
-        # 调试信息
         log_msg "TRIM_APPDEST=$TRIM_APPDEST"
         log_msg "SERVER_DIR=$SERVER_DIR"
         log_msg "检查目录结构:"
@@ -69,7 +67,6 @@ start_process() {
     
     if [ ! -d "$SERVER_DIR/node_modules" ]; then
         log_msg "Installing dependencies..."
-        # 使用淘宝镜像加速
         npm config set registry https://registry.npmmirror.com --location=project 2>/dev/null || true
         if ! npm install --production >> ${LOG_FILE} 2>&1; then
             error_exit "依赖安装失败，请检查网络连接"
@@ -82,21 +79,25 @@ start_process() {
         error_exit "服务器文件不存在: $SERVER_DIR/server.js"
     fi
     
-    PORT=$PORT LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
+    GATEWAY_SOCKET=""
+    if [ -n "${TRIM_APPDEST}" ]; then
+        GATEWAY_SOCKET="${TRIM_APPDEST}/logmanager.sock"
+        rm -f "$GATEWAY_SOCKET" 2>/dev/null
+    fi
+    
+    LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" GATEWAY_SOCKET="$GATEWAY_SOCKET" node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
     local pid=$!
     printf "%s" "$pid" > "$PID_FILE"
     
     sleep 2
     
     if check_process "$pid"; then
-        log_msg "$APP_NAME started successfully on port $PORT"
+        log_msg "$APP_NAME started successfully"
         echo ""
         echo "=========================================="
         echo "  飞牛应用日志管理已启动"
-        echo "  端口: $PORT"
-        echo "  访问地址: http://<IP>:$PORT/"
+        echo "  访问地址: 通过统一网关 /app/logmanager"
         echo "  数据目录: ${TRIM_PKGVAR}"
-        echo "  首次启动时请设置密码"
         echo "  日志: cat ${TRIM_PKGVAR}/info.log"
         echo "=========================================="
         echo ""

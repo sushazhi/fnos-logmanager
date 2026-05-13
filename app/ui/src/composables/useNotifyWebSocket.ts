@@ -1,10 +1,15 @@
 /**
  * 通知实时推送 Composable
- * 使用 HTTP 轮询替代 WebSocket（fnOS iframe 代理不支持 WebSocket 长连接）
+ * 通过统一网关使用 WebSocket 实时推送通知状态
  */
 
 import { ref, onUnmounted } from 'vue'
 import api from '../services/api'
+
+interface NotifyMessage {
+  type: 'status' | 'history' | 'rules'
+  data: any
+}
 
 export function useNotifyWebSocket() {
   const isConnected = ref(false)
@@ -12,44 +17,84 @@ export function useNotifyWebSocket() {
   const lastHistoryUpdate = ref<any>(null)
   const lastRulesUpdate = ref<any>(null)
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null
-  const POLL_INTERVAL = 5000
+  let ws: WebSocket | null = null
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let reconnectAttempts = 0
+  const MAX_RECONNECT = 5
+  const RECONNECT_DELAY = 3000
 
-  async function pollUpdates(): Promise<void> {
-    try {
-      const [statusRes, historyRes, rulesRes] = await Promise.allSettled([
-        api.get<{ status?: any }>('/api/notifications/monitor/status'),
-        api.get<{ history?: any[] }>('/api/notifications/history?limit=5'),
-        api.get<{ rules?: any[] }>('/api/notifications/rules')
-      ])
-
-      if (statusRes.status === 'fulfilled' && statusRes.value?.status) {
-        lastMonitorUpdate.value = statusRes.value.status
-      }
-      if (historyRes.status === 'fulfilled' && historyRes.value?.history) {
-        lastHistoryUpdate.value = historyRes.value.history
-      }
-      if (rulesRes.status === 'fulfilled' && rulesRes.value?.rules) {
-        lastRulesUpdate.value = rulesRes.value.rules
-      }
-
-      isConnected.value = true
-    } catch {
-      isConnected.value = false
+  function getWsUrl(): string {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const base = `${protocol}//${window.location.host}`
+    const token = api.getSessionToken()
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
+    if (window.location.pathname.startsWith('/app/logmanager')) {
+      return `${base}/app/logmanager/api/notifications/ws${tokenParam}`
     }
+    return `${base}/api/notifications/ws${tokenParam}`
   }
 
   function connect(): void {
-    if (pollTimer) return
-    isConnected.value = true
-    pollUpdates()
-    pollTimer = setInterval(pollUpdates, POLL_INTERVAL)
+    if (ws && ws.readyState === WebSocket.OPEN) return
+
+    try {
+      ws = new WebSocket(getWsUrl())
+
+      ws.onopen = () => {
+        isConnected.value = true
+        reconnectAttempts = 0
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data) as NotifyMessage
+          switch (msg.type) {
+            case 'status':
+              lastMonitorUpdate.value = msg.data
+              break
+            case 'history':
+              lastHistoryUpdate.value = msg.data
+              break
+            case 'rules':
+              lastRulesUpdate.value = msg.data
+              break
+          }
+        } catch { /* ignore */ }
+      }
+
+      ws.onclose = () => {
+        isConnected.value = false
+        scheduleReconnect()
+      }
+
+      ws.onerror = () => {
+        isConnected.value = false
+      }
+    } catch {
+      isConnected.value = false
+      scheduleReconnect()
+    }
+  }
+
+  function scheduleReconnect(): void {
+    if (reconnectAttempts >= MAX_RECONNECT) return
+    if (reconnectTimer) return
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      reconnectAttempts++
+      connect()
+    }, RECONNECT_DELAY * (reconnectAttempts + 1))
   }
 
   function disconnect(): void {
-    if (pollTimer) {
-      clearInterval(pollTimer)
-      pollTimer = null
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (ws) {
+      ws.onclose = null
+      ws.close()
+      ws = null
     }
     isConnected.value = false
   }

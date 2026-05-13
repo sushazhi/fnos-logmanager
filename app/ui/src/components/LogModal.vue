@@ -114,7 +114,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import DOMPurify from 'dompurify'
 import { useLogSearch } from '../composables/useLogSearch'
-import api from '../services/api'
+import api, { API_BASE } from '../services/api'
 import { useLogsStore } from '../stores/useLogsStore'
 
 interface Props {
@@ -438,9 +438,9 @@ function toggleTail(): void {
       const token = api.getSessionToken()
       let url: string
       if (props.isDocker) {
-        url = `/api/docker/tail?container=${encodeURIComponent(props.containerName || props.filePath)}&offset=${tailOffset}`
+        url = `${API_BASE}/api/docker/tail?container=${encodeURIComponent(props.containerName || props.filePath)}&offset=${tailOffset}`
       } else {
-        url = `/api/log/tail?path=${encodeURIComponent(props.filePath || props.containerName)}&offset=${tailOffset}`
+        url = `${API_BASE}/api/log/tail?path=${encodeURIComponent(props.filePath || props.containerName)}&offset=${tailOffset}`
       }
 
       const headers: Record<string, string> = {
