@@ -51,39 +51,6 @@
       <div class="divider"></div>
       
       <div class="setting-item">
-        <label>安全设置</label>
-        <button class="password-toggle" @click="showPasswordForm = !showPasswordForm">
-          {{ showPasswordForm ? '取消修改密码' : '修改密码' }}
-        </button>
-        
-        <div class="password-form" v-if="showPasswordForm">
-          <input 
-            type="password" 
-            v-model="currentPassword" 
-            placeholder="当前密码"
-          >
-          <input 
-            type="password" 
-            v-model="newPassword" 
-            placeholder="新密码（至少8位）"
-          >
-          <input 
-            type="password" 
-            v-model="confirmPassword" 
-            placeholder="确认新密码"
-          >
-          <div class="error" v-if="passwordError">{{ passwordError }}</div>
-          <div class="success" v-if="passwordSuccess">{{ passwordSuccess }}</div>
-          <div class="btn-row">
-            <button class="cancel-btn" @click="cancelPasswordChange">取消</button>
-            <button class="submit-btn" @click="changePassword">确认修改</button>
-          </div>
-        </div>
-      </div>
-      
-      <div class="divider"></div>
-      
-      <div class="setting-item">
         <label>审计日志</label>
         <button class="audit-btn" @click="$emit('showAudit')">
           查看审计日志
@@ -120,13 +87,6 @@ const emit = defineEmits<{
 const fontSize = ref<number>(16)
 const theme = ref<'light' | 'dark' | 'auto'>('light')
 const primaryColor = ref<string>('#5b9bd5')
-
-const showPasswordForm = ref<boolean>(false)
-const currentPassword = ref<string>('')
-const newPassword = ref<string>('')
-const confirmPassword = ref<string>('')
-const passwordError = ref<string>('')
-const passwordSuccess = ref<string>('')
 
 const colors: ColorOption[] = [
   { name: '紫色', value: '#9b59b6', gradient: 'linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%)' },
@@ -216,53 +176,6 @@ function loadSettings(): void {
   }
   
   applyAll()
-}
-
-function cancelPasswordChange(): void {
-  showPasswordForm.value = false
-  currentPassword.value = ''
-  newPassword.value = ''
-  confirmPassword.value = ''
-  passwordError.value = ''
-  passwordSuccess.value = ''
-}
-
-async function changePassword(): Promise<void> {
-  passwordError.value = ''
-  passwordSuccess.value = ''
-  
-  if (!currentPassword.value || !newPassword.value || !confirmPassword.value) {
-    passwordError.value = '请填写所有字段'
-    return
-  }
-  
-  if (newPassword.value !== confirmPassword.value) {
-    passwordError.value = '两次输入的新密码不一致'
-    return
-  }
-  
-  if (newPassword.value.length < 8) {
-    passwordError.value = '新密码至少8位'
-    return
-  }
-  
-  try {
-    await api.post('/api/auth/password', {
-      currentPassword: currentPassword.value,
-      newPassword: newPassword.value
-    })
-    passwordSuccess.value = '密码已修改'
-    currentPassword.value = ''
-    newPassword.value = ''
-    confirmPassword.value = ''
-    setTimeout(() => {
-      showPasswordForm.value = false
-      passwordSuccess.value = ''
-    }, 2000)
-  } catch (e) {
-    const err = e as { message?: string }
-    passwordError.value = err.message || '修改失败'
-  }
 }
 
 onMounted(() => {
@@ -446,106 +359,6 @@ onMounted(() => {
   margin: var(--spacing-xl) 0;
 }
 
-.password-toggle {
-  width: 100%;
-  padding: var(--spacing-sm);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-color-2);
-  cursor: pointer;
-  font-size: 0.8125rem;
-  color: var(--text-color-1);
-  text-align: center;
-  transition: all var(--transition-fast);
-}
-
-.password-toggle:hover {
-  background: var(--bg-color-3);
-}
-
-.password-toggle:active {
-  transform: scale(0.98);
-}
-
-.password-form {
-  padding: var(--spacing-md);
-  background: var(--bg-color-2);
-  border-radius: var(--radius-sm);
-  margin-top: var(--spacing-sm);
-}
-
-.password-form input {
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-  font-size: 0.875rem;
-  margin-bottom: var(--spacing-sm);
-  background: var(--card-bg);
-  color: var(--text-color-1);
-  box-sizing: border-box;
-  font-family: var(--font-family);
-  transition: border-color var(--transition-fast);
-}
-
-.password-form input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-}
-
-.password-form input::placeholder {
-  color: var(--text-color-3);
-}
-
-.password-form .error {
-  color: var(--error-color);
-  font-size: 0.8125rem;
-  margin-bottom: var(--spacing-sm);
-}
-
-.password-form .success {
-  color: var(--success-color);
-  font-size: 0.8125rem;
-  margin-bottom: var(--spacing-sm);
-}
-
-.password-form .btn-row {
-  display: flex;
-  gap: var(--spacing-sm);
-}
-
-.password-form button {
-  flex: 1;
-  padding: var(--spacing-sm);
-  border: none;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  font-size: 0.8125rem;
-  transition: all var(--transition-fast);
-}
-
-.password-form .cancel-btn {
-  background: var(--bg-color-2);
-  color: var(--text-color-1);
-}
-
-.password-form .cancel-btn:hover {
-  background: var(--bg-color-3);
-}
-
-.password-form .submit-btn {
-  background: var(--primary-color);
-  color: white;
-}
-
-.password-form .submit-btn:hover {
-  background: var(--primary-hover);
-}
-
-.password-form button:active {
-  transform: scale(0.98);
-}
-
 .audit-btn {
   width: 100%;
   padding: var(--spacing-sm);
@@ -689,24 +502,6 @@ onMounted(() => {
     height: 30px;
     min-width: 30px;
     max-width: 30px;
-  }
-
-  .password-form {
-    padding: var(--spacing-sm);
-  }
-
-  .password-form input {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.8125rem;
-  }
-
-  .password-form .btn-row {
-    gap: var(--spacing-xs);
-  }
-
-  .password-form button {
-    padding: var(--spacing-xs);
-    font-size: 0.75rem;
   }
 }
 </style>

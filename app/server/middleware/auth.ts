@@ -156,20 +156,6 @@ export function checkValidation(req: Request, _res: Response, next: NextFunction
     next();
 }
 
-export const loginValidationRules: ValidationChain[] = [
-    body('password')
-        .notEmpty().withMessage('请输入密码')
-        .isString().withMessage('密码必须是字符串')
-];
-
-export const changePasswordValidationRules: ValidationChain[] = [
-    body('currentPassword')
-        .notEmpty().withMessage('请输入当前密码'),
-    body('newPassword')
-        .notEmpty().withMessage('请输入新密码')
-        .isLength({ min: 8 }).withMessage('新密码至少8位')
-];
-
 export const logPathValidationRules: ValidationChain[] = [
     body('path').optional()
         .isString().withMessage('路径必须是字符串')

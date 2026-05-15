@@ -3,10 +3,6 @@
     <div class="auth-loading-spinner"></div>
   </div>
   
-  <SetupModal v-else-if="!isInitialized" @setup="handleSetup" />
-  
-  <LoginModal v-else-if="!isLoggedIn" @login="handleLogin" />
-  
   <div v-else class="container">
     <AppHeader />
     
@@ -143,8 +139,6 @@ import CleanModal from './components/CleanModal.vue'
 import SearchModal from './components/SearchModal.vue'
 import UpdateNotification from './components/UpdateNotification.vue'
 import SettingsModal from './components/SettingsModal.vue'
-import LoginModal from './components/LoginModal.vue'
-import SetupModal from './components/SetupModal.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import AuditLog from './components/AuditLog.vue'
 import NotificationPanel from './components/NotificationPanel.vue'
@@ -198,8 +192,6 @@ const {
 } = useStore()
 
 const showSettings = ref(false)
-const isLoggedIn = ref(false)
-const isInitialized = ref(true)
 const isCheckingAuth = ref(true)
 const confirmDialog = ref(null)
 const showAuditLog = ref(false)
@@ -289,46 +281,27 @@ async function showConfirm(options) {
 
 setConfirmFn(showConfirm)
 
-function handleLogin(csrfToken, sessionToken) {
-  isLoggedIn.value = true
-  if (csrfToken) {
-    api.setCSRFToken(csrfToken)
-  }
-  if (sessionToken) {
-    api.setSessionToken(sessionToken)
-  }
-  loadFilterStatus()
-  refreshAll()
-  checkForUpdates()
-  loadBookmarks()
-}
-
-function handleSetup() {
-  isInitialized.value = true
-}
-
 async function checkAuth() {
   isCheckingAuth.value = true
   
   try {
     const data = await api.get('/api/auth/status')
-    isInitialized.value = data.initialized
     
-    if (data.isLoggedIn) {
-      isLoggedIn.value = true
-      if (!api.getCSRFToken()) {
-        await api.fetchCSRFToken()
-      }
-      loadFilterStatus()
-      refreshAll()
-      checkForUpdates()
-      loadBookmarks()
-    } else {
-      isLoggedIn.value = false
+    if (data.csrfToken) {
+      api.setCSRFToken(data.csrfToken)
     }
+    if (data.sessionToken) {
+      api.setSessionToken(data.sessionToken)
+    }
+    if (!api.getCSRFToken()) {
+      await api.fetchCSRFToken()
+    }
+    loadFilterStatus()
+    refreshAll()
+    checkForUpdates()
+    loadBookmarks()
   } catch (e) {
     console.error('认证检查失败:', e)
-    isLoggedIn.value = false
   } finally {
     isCheckingAuth.value = false
   }

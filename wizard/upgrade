@@ -17,11 +17,11 @@
         "initValue": "yes",
         "options": [
           {
-            "label": "是，保留密码和设置",
+            "label": "是，保留设置",
             "value": "yes"
           },
           {
-            "label": "否，重置所有设置（需重新设置密码）",
+            "label": "否，重置所有设置",
             "value": "no"
           }
         ]
