@@ -38,10 +38,13 @@ export function getGatewayUser(req: Request): { uid: string; isAdmin: boolean; u
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-    const gatewayUser = getGatewayUser(req);
-    if (gatewayUser && !gatewayUser.isAdmin) {
-        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: '需要管理员权限' } });
-        return;
+    const isGatewayMode = !!process.env.GATEWAY_SOCKET;
+    if (isGatewayMode) {
+        const gatewayUser = getGatewayUser(req);
+        if (!gatewayUser || !gatewayUser.isAdmin) {
+            res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: '需要管理员权限' } });
+            return;
+        }
     }
     next();
 }
@@ -75,15 +78,21 @@ export function validateToken(req: Request, res: Response, next: NextFunction): 
     (req as AuthenticatedRequest).clientIP = clientIP;
 
     const isGatewayMode = !!process.env.GATEWAY_SOCKET;
-    if (isGatewayMode && req.headers['x-trim-uid']) {
+    if (isGatewayMode) {
         if (token && sessionService.validateSession(token)) {
             (req as AuthenticatedRequest).sessionToken = token;
-        } else {
-            const uid = req.headers['x-trim-uid'] as string;
+            next();
+            return;
+        }
+        if (isSameOrigin) {
+            const uid = (req.headers['x-trim-uid'] as string) || 'gateway';
             const newToken = sessionService.createSession(uid);
             (req as AuthenticatedRequest).sessionToken = newToken;
+            next();
+            return;
         }
-        next();
+        auditService.addAuditLog('auth_failed', { path: req.path, clientIP, isSameOrigin, gatewayNoSession: true }, req);
+        next(new AuthenticationError());
         return;
     }
 
@@ -110,9 +119,15 @@ export function validateCSRF(req: Request, res: Response, next: NextFunction): v
     }
 
     const isGatewayMode = !!process.env.GATEWAY_SOCKET;
-    if (isGatewayMode && req.headers['x-trim-uid']) {
-        next();
-        return;
+    if (isGatewayMode) {
+        const origin = req.headers.origin || '';
+        const referer = req.headers.referer || '';
+        const host = req.headers.host || '';
+        if (origin === `http://${host}` || origin === `https://${host}` ||
+            referer.startsWith(`http://${host}/`) || referer.startsWith(`https://${host}/`)) {
+            next();
+            return;
+        }
     }
 
     const clientIP = (req as AuthenticatedRequest).clientIP || getClientIP(req);

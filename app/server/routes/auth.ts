@@ -30,8 +30,13 @@ router.get('/status', async (req: Request, res: Response) => {
     const isGatewayMode = !!process.env.GATEWAY_SOCKET;
 
     if (isGatewayMode && !isLoggedIn) {
-        const uid = req.headers['x-trim-uid'] as string;
-        if (uid) {
+        const origin = req.headers.origin || '';
+        const referer = req.headers.referer || '';
+        const host = req.headers.host || '';
+        const isSameOrigin = origin === `http://${host}` || origin === `https://${host}` ||
+            referer.startsWith(`http://${host}/`) || referer.startsWith(`https://${host}/`);
+        if (isSameOrigin) {
+            const uid = (req.headers['x-trim-uid'] as string) || 'gateway';
             const token = sessionService.createSession(uid);
             const csrfToken = sessionService.getCSRFToken(token);
             res.cookie('session_token', token, COOKIE_OPTIONS);

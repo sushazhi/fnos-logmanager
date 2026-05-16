@@ -7,6 +7,7 @@
       </div>
 
       <div class="panel-body">
+        <div v-if="statusMsg" :class="['status-msg', statusType]" @click="statusMsg = ''">{{ statusMsg }}</div>
         <div class="section">
           <div class="section-header">
             <h4>清理规则</h4>
@@ -93,6 +94,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { autoCleanApi } from '../services/api'
+import { useStore } from '../composables/useStore'
 
 interface AutoCleanRule {
   id: string
@@ -108,6 +110,10 @@ interface AutoCleanRule {
 const emit = defineEmits<{
   close: []
 }>()
+
+const { confirm: showConfirm } = useStore()
+const statusMsg = ref('')
+const statusType = ref<'success' | 'error' | ''>('')
 
 const rules = ref<AutoCleanRule[]>([])
 const loading = ref(false)
@@ -234,7 +240,8 @@ async function executeRule(id: string): Promise<void> {
   try {
     const result = await autoCleanApi.executeRule(id)
     if (result.cleaned !== undefined) {
-      alert(`执行完成，清理了 ${result.cleaned} 个文件`)
+      statusMsg.value = `执行完成，清理了 ${result.cleaned} 个文件`
+      statusType.value = 'success'
     }
     await loadRules()
   } catch (e) {
@@ -259,7 +266,7 @@ function editRule(rule: AutoCleanRule): void {
 }
 
 async function deleteRule(id: string, name: string): Promise<void> {
-  if (!confirm(`确定要删除规则 "${name}" 吗？`)) return
+  if (!await showConfirm({ message: `确定要删除规则 "${name}" 吗？` })) return
   try {
     await autoCleanApi.deleteRule(id)
     await loadRules()
@@ -274,6 +281,23 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.status-msg {
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.status-msg.success {
+  background: #1a3a1a;
+  color: #4caf50;
+  border: 1px solid #2e5e2e;
+}
+.status-msg.error {
+  background: #3a1a1a;
+  color: #f44336;
+  border: 1px solid #5e2e2e;
+}
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -348,7 +372,8 @@ onMounted(() => {
 }
 
 .add-btn {
-  padding: var(--spacing-xs) var(--spacing-md);
+  width: 100%;
+  padding: 8px 16px;
   background: var(--primary-color);
   color: white;
   border: none;

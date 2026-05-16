@@ -91,9 +91,10 @@ const safeChangelog = computed(() => {
   return DOMPurify.sanitize(updateInfo.value.changelog, {
     ALLOWED_TAGS: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'h1', 'h2', 'h3', 'h4', 'code', 'pre'],
     ALLOWED_ATTR: ['href', 'target', 'rel'],
-    // 限制链接只允许 GitHub 域名
-    ALLOWED_URI_REGEXP: /^https?:\/\/(github\.com|api\.github\.com|objects\.githubusercontent\.com)\//i
-  })
+    ALLOWED_URI_REGEXP: /^https?:\/\/(github\.com|api\.github\.com|objects\.githubusercontent\.com)\//i,
+    ADD_ATTR: ['rel', 'target'],
+    FORCE_BODY: true
+  }).replace(/<a /g, '<a rel="noopener noreferrer" target="_blank" ')
 })
 
 // 检查更新

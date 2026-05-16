@@ -180,7 +180,8 @@ export function queryEvents(request: GetEventsRequest): EventLogEntry[] {
         }
 
         // 排序
-        query += ` ORDER BY id ${sortDirection.toUpperCase()}`;
+        const safeSortDir = sortDirection.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+        query += ` ORDER BY id ${safeSortDir}`;
 
         // 分页
         query += ' LIMIT ? OFFSET ?';

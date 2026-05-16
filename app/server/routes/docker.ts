@@ -6,6 +6,7 @@ import { isValidContainerName } from '../utils/validation';
 import { filterSensitiveInfo } from '../utils/filter';
 import { isFilterEnabled } from '../utils/filter';
 import * as sessionService from '../services/session';
+import * as auditService from '../services/audit';
 import config from '../utils/config';
 import { DockerContainer } from '../types';
 
@@ -153,6 +154,7 @@ router.get('/docker/stream', [
 
     const sessionToken = (req.query.token as string) || req.cookies?.session_token;
     if (!sessionToken || !sessionService.validateSession(sessionToken)) {
+        auditService.addAuditLog('auth_failed', { path: req.path, clientIP: clientIp, sseStream: true }, req);
         res.status(401).json({ error: '未认证' });
         return;
     }

@@ -4,6 +4,16 @@ import { RateLimitError } from '../utils/errors';
 import { RateLimitRecord, LoginAttempt } from '../types';
 import config from '../utils/config';
 
+const MAX_ENTRIES = 10000;
+
+function boundedSet<K, V>(map: Map<K, V>, key: K, value: V): void {
+    if (map.size >= MAX_ENTRIES && !map.has(key)) {
+        const firstKey = map.keys().next().value;
+        if (firstKey !== undefined) map.delete(firstKey);
+    }
+    map.set(key, value);
+}
+
 const rateLimitMap = new Map<string, RateLimitRecord>();
 const apiLimitMap = new Map<string, RateLimitRecord>();
 const sensitiveActionMap = new Map<string, RateLimitRecord>();
@@ -21,7 +31,7 @@ export function rateLimit(req: Request, res: Response, next: NextFunction): void
         record.count++;
     }
 
-    rateLimitMap.set(ip, record);
+    boundedSet(rateLimitMap, ip, record);
 
     res.setHeader('X-RateLimit-Limit', String(config.rateLimit.maxRequests));
     res.setHeader('X-RateLimit-Remaining', String(Math.max(0, config.rateLimit.maxRequests - record.count)));
@@ -50,7 +60,7 @@ export function apiRateLimit(maxRequests: number = 180, windowMs: number = 60000
             record.count++;
         }
 
-        apiLimitMap.set(ip, record);
+        boundedSet(apiLimitMap, ip, record);
 
         if (record.count > maxRequests) {
             res.setHeader('Retry-After', String(Math.ceil((record.resetTime - now) / 1000)));
@@ -76,7 +86,7 @@ export function sensitiveActionRateLimit(maxRequests: number = 30, windowMs: num
             record.count++;
         }
 
-        sensitiveActionMap.set(ip, record);
+        boundedSet(sensitiveActionMap, ip, record);
 
         if (record.count > maxRequests) {
             res.setHeader('Retry-After', String(Math.ceil((record.resetTime - now) / 1000)));
@@ -110,7 +120,7 @@ export function recordLoginAttempt(ip: string, success: boolean): void {
     if (attempts.count >= config.login.maxAttempts) {
         attempts.lockoutUntil = Date.now() + config.login.lockoutTime;
     }
-    loginAttemptsMap.set(ip, attempts);
+    boundedSet(loginAttemptsMap, ip, attempts);
 }
 
 export function isLockedOut(ip: string): boolean {

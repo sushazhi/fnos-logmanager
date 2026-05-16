@@ -449,7 +449,7 @@ function toggleTail(): void {
       if (token) {
         headers['X-Session-Token'] = token
       }
-      const csrfToken = sessionStorage.getItem('csrfToken')
+      const csrfToken = sessionStorage.getItem('logmanager_csrf_token')
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken
       }

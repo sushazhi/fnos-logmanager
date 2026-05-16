@@ -263,6 +263,7 @@ router.get('/log/stream', [
 
     const sessionToken = (req.query.token as string) || req.cookies?.session_token;
     if (!sessionToken || !sessionService.validateSession(sessionToken)) {
+        auditService.addAuditLog('auth_failed', { path: req.path, clientIP: clientIp, sseStream: true }, req);
         res.status(401).json({ error: '未认证' });
         return;
     }

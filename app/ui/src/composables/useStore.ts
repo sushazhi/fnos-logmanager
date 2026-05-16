@@ -202,6 +202,7 @@ export function useStore() {
     saveCSRFToken,
     fetchCSRFToken,
     checkForUpdates,
-    clearList
+    clearList,
+    confirm
   }
 }

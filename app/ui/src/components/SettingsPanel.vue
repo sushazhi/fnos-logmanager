@@ -63,8 +63,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import api from '../services/api'
-import { applyThemeColor, adjustColor, hexToHSL, hslToHex } from '../composables/useThemeColor'
-import type { HSL } from '../composables/useThemeColor'
+import { applyThemeColor } from '../composables/useThemeColor'
 
 interface ThemeSettings {
   fontSize: number

@@ -2,8 +2,8 @@
   <div class="section">
     <div class="section-header">
       <h4>通知渠道</h4>
-      <button class="add-btn" @click="$emit('add')">+ 添加渠道</button>
     </div>
+    <button class="add-btn" @click="$emit('add')">+ 添加渠道</button>
     <div class="channel-list" v-if="channels.length > 0">
       <div class="channel-item" v-for="channel in channels" :key="channel.name">
         <div class="channel-info">
@@ -70,12 +70,13 @@ function getChannelTypeName(channel: string): string {
 }
 
 .add-btn {
-  padding: 4px 12px;
+  width: 100%;
+  padding: 8px 16px;
   border: 1px solid var(--primary-color);
   border-radius: 4px;
   background: transparent;
   color: var(--primary-color);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 

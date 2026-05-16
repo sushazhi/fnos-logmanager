@@ -2,8 +2,8 @@
   <div class="section">
     <div class="section-header">
       <h4>通知规则</h4>
-      <button class="add-btn" @click="$emit('add')">+ 添加规则</button>
     </div>
+    <button class="add-btn" @click="$emit('add')">+ 添加规则</button>
     <div class="rule-list" v-if="rules.length > 0">
       <div class="rule-item" v-for="rule in rules" :key="rule.id">
         <div class="rule-info">
@@ -81,12 +81,13 @@ function getLogLevelName(level: string): string {
 }
 
 .add-btn {
-  padding: 4px 12px;
+  width: 100%;
+  padding: 8px 16px;
   border: 1px solid var(--primary-color);
   border-radius: 4px;
   background: transparent;
   color: var(--primary-color);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 

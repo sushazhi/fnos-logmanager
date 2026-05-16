@@ -163,7 +163,7 @@ function listenServer(): void {
         server.listen(SOCKET_PATH, async () => {
             try {
                 const fs = require('fs');
-                fs.chmodSync(SOCKET_PATH, 0o777);
+                fs.chmodSync(SOCKET_PATH, 0o660);
             } catch { /* ignore */ }
             logger.info({ socket: SOCKET_PATH }, '飞牛日志管理服务已启动（网关模式）');
             auditService.addAuditLog('SERVER_START', { mode: 'gateway', socket: SOCKET_PATH }).catch(() => {});

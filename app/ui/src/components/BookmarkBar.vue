@@ -90,10 +90,9 @@ defineExpose({
 })
 </script>
 
-<style>
+<style scoped>
 .bookmark-bar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
@@ -188,6 +187,8 @@ defineExpose({
   justify-content: center;
   width: 28px;
   height: 28px;
+  min-width: 28px;
+  max-width: 28px;
   border: 1px dashed var(--bg-color-4);
   border-radius: var(--radius-xs);
   background: transparent;

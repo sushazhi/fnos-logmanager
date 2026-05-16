@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { LogItem, ListType, LogsResponse, CleanType } from '../types'
 import api, { API_BASE } from '../services/api'
 import { useStatusStore } from './useStatusStore'
+import { safeErrorMessage } from '../utils/request'
 
 export interface LogTab {
   id: string
@@ -50,8 +51,7 @@ export const useLogsStore = defineStore('logs', () => {
       await api.post('/api/settings/filter', { enabled: filterEnabled.value })
       setStatus(filterEnabled.value ? '敏感信息过滤已启用' : '敏感信息过滤已禁用', 'success')
     } catch (e) {
-      const error = e as Error
-      setStatus('设置保存失败: ' + error.message, 'error')
+      setStatus('设置保存失败: ' + safeErrorMessage(e), 'error')
     }
   }
 
@@ -67,8 +67,7 @@ export const useLogsStore = defineStore('logs', () => {
       }))
       setStatus(`找到 ${data.total} 个日志文件`, 'success')
     } catch (e) {
-      const error = e as Error
-      setStatus('列出日志失败: ' + error.message, 'error')
+      setStatus('列出日志失败: ' + safeErrorMessage(e), 'error')
     }
   }
 
@@ -87,8 +86,7 @@ export const useLogsStore = defineStore('logs', () => {
         }))
         setStatus(`找到 ${data.logs.length} 个大日志文件`, 'success')
       } catch (e) {
-        const error = e as Error
-        setStatus('查找失败: ' + error.message, 'error')
+        setStatus('查找失败: ' + safeErrorMessage(e), 'error')
       }
     } else if (type === 'name') {
       setStatus('正在按名称查找日志文件...', 'loading')
@@ -100,8 +98,7 @@ export const useLogsStore = defineStore('logs', () => {
         }))
         setStatus(`找到 ${data.total} 个匹配的日志文件`, 'success')
       } catch (e) {
-        const error = e as Error
-        setStatus('查找失败: ' + error.message, 'error')
+        setStatus('查找失败: ' + safeErrorMessage(e), 'error')
       }
     }
   }
@@ -137,8 +134,7 @@ export const useLogsStore = defineStore('logs', () => {
       showLogModal.value = true
       setStatus('日志加载完成', 'success')
     } catch (e) {
-      const error = e as Error
-      setStatus('加载失败: ' + error.message, 'error')
+      setStatus('加载失败: ' + safeErrorMessage(e), 'error')
     }
   }
 
@@ -159,8 +155,7 @@ export const useLogsStore = defineStore('logs', () => {
       logHasMore.value = data.hasMore || false
       setStatus('日志加载完成', 'success')
     } catch (e) {
-      const error = e as Error
-      setStatus('加载失败: ' + error.message, 'error')
+      setStatus('加载失败: ' + safeErrorMessage(e), 'error')
     }
   }
 
@@ -180,8 +175,7 @@ export const useLogsStore = defineStore('logs', () => {
       setStatus('日志已清空', 'success')
       return true
     } catch (e) {
-      const error = e as Error
-      setStatus('清空失败: ' + error.message, 'error')
+      setStatus('清空失败: ' + safeErrorMessage(e), 'error')
       return false
     }
   }
@@ -203,8 +197,7 @@ export const useLogsStore = defineStore('logs', () => {
       setStatus('日志文件已删除', 'success')
       return true
     } catch (e) {
-      const error = e as Error
-      setStatus('删除失败: ' + error.message, 'error')
+      setStatus('删除失败: ' + safeErrorMessage(e), 'error')
       return false
     }
   }
@@ -222,8 +215,7 @@ export const useLogsStore = defineStore('logs', () => {
       })
       setStatus(`清理完成，共处理 ${data.cleaned} 个文件`, 'success')
     } catch (e) {
-      const error = e as Error
-      setStatus('清理失败: ' + error.message, 'error')
+      setStatus('清理失败: ' + safeErrorMessage(e), 'error')
     }
   }
 
@@ -255,8 +247,7 @@ export const useLogsStore = defineStore('logs', () => {
         setStatus(`清理完成，共删除 ${data.cleaned} 个空文件夹`, 'success')
       }
     } catch (e) {
-      const error = e as Error
-      setStatus('清理失败: ' + error.message, 'error')
+      setStatus('清理失败: ' + safeErrorMessage(e), 'error')
     }
   }
 
@@ -355,8 +346,7 @@ export const useLogsStore = defineStore('logs', () => {
       URL.revokeObjectURL(link.href)
       setStatus('日志导出成功', 'success')
     } catch (e) {
-      const error = e as Error
-      setStatus('导出失败: ' + error.message, 'error')
+      setStatus('导出失败: ' + safeErrorMessage(e), 'error')
     }
   }
 
