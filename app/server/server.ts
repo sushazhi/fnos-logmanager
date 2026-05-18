@@ -59,6 +59,20 @@ const getLogUrl = (req: express.Request) => {
     return req.path;
 };
 
+// 获取客户端 IP：优先代理头，其次 req.ip，最后未知
+const getClientIp = (req: express.Request): string => {
+    const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+    if (forwarded) return forwarded.split(',')[0].trim();
+    const realIp = req.headers['x-real-ip'] as string | undefined;
+    if (realIp) return realIp;
+    // 网关模式（Unix socket）下 req.ip 不可用，尝试 X-Trim-* 头
+    const trimIp = req.headers['x-trim-uid'] as string | undefined;
+    if (trimIp) return trimIp;
+    const ip = req.ip;
+    if (ip) return ip;
+    return '-';
+};
+
 app.set('trust proxy', process.env.TRUSTED_PROXIES ? process.env.TRUSTED_PROXIES.split(',').map(ip => ip.trim()) : ['127.0.0.1', '::1']);
 
 app.use(morgan((tokens, req, res) => {
@@ -67,7 +81,8 @@ app.use(morgan((tokens, req, res) => {
     const referrer = tokens.referrer(req, res) || '-';
     const userAgent = tokens['user-agent'](req, res) || '-';
     const url = getLogUrl(req);
-    return `${tokens['remote-addr'](req, res)} - ${tokens['remote-user'](req, res) || '-'} ${tokens.date(req, res, 'clf')} "${tokens.method(req, res)} ${url} HTTP/${tokens['http-version'](req, res)}" ${status} ${length} "${referrer}" "${userAgent}"`;
+    const ip = getClientIp(req);
+    return `${ip} - ${tokens['remote-user'](req, res) || '-'} ${tokens.date(req, res, 'clf')} "${tokens.method(req, res)} ${url} HTTP/${tokens['http-version'](req, res)}" ${status} ${length} "${referrer}" "${userAgent}"`;
 }, {
     skip: (req, res) => {
         // 跳过 304 Not Modified（缓存轮询请求）
@@ -112,7 +127,6 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 const server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
-    const originalUrl = req.url || '/';
     if (GATEWAY_SOCKET) {
         if (req.url === GATEWAY_PREFIX) {
             res.writeHead(302, { 'Location': GATEWAY_PREFIX + '/' });
@@ -176,13 +190,13 @@ function listenServer(): void {
                 const fs = require('fs');
                 fs.chmodSync(SOCKET_PATH, 0o660);
             } catch { /* ignore */ }
-            logger.info({ socket: SOCKET_PATH }, '飞牛日志管理服务已启动（网关模式）');
+            logger.info({ socket: SOCKET_PATH }, '服务已启动（网关模式）');
             auditService.addAuditLog('SERVER_START', { mode: 'gateway', socket: SOCKET_PATH }).catch(() => {});
             await startServer();
         });
     } else {
         server.listen(config.port, '0.0.0.0', async () => {
-            logger.info({ port: config.port }, '飞牛日志管理服务已启动');
+            logger.info({ port: config.port }, '服务已启动');
             auditService.addAuditLog('SERVER_START', { mode: 'direct', port: config.port }).catch(() => {});
             await startServer();
         });

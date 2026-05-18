@@ -1066,8 +1066,9 @@ function pollCapturedOpenId(name: string): void {
 async function startClawQrLogin(): Promise<void> {
   cancelClawQrLogin()
   clawQrLoading.value = true
-  clawQrCodeUrl.value = ''
-  clawQrCodeId.value = ''
+  // 保留旧二维码直到取到新码，避免刷新时图片消失闪烁
+  const oldUrl = clawQrCodeUrl.value
+  const oldId = clawQrCodeId.value
   clawQrStatus.value = 'waiting'
 
   try {
@@ -1084,6 +1085,9 @@ async function startClawQrLogin(): Promise<void> {
       : (data.qrcodeUrl || data.qrcode || '')
     if (!qrSrc) {
       showAlert('错误', data.message || '获取二维码失败：返回为空', 'error')
+      // 恢复旧二维码，避免图片消失闪烁
+      clawQrCodeUrl.value = oldUrl
+      clawQrCodeId.value = oldId
       clawQrLoading.value = false
       return
     }
@@ -1096,6 +1100,9 @@ async function startClawQrLogin(): Promise<void> {
     // 开始轮询扫码状态
     clawQrTimer.value = setInterval(pollClawQrStatus, 3000)
   } catch (e) {
+    // 恢复旧二维码
+    clawQrCodeUrl.value = oldUrl
+    clawQrCodeId.value = oldId
     clawQrLoading.value = false
     const msg = e instanceof Error ? e.message : '获取二维码失败'
     showAlert('错误', msg, 'error')

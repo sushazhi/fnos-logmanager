@@ -7,7 +7,7 @@ import * as backupService from '../services/backup';
 import * as autoCleanService from '../services/autoClean';
 import * as bookmarkService from '../services/bookmark';
 import * as sessionService from '../services/session';
-import { validateToken, validateCSRF, validate, checkValidation, requireAdmin } from '../middleware/auth';
+import { validateToken, validateCSRF, validate, checkValidation } from '../middleware/auth';
 import { sensitiveActionRateLimit } from '../middleware/rateLimit';
 import { 
     safePath, 
@@ -583,7 +583,7 @@ router.get('/backups/list', validateToken, async (_req: Request, res: Response, 
     }
 });
 
-router.post('/backups/delete', validateToken, requireAdmin, validateCSRF, sensitiveActionRateLimit(5, 300000), [
+router.post('/backups/delete', validateToken, validateCSRF, sensitiveActionRateLimit(5, 300000), [
     body('path').notEmpty().isString().isLength({ max: MAX_PATH_LENGTH })
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -615,7 +615,7 @@ router.post('/backups/delete', validateToken, requireAdmin, validateCSRF, sensit
     }
 });
 
-router.post('/backups/clean', validateToken, requireAdmin, validateCSRF, sensitiveActionRateLimit(3, 300000), [
+router.post('/backups/clean', validateToken, validateCSRF, sensitiveActionRateLimit(3, 300000), [
     body('days').optional().isInt({ min: 1, max: 365 })
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -714,7 +714,7 @@ router.get('/audit/log', validateToken, async (_req: Request, res: Response) => 
     res.json({ logs });
 });
 
-router.post('/dirs/clean-empty', validateToken, requireAdmin, validateCSRF, sensitiveActionRateLimit(3, 300000), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/dirs/clean-empty', validateToken, validateCSRF, sensitiveActionRateLimit(3, 300000), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const result = await logFileService.cleanEmptyAppDirs();
         auditService.addAuditLog('dirs_clean_empty', {

@@ -13,6 +13,7 @@ const logger = Logger.child({ module: 'EventLoggerDb' });
 let SQL: any = null;
 let db: SqlJsDatabase | null = null;
 let dbPath: string = '';
+let lastFileStat: { size: number; mtimeMs: number } | null = null;
 
 const VALID_TABLE_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
@@ -38,9 +39,11 @@ export function loadDatabase(path: string): SqlJsDatabase | null {
     try {
         if (!fs.existsSync(path)) {
             logger.warn({ path }, 'Database file not found');
+            lastFileStat = null;
             return null;
         }
 
+        const fileStat = fs.statSync(path);
         const fileBuffer = fs.readFileSync(path);
         if (!SQL) {
             logger.error('SQL.js not initialized');
@@ -48,12 +51,42 @@ export function loadDatabase(path: string): SqlJsDatabase | null {
         }
 
         db = new SQL.Database(fileBuffer);
-        logger.info({ path }, 'Database loaded');
+        lastFileStat = { size: fileStat.size, mtimeMs: fileStat.mtimeMs };
+        logger.info({ path, size: fileStat.size, mtime: fileStat.mtimeMs }, 'Database loaded');
         return db;
     } catch (err) {
         logger.error({ err, path }, 'Failed to load database');
+        lastFileStat = null;
         return null;
     }
+}
+
+/**
+ * 检测 DB 文件是否已在磁盘上发生变化（轮转/清空/更新）
+ */
+export function isDbFileChanged(): boolean {
+    if (!dbPath || !lastFileStat) return false;
+    try {
+        if (!fs.existsSync(dbPath)) {
+            return true;
+        }
+        const stat = fs.statSync(dbPath);
+        return stat.size !== lastFileStat.size || stat.mtimeMs !== lastFileStat.mtimeMs;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * 重新加载 DB 文件（关闭旧连接，重新读取磁盘文件）
+ */
+export function reloadDatabase(): boolean {
+    if (!dbPath) return false;
+    logger.info({ path: dbPath }, 'Reloading database from disk');
+    closeDb();
+    // initSql 必须已初始化
+    const newDb = loadDatabase(dbPath);
+    return newDb !== null;
 }
 
 export function closeDb(): void {

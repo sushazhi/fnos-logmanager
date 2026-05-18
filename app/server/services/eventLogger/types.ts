@@ -37,9 +37,6 @@ export interface EventLogEntry {
 
 export interface EventLoggerStats {
     totalEvents: number;
-    eventsBySeverity: Record<EventSeverity, number>;
-    eventsBySource: Record<string, number>;
-    eventsByTemplate: Record<string, number>;
     recentEvents: EventLogEntry[];
 }
 
@@ -50,13 +47,15 @@ export interface EventLoggerNotificationRule {
     eventTypes?: string[];
     templates?: string[];
     sources?: string[];
+    excludeSources?: string[];
+    severity?: EventSeverity;
     minSeverity?: EventSeverity;
     keywords?: string[];
     excludeKeywords?: string[];
     cooldown?: number;
     quietHoursStart?: string;
     quietHoursEnd?: string;
-    channels?: string[];
+    channels: string[];
     createdAt: Date;
     updatedAt: Date;
 }

@@ -113,7 +113,7 @@ const config: AppConfig = {
 };
 
 config.passwordFile = path.join(config.dataDir, 'config', '.password');
-config.auditLogFile = path.join(config.dataDir, 'config', 'audit.log');
+config.auditLogFile = path.join(config.dataDir, 'audit.log');
 config.initTimestampFile = path.join(config.dataDir, 'config', '.init-time');
 
 const configFile = path.join(config.dataDir, 'config', 'config.json');

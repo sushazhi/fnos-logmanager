@@ -37,24 +37,6 @@ export function getGatewayUser(req: Request): { uid: string; isAdmin: boolean; u
     };
 }
 
-export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-    const isGatewayMode = !!process.env.GATEWAY_SOCKET;
-    if (isGatewayMode) {
-        const gatewayUser = getGatewayUser(req);
-        if (!gatewayUser || !gatewayUser.isAdmin) {
-            res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: '需要管理员权限' } });
-            return;
-        }
-    } else {
-        const token = getSessionToken(req);
-        if (!token || !sessionService.validateSession(token)) {
-            res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: '需要管理员权限' } });
-            return;
-        }
-    }
-    next();
-}
-
 export function validateToken(req: Request, res: Response, next: NextFunction): void {
     const clientIP = getClientIP(req);
 

@@ -7,6 +7,12 @@
       </div>
       
       <div class="panel-body">
+        <!-- 错误提示 -->
+        <div class="error-banner" v-if="errorMessage">
+          <span class="error-text">{{ errorMessage }}</span>
+          <button class="error-dismiss" @click="errorMessage = null">×</button>
+        </div>
+
         <!-- 状态显示 -->
         <div class="status-card" :class="{ active: status?.isRunning, error: status?.lastError }">
           <div class="status-icon">
@@ -17,10 +23,13 @@
             <div class="status-title">
               {{ status?.isRunning ? '监控中' : '已停止' }}
             </div>
-            <div class="status-detail" v-if="status?.dbAccessible">
-              数据库: {{ status?.dbPath }}
+            <div class="status-detail">
+              数据库: <code>{{ status?.dbPath || '未设置' }}</code>
+              <span :class="status?.dbAccessible ? 'db-ok' : 'db-err'">
+                {{ status?.dbAccessible ? '✓ 可访问' : '✗ 不可访问' }}
+              </span>
             </div>
-            <div class="status-error" v-else-if="status?.lastError">
+            <div class="status-error" v-if="status?.lastError">
               {{ status.lastError }}
             </div>
             <div class="status-detail" v-if="status && status.totalEventsProcessed && status.totalEventsProcessed > 0">
@@ -99,10 +108,6 @@
               <span class="stat-value">{{ stats.totalEvents }}</span>
               <span class="stat-label">总事件数</span>
             </div>
-            <div class="stat-item" v-for="(count, severity) in stats.eventsBySeverity" :key="severity">
-              <span class="stat-value">{{ count }}</span>
-              <span class="stat-label">{{ formatSeverity(severity) }}</span>
-            </div>
           </div>
         </div>
 
@@ -134,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { 
   eventLoggerApi, 
   type EventLoggerConfig, 
@@ -148,7 +153,9 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(false)
+const errorMessage = ref<string | null>(null)
 const status = ref<EventLoggerStatus | null>(null)
+let refreshTimer: ReturnType<typeof setInterval> | null = null
 const config = ref<EventLoggerConfig>({
   dbPath: '/usr/trim/var/eventlogger_service/logger_data.db3',
   enabled: false,
@@ -200,8 +207,8 @@ function formatTime(timestamp: string): string {
   return formatted
 }
 
-async function loadData() {
-  loading.value = true
+async function refreshData() {
+  errorMessage.value = null
   try {
     const [statusData, configData, statsData, eventsData] = await Promise.all([
       eventLoggerApi.getStatus(),
@@ -218,11 +225,17 @@ async function loadData() {
     }
     stats.value = statsData
     events.value = eventsData.events
-  } catch (e) {
+  } catch (e: any) {
+    const msg = e?.response?.data?.error || e?.message || '加载数据失败'
+    errorMessage.value = msg
     console.error('Failed to load event logger data:', e)
-  } finally {
-    loading.value = false
   }
+}
+
+async function loadData() {
+  loading.value = true
+  await refreshData()
+  loading.value = false
 }
 
 async function saveConfig() {
@@ -244,10 +257,13 @@ async function saveConfig() {
 
 async function startMonitor() {
   loading.value = true
+  errorMessage.value = null
   try {
     await eventLoggerApi.start()
     await loadData()
-  } catch (e) {
+  } catch (e: any) {
+    const msg = e?.response?.data?.error || e?.message || '启动监控失败'
+    errorMessage.value = msg
     console.error('Failed to start:', e)
   } finally {
     loading.value = false
@@ -256,10 +272,13 @@ async function startMonitor() {
 
 async function stopMonitor() {
   loading.value = true
+  errorMessage.value = null
   try {
     await eventLoggerApi.stop()
     await loadData()
-  } catch (e) {
+  } catch (e: any) {
+    const msg = e?.response?.data?.error || e?.message || '停止监控失败'
+    errorMessage.value = msg
     console.error('Failed to stop:', e)
   } finally {
     loading.value = false
@@ -268,18 +287,41 @@ async function stopMonitor() {
 
 async function forceCheck() {
   loading.value = true
+  errorMessage.value = null
   try {
     await eventLoggerApi.check()
     await loadData()
-  } catch (e) {
+  } catch (e: any) {
+    const msg = e?.response?.data?.error || e?.message || '立即检查失败'
+    errorMessage.value = msg
     console.error('Failed to check:', e)
   } finally {
     loading.value = false
   }
 }
 
+function startRefreshTimer() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+  // 使用 UI 中设置的检查间隔（秒）作为刷新周期
+  // 定时刷新使用 refreshData（不设 loading，避免按钮闪烁）
+  const intervalMs = (config.value.checkInterval || 30) * 1000
+  refreshTimer = setInterval(() => {
+    refreshData()
+  }, intervalMs)
+}
+
 onMounted(() => {
-  loadData()
+  loadData().then(() => startRefreshTimer())
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
 })
 </script>
 
@@ -345,6 +387,38 @@ onMounted(() => {
   flex: 1;
 }
 
+.error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--error-bg, #fef2f2);
+  border: 1px solid var(--error-color, #ef4444);
+  border-radius: var(--radius-xs);
+  margin-bottom: var(--spacing-md);
+}
+
+.error-text {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--error-color, #ef4444);
+  word-break: break-word;
+}
+
+.error-dismiss {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--text-color-3);
+  padding: 0;
+  line-height: 1;
+}
+
+.error-dismiss:hover {
+  color: var(--text-color-1);
+}
+
 .status-card {
   display: flex;
   align-items: flex-start;
@@ -388,6 +462,25 @@ onMounted(() => {
   color: var(--text-color-2);
   word-break: break-all;
   line-height: 1.4;
+}
+
+.status-detail code {
+  font-size: inherit;
+  background: var(--bg-color-3);
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.db-ok {
+  color: var(--success-color, #22c55e);
+  margin-left: 4px;
+  font-size: 0.75rem;
+}
+
+.db-err {
+  color: var(--error-color, #ef4444);
+  margin-left: 4px;
+  font-size: 0.75rem;
 }
 
 .status-error {

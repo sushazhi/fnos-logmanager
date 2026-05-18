@@ -259,13 +259,6 @@ export interface EventLogEntry {
 
 export interface EventLoggerStats {
   totalEvents: number
-  eventsBySeverity: Record<string, number>
-  eventsBySource: Record<string, number>
-  eventsByType: Record<string, number>
-  timeRange: {
-    earliest: string | null
-    latest: string | null
-  }
 }
 
 export const eventLoggerApi = {

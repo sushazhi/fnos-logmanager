@@ -55,7 +55,9 @@ function matchesLogLevel(line: string, level: string): boolean {
     if (level === 'all') return true;
     const patterns = LOG_LEVEL_PATTERNS[level];
     if (!patterns) return true;
-    return patterns.some(pattern => pattern.test(line));
+    const result = patterns.some(pattern => pattern.test(line));
+    logger.debug({ line: line.substring(0, 80), level, result }, 'matchesLogLevel');
+    return result;
 }
 
 // 匹配关键词（支持正则表达式）
@@ -67,9 +69,13 @@ function matchKeyword(line: string, keyword: string): boolean {
     if (slashMatch) {
         try {
             const regex = new RegExp(slashMatch[1], slashMatch[2] || 'i');
-            return regex.test(line);
+            const result = regex.test(line);
+            logger.debug({ keyword, pattern: slashMatch[1], flags: slashMatch[2], line: line.substring(0, 100), result }, 'matchKeyword regex slash');
+            return result;
         } catch {
-            return line.toLowerCase().includes(keyword.toLowerCase());
+            const fallback = line.toLowerCase().includes(keyword.toLowerCase());
+            logger.debug({ keyword, line: line.substring(0, 100), result: fallback }, 'matchKeyword slash fallback');
+            return fallback;
         }
     }
     
@@ -78,24 +84,29 @@ function matchKeyword(line: string, keyword: string): boolean {
         const pattern = keyword.substring(6);
         try {
             const regex = new RegExp(pattern, 'i');
-            return regex.test(line);
+            const result = regex.test(line);
+            logger.debug({ keyword, pattern, line: line.substring(0, 100), result }, 'matchKeyword regex prefix');
+            return result;
         } catch {
-            return line.toLowerCase().includes(keyword.toLowerCase());
+            const fallback = line.toLowerCase().includes(keyword.toLowerCase());
+            logger.debug({ keyword, line: line.substring(0, 100), result: fallback }, 'matchKeyword regex fallback');
+            return fallback;
         }
     }
     
     // 普通文本匹配
-    return line.toLowerCase().includes(keyword.toLowerCase());
+    const lineLower = line.toLowerCase();
+    const keywordLower = keyword.toLowerCase();
+    const result = lineLower.includes(keywordLower);
+    logger.debug({ keyword, line: line.substring(0, 100), result }, 'matchKeyword plain');
+    return result;
 }
 
 // 检查日志行是否匹配规则
 function matchesRule(line: string, rule: any): boolean {
-    // 检查日志级别
-    if (!matchesLogLevel(line, rule.logLevel)) {
-        return false;
-    }
-    
-    // 检查排除关键词
+    logger.debug({ ruleName: rule.name, line: line.substring(0, 100), logLevel: rule.logLevel, keywords: rule.keywords, pattern: rule.pattern }, 'matchesRule check');
+
+    // 排除关键词优先检查（匹配任何排除关键词则直接跳过）
     if (rule.excludeKeywords && rule.excludeKeywords.length > 0) {
         for (const keyword of rule.excludeKeywords) {
             if (matchKeyword(line, keyword)) {
@@ -104,37 +115,59 @@ function matchesRule(line: string, rule: any): boolean {
         }
     }
     
-    // 检查关键词匹配
-    if (rule.keywords && rule.keywords.length > 0) {
-        let matched = false;
-        for (const keyword of rule.keywords) {
-            if (matchKeyword(line, keyword)) {
-                matched = true;
-                break;
-            }
-        }
-        if (!matched) return false;
-    }
+    // 有关键词或正则时，以用户关键匹配为准，跳过不可靠的文本级别检测
+    const keywords = rule.keywords;
+    const pattern = rule.pattern;
+    const hasKeywords = !!(keywords && keywords.length > 0);
+    const hasPattern = !!pattern;
     
-    // 检查正则表达式
-    if (rule.pattern) {
-        try {
-            const regex = new RegExp(rule.pattern, 'i');
-            if (!regex.test(line)) {
+    if (hasKeywords || hasPattern) {
+        // 检查关键词匹配
+        if (hasKeywords && keywords) {
+            let matched = false;
+            for (const keyword of keywords) {
+                if (matchKeyword(line, keyword)) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                logger.debug({ ruleName: rule.name, keywords, line: line.substring(0, 100) }, 'matchesRule FAIL: no keyword matched');
                 return false;
             }
-        } catch {
-            // 正则无效，忽略
         }
+        
+        // 检查正则表达式
+        if (hasPattern && pattern) {
+            try {
+                const regex = new RegExp(pattern, 'i');
+                if (!regex.test(line)) {
+                    logger.debug({ ruleName: rule.name, pattern, line: line.substring(0, 100) }, 'matchesRule FAIL: pattern not match');
+                    return false;
+                }
+            } catch (e) {
+                logger.warn({ ruleName: rule.name, pattern, err: e }, 'matchesRule: invalid regex pattern');
+            }
+        }
+        
+        logger.debug({ ruleName: rule.name, line: line.substring(0, 100) }, 'matchesRule PASS');
+        return true;
     }
     
+    // 无关键词也无正则，只用级别文本匹配
+    if (!matchesLogLevel(line, rule.logLevel)) {
+        logger.debug({ ruleName: rule.name, logLevel: rule.logLevel, line: line.substring(0, 100) }, 'matchesRule FAIL: log level not match');
+        return false;
+    }
+    
+    logger.debug({ ruleName: rule.name, logLevel: rule.logLevel, line: line.substring(0, 100) }, 'matchesRule PASS (level only)');
     return true;
 }
 
 // 检查应用名称是否匹配
 function matchesAppName(appName: string, pattern: string): boolean {
-    if (!appName) return false;
     if (pattern === '*') return true;
+    if (!appName) return false;
     
     // 支持 /pattern/flags 格式的正则表达式
     const slashMatch = pattern.match(/^\/(.+)\/([gimsuvy]*)$/);
@@ -206,7 +239,10 @@ async function getNewContent(filePath: string, lastSize: number): Promise<{ cont
 // 处理日志文件
 async function processLogFile(filePath: string, appName: string | null): Promise<void> {
     const fileInfo = watchedFiles.get(filePath);
-    if (!fileInfo) return;
+    if (!fileInfo) {
+        logger.debug({ file: filePath }, 'processLogFile: file not in watchedFiles');
+        return;
+    }
     
     // 获取新增内容
     const result = await getNewContent(filePath, fileInfo.lastSize);
@@ -228,28 +264,41 @@ async function processLogFile(filePath: string, appName: string | null): Promise
     
     // 按行处理
     const lines = result.content.split('\n');
+    logger.debug({ file: filePath, appName, lineCount: lines.length, newBytes: result.content.length }, 'processLogFile: new content');
     for (const line of lines) {
         if (!line.trim()) continue;
         
         // 检查每条规则
         for (const rule of activeRules) {
             // 检查应用名称匹配
-            if (!matchesAppName(appName || '', rule.appName)) continue;
+            if (!matchesAppName(appName || '', rule.appName)) {
+                logger.debug({ rule: rule.name, ruleAppName: rule.appName, fileAppName: appName, file: filePath }, 'processLogFile: appName not match');
+                continue;
+            }
             
             // 检查日志路径（如果规则指定了路径）
             if (rule.logPaths && rule.logPaths.length > 0) {
                 const pathMatch = rule.logPaths.some((p: string) => filePath === p || filePath.startsWith(p));
-                if (!pathMatch) continue;
+                if (!pathMatch) {
+                    logger.debug({ rule: rule.name, logPaths: rule.logPaths, file: filePath }, 'processLogFile: logPath not match');
+                    continue;
+                }
             }
             
             // 检查是否匹配规则
             if (!matchesRule(line, rule)) continue;
             
             // 检查频率控制
-            if (!notificationStore.canSendNotification(rule)) continue;
+            if (!notificationStore.canSendNotification(rule)) {
+                logger.debug({ rule: rule.name }, 'processLogFile: cooldown active');
+                continue;
+            }
             
             // 检查静默时段
-            if (notificationStore.isInQuietHours(rule)) continue;
+            if (notificationStore.isInQuietHours(rule)) {
+                logger.debug({ rule: rule.name }, 'processLogFile: quiet hours');
+                continue;
+            }
             
             // 发送通知
             try {
@@ -495,12 +544,7 @@ export async function testRuleMatch(ruleId: string, testContent: string): Promis
     for (const line of lines) {
         if (!line.trim()) continue;
         
-        // 检查日志级别
-        if (!matchesLogLevel(line, rule.logLevel)) {
-            continue;
-        }
-        
-        // 检查排除关键词
+        // 排除关键词优先检查
         if (rule.excludeKeywords && rule.excludeKeywords.length > 0) {
             let excluded = false;
             for (const keyword of rule.excludeKeywords) {
@@ -512,28 +556,46 @@ export async function testRuleMatch(ruleId: string, testContent: string): Promis
             if (excluded) continue;
         }
         
-        // 检查关键词匹配
-        if (rule.keywords && rule.keywords.length > 0) {
-            let matched = false;
-            for (const keyword of rule.keywords) {
-                if (matchKeyword(line, keyword)) {
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) continue;
-        }
+        const keywords = rule.keywords;
+        const pattern = rule.pattern;
+        const hasKeywords = !!(keywords && keywords.length > 0);
+        const hasPattern = !!pattern;
         
-        // 检查正则表达式
-        if (rule.pattern) {
-            try {
-                const regex = new RegExp(rule.pattern, 'i');
-                if (!regex.test(line)) {
+        if (hasKeywords || hasPattern) {
+            // 有关键词或正则时，级别检查仅作为参考，不阻断匹配
+            // 检查关键词匹配
+            if (hasKeywords && keywords) {
+                let matched = false;
+                for (const keyword of keywords) {
+                    if (matchKeyword(line, keyword)) {
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) continue;
+            }
+            
+            // 检查正则表达式
+            if (hasPattern && pattern) {
+                try {
+                    const regex = new RegExp(pattern, 'i');
+                    if (!regex.test(line)) {
+                        continue;
+                    }
+                } catch {
                     continue;
                 }
-            } catch {
-                continue;
             }
+            
+            return {
+                matched: true,
+                reason: `匹配行: "${line.substring(0, 100)}${line.length > 100 ? '...' : ''}"`
+            };
+        }
+        
+        // 无关键词也无正则，只用级别文本匹配
+        if (!matchesLogLevel(line, rule.logLevel)) {
+            continue;
         }
         
         return {
