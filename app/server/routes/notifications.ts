@@ -5,12 +5,17 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { query, body, param } from 'express-validator';
 import crypto from 'crypto';
+import QRCode from 'qrcode';
+import Logger from '../utils/logger';
 import * as notificationStore from '../services/notificationStore';
+
+const logger = Logger.child({ module: 'NotificationsRoute' });
 import * as notificationService from '../services/notification';
 import * as logMonitor from '../services/logMonitor';
 import { validateToken, validateCSRF } from '../middleware/auth';
 import { sensitiveActionRateLimit, apiRateLimit } from '../middleware/rateLimit';
 import { handleQQBotEvent, getCapturedOpenIds, startQQBotListener, stopQQBotListener } from '../notify/channels/qqbot';
+import { getQRCode as getWechatClawQRCode, checkQRCodeStatus as checkWechatClawQRCodeStatus, getCapturedCredentials as getWechatClawCredentials, setLastInteractedUser as setWechatClawLastUser, getUpdates as getWechatClawUpdates } from '../notify/channels/wechatClawBot';
 import { getConfig } from '../notify/config';
 import {
     NotificationChannelConfig,
@@ -101,7 +106,7 @@ router.get('/channels/types', validateToken, apiRateLimit(120, 60000), (_req: Re
     const types: NotificationChannel[] = [
         'bark', 'dingtalk', 'feishu', 'feishu_app', 'wecom', 'wecom_app', 'wechat_bot',
         'telegram', 'serverchan', 'pushplus',
-        'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot'
+        'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot', 'wechat_claw'
     ];
 
     const typeInfo = types.map(type => ({
@@ -131,7 +136,7 @@ router.post('/channels', validateToken, validateCSRF, sensitiveActionRateLimit(1
         const validChannels: NotificationChannel[] = [
             'bark', 'dingtalk', 'feishu', 'feishu_app', 'wecom', 'wecom_app', 'wechat_bot',
             'telegram', 'serverchan', 'pushplus',
-            'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot'
+            'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot', 'wechat_claw'
         ];
 
         if (!validChannels.includes(channel)) {
@@ -153,6 +158,7 @@ router.post('/channels', validateToken, validateCSRF, sensitiveActionRateLimit(1
             'GOTIFY_URL', 'GOTIFY_TOKEN', 'GOTIFY_PRIORITY',
             'PUSHDEER_KEY', 'PUSHDEER_URL',
             'QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_OPENID', 'QQ_GROUP_OPENID',
+            'WECHAT_CLAWBOT_BOT_TOKEN', 'WECHAT_CLAWBOT_BASE_URL', 'WECHAT_CLAWBOT_TO_USER', 'WECHAT_CLAWBOT_ACCOUNT_ID',
         ]);
         const filteredConfig: Record<string, string> = {};
         for (const [key, value] of Object.entries(config)) {
@@ -182,7 +188,7 @@ router.put('/channels/:name', validateToken, validateCSRF, sensitiveActionRateLi
     param('name').isString().isLength({ max: 100 }).withMessage('渠道名称无效')
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const channelName = req.params.name;
+        const channelName = req.params.name as string;
         const updates = req.body;
 
         await notificationStore.updateChannel(channelName, updates);
@@ -200,7 +206,7 @@ router.delete('/channels/:name', validateToken, validateCSRF, sensitiveActionRat
     param('name').isString().isLength({ max: 100 }).withMessage('渠道名称无效')
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const channelName = req.params.name;
+        const channelName = req.params.name as string;
         await notificationStore.deleteChannel(channelName);
         res.json({ success: true });
     } catch (err) {
@@ -215,7 +221,7 @@ router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveAction
     param('name').isString().isLength({ max: 100 }).withMessage('渠道名称无效')
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const channelName = req.params.name;
+        const channelName = req.params.name as string;
         const channel = notificationStore.getChannel(channelName);
 
         if (!channel) {
@@ -259,6 +265,26 @@ router.post('/channels/:name/test', validateToken, validateCSRF, sensitiveAction
             }
         }
 
+        // 微信 ClawBot 特殊处理：未配 toUser 时只验证凭证
+        if (channel.channel === 'wechat_claw') {
+            const toUser = (channel as any).wechatClawToUser || '';
+            const captured = getWechatClawCredentials();
+            if (!toUser) {
+                if (captured.botToken || (channel as any).wechatClawBotToken) {
+                    res.json({ result: { success: true, message: '凭证已就绪，请填写发送目标（用户ID）后再次测试' } });
+                } else {
+                    res.json({ result: { success: false, message: 'Bot Token 未配置，请先扫码登录' } });
+                }
+                return;
+            }
+            const result = await notificationService.testChannel(channel);
+            if (result.success) {
+                setWechatClawLastUser(toUser);
+            }
+            res.json({ result });
+            return;
+        }
+
         const result = await notificationService.testChannel(channel);
         res.json({ result });
     } catch (err) {
@@ -281,7 +307,7 @@ router.get('/rules', validateToken, apiRateLimit(120, 60000), (_req: Request, re
  */
 router.get('/rules/:id', validateToken, apiRateLimit(120, 60000), async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const ruleId = req.params.id;
+        const ruleId = req.params.id as string;
         const rule = notificationStore.getRule(ruleId);
 
         if (!rule) {
@@ -359,7 +385,7 @@ router.put('/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimit(1
     param('id').isString().isLength({ max: 100 }).withMessage('规则ID无效')
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const ruleId = req.params.id;
+        const ruleId = req.params.id as string;
         const updates = req.body;
 
         // 验证渠道是否存在
@@ -392,7 +418,7 @@ router.delete('/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimi
     param('id').isString().isLength({ max: 100 }).withMessage('规则ID无效')
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const ruleId = req.params.id;
+        const ruleId = req.params.id as string;
         await notificationStore.deleteRule(ruleId);
         res.json({ success: true });
     } catch (err) {
@@ -405,7 +431,7 @@ router.delete('/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimi
  */
 router.post('/rules/:id/toggle', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const ruleId = req.params.id;
+        const ruleId = req.params.id as string;
         const rule = notificationStore.getRule(ruleId);
 
         if (!rule) {
@@ -427,7 +453,7 @@ router.post('/rules/:id/toggle', validateToken, validateCSRF, async (req: Reques
  */
 router.post('/rules/:id/test', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const ruleId = req.params.id;
+        const ruleId = req.params.id as string;
         const { content } = req.body;
 
         if (!content) {
@@ -551,6 +577,94 @@ router.post('/qqbot/listen/start', validateToken, validateCSRF, async (_req: Req
 router.post('/qqbot/listen/stop', validateToken, validateCSRF, (_req: Request, res: Response) => {
     stopQQBotListener();
     res.json({ success: true, message: '监听已停止' });
+});
+
+// ==================== 微信 ClawBot 二维码登录 ====================
+
+/**
+ * 获取微信 ClawBot 二维码
+ * - 若 API 直接返回了图片（data:image/...），提取 base64 返回
+ * - 否则将登录链接编码为 QR 码图片
+ */
+router.get('/wechat-claw/qrcode', validateToken, apiRateLimit(30, 60000), async (_req: Request, res: Response) => {
+    try {
+        const result = await getWechatClawQRCode();
+        if (result.success && result.qrcodeUrl) {
+            // 情况 1：API 已返回 data URL（裸 base64 已被 normalize 补齐前缀）
+            if (result.qrcodeUrl.startsWith('data:image/')) {
+                const rawBase64 = result.qrcodeUrl.replace(/^data:image\/png;base64,/, '');
+                res.json({ ...result, qrcodeBase64: rawBase64 });
+                return;
+            }
+            // 情况 2：URL（登录链接），编码为 QR 图片
+            try {
+                const base64 = await QRCode.toDataURL(result.qrcodeUrl, {
+                    width: 280,
+                    margin: 2,
+                    color: { dark: '#000000', light: '#ffffff' }
+                });
+                const rawBase64 = base64.replace(/^data:image\/png;base64,/, '');
+                res.json({ ...result, qrcodeBase64: rawBase64 });
+                return;
+            } catch (qrErr) {
+                logger.error({ err: (qrErr as Error).message }, '生成二维码图片失败');
+            }
+        } else if (result.success && result.qrcode) {
+            // 情况 3：只有 qrcode ID，用其编码
+            try {
+                const base64 = await QRCode.toDataURL(result.qrcode, {
+                    width: 280,
+                    margin: 2,
+                    color: { dark: '#000000', light: '#ffffff' }
+                });
+                const rawBase64 = base64.replace(/^data:image\/png;base64,/, '');
+                res.json({ ...result, qrcodeBase64: rawBase64 });
+                return;
+            } catch (qrErr) {
+                logger.error({ err: (qrErr as Error).message }, '生成二维码图片失败');
+            }
+        }
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ success: false, message: (err as Error).message });
+    }
+});
+
+/**
+ * 查询二维码扫描状态
+ */
+router.get('/wechat-claw/status', validateToken, apiRateLimit(60, 60000), async (req: Request, res: Response) => {
+    try {
+        const qrcode = req.query.qrcode as string;
+        if (!qrcode) {
+            res.status(400).json({ success: false, message: '缺少 qrcode 参数' });
+            return;
+        }
+        const result = await checkWechatClawQRCodeStatus(qrcode);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ success: false, message: (err as Error).message });
+    }
+});
+
+/**
+ * 获取已捕获的 ClawBot 凭证
+ */
+router.get('/wechat-claw/captured', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
+    res.json(getWechatClawCredentials());
+});
+
+/**
+ * 获取未读消息（用于获取扫码用户的 ID）
+ * 扫码后在微信里给机器人发条消息，然后调用此接口提取你的微信号
+ */
+router.get('/wechat-claw/updates', validateToken, async (_req: Request, res: Response) => {
+    try {
+        const result = await getWechatClawUpdates();
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ success: false, messages: [], message: (err as Error).message });
+    }
 });
 
 export default router;

@@ -794,7 +794,7 @@ router.post('/auto-clean/rules', validateToken, validateCSRF, sensitiveActionRat
 
 router.put('/auto-clean/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const updates = req.body;
 
         if (updates.type && !['truncateLarge', 'deleteOld', 'deleteUninstalled'].includes(updates.type)) {
@@ -832,7 +832,7 @@ router.put('/auto-clean/rules/:id', validateToken, validateCSRF, sensitiveAction
 
 router.delete('/auto-clean/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const deleted = await autoCleanService.deleteRule(id);
         if (!deleted) {
             res.status(404).json({ error: '规则不存在' });
@@ -848,7 +848,7 @@ router.delete('/auto-clean/rules/:id', validateToken, validateCSRF, sensitiveAct
 
 router.post('/auto-clean/rules/:id/toggle', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const rule = await autoCleanService.toggleRule(id);
         if (!rule) {
             res.status(404).json({ error: '规则不存在' });
@@ -864,7 +864,7 @@ router.post('/auto-clean/rules/:id/toggle', validateToken, validateCSRF, sensiti
 
 router.post('/auto-clean/rules/:id/execute', validateToken, validateCSRF, sensitiveActionRateLimit(5, 300000), async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const result = await autoCleanService.executeRuleNow(id);
         if (!result) {
             res.status(404).json({ error: '规则不存在' });
@@ -924,7 +924,7 @@ router.post('/bookmarks', validateToken, validateCSRF, async (req: Request, res:
 
 router.delete('/bookmarks/:id', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const deleted = await bookmarkService.deleteBookmark(id);
         if (!deleted) {
             res.status(404).json({ error: '书签不存在' });
@@ -939,7 +939,7 @@ router.delete('/bookmarks/:id', validateToken, validateCSRF, async (req: Request
 
 router.put('/bookmarks/:id', validateToken, validateCSRF, async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const { name } = req.body;
 
         if (!name || typeof name !== 'string') {

@@ -148,6 +148,7 @@
 | WxPusher | 微信推送 |
 | AIBotK | 智能机器人 |
 | WePlusBot | 机器人 |
+| 微信 ClawBot | 微信个人号机器人（iLink 协议，扫码登录） |
 
 ## 安装
 

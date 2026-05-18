@@ -129,6 +129,12 @@ export interface ChannelConfig {
     QQ_APP_SECRET?: string;
     QQ_OPENID?: string;
     QQ_GROUP_OPENID?: string;
+
+    // 微信 ClawBot（iLink 协议）
+    WECHAT_CLAWBOT_BOT_TOKEN?: string;
+    WECHAT_CLAWBOT_BASE_URL?: string;
+    WECHAT_CLAWBOT_TO_USER?: string;
+    WECHAT_CLAWBOT_ACCOUNT_ID?: string;
 }
 
 export interface HttpRequestOptions {

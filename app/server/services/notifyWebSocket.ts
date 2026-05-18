@@ -39,6 +39,10 @@ export function initNotifyWebSocket(server: Server): void {
         server,
         path: '/api/notifications/ws',
         verifyClient: (info, callback) => {
+            if (process.env.GATEWAY_SOCKET) {
+                callback(true);
+                return;
+            }
             const token = getSessionTokenFromRequest(info.req);
             if (!token || !sessionService.validateSession(token)) {
                 logger.warn('NotifyWS connection rejected: invalid or missing session token');
@@ -47,7 +51,7 @@ export function initNotifyWebSocket(server: Server): void {
             }
 
             const origin = info.req.headers.origin || '';
-            if (origin) {
+            if (origin && !process.env.GATEWAY_SOCKET) {
                 const host = info.req.headers.host || '';
                 try {
                     const originHost = new URL(origin).host;

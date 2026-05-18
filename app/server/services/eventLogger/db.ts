@@ -1,10 +1,12 @@
 /**
  * EventLogger 数据库操作
+ * 动态发现表名和列名，适配飞牛 eventlogger 数据库
  */
 import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 import fs from 'fs';
 import Logger from '../../utils/logger';
 import { EventLogEntry, GetEventsRequest, EventSeverity, SEVERITY_ORDER } from './types';
+import { parseEventRow } from './eventParser';
 
 const logger = Logger.child({ module: 'EventLoggerDb' });
 
@@ -12,18 +14,24 @@ let SQL: any = null;
 let db: SqlJsDatabase | null = null;
 let dbPath: string = '';
 
-/**
- * 初始化 SQL.js
- */
+const VALID_TABLE_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+interface TableSchema {
+    tableName: string;
+    idCol: string | undefined;
+    timestampCol: string | undefined;
+    sourceCol: string | undefined;
+    messageCol: string | undefined;
+    severityCol: string | undefined;
+    typeCol: string | undefined;
+}
+
 async function initSql(): Promise<void> {
     if (!SQL) {
         SQL = await initSqlJs();
     }
 }
 
-/**
- * 加载数据库
- */
 export function loadDatabase(path: string): SqlJsDatabase | null {
     dbPath = path;
 
@@ -48,9 +56,6 @@ export function loadDatabase(path: string): SqlJsDatabase | null {
     }
 }
 
-/**
- * 关闭数据库
- */
 export function closeDb(): void {
     if (db) {
         try {
@@ -63,9 +68,6 @@ export function closeDb(): void {
     }
 }
 
-/**
- * 重新连接数据库
- */
 export async function reconnect(): Promise<void> {
     closeDb();
     await initSql();
@@ -74,23 +76,14 @@ export async function reconnect(): Promise<void> {
     }
 }
 
-/**
- * 获取数据库实例
- */
 export function getDb(): SqlJsDatabase | null {
     return db;
 }
 
-/**
- * 检查数据库是否可用
- */
 export function isDbAccessible(): boolean {
     return db !== null;
 }
 
-/**
- * 映射日志级别到严重程度
- */
 export function mapLogLevelToSeverity(level: string): EventSeverity {
     const levelLower = level.toLowerCase();
     if (levelLower.includes('debug') || levelLower.includes('trace')) return 'debug';
@@ -101,9 +94,6 @@ export function mapLogLevelToSeverity(level: string): EventSeverity {
     return 'info';
 }
 
-/**
- * 解析严重程度
- */
 export function parseSeverity(severity: string | number): EventSeverity {
     if (typeof severity === 'number') {
         if (severity <= 0) return 'debug';
@@ -121,12 +111,64 @@ export function parseSeverity(severity: string | number): EventSeverity {
 }
 
 /**
- * 查询事件
+ * 动态发现数据库中的表和列
  */
-export function queryEvents(request: GetEventsRequest): EventLogEntry[] {
-    if (!db) {
-        return [];
+function discoverSchema(): TableSchema | null {
+    if (!db) return null;
+
+    try {
+        const tablesResult = db.exec(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        );
+        if (tablesResult.length === 0) return null;
+
+        const tableNames = tablesResult[0].values.map((row: any) => row[0]);
+
+        for (const tableName of tableNames) {
+            if (!VALID_TABLE_PATTERN.test(tableName)) continue;
+
+            try {
+                const columnsResult = db.exec(`PRAGMA table_info(${tableName})`);
+                if (columnsResult.length === 0) continue;
+
+                const columnNames = columnsResult[0].values.map((row: any) => row[1].toLowerCase());
+
+                const idCol = columnNames.find(c => c === 'id' || c === 'rowid');
+                const timestampCol = columnNames.find(c =>
+                    c.includes('time') || c.includes('date') || c === 'created' || c === 'timestamp'
+                );
+                const sourceCol = columnNames.find(c =>
+                    c.includes('source') || c.includes('app') || c.includes('name') || c === 'program'
+                );
+                const messageCol = columnNames.find(c =>
+                    c.includes('message') || c.includes('msg') || c.includes('content') || c === 'description'
+                );
+                const severityCol = columnNames.find(c =>
+                    c.includes('severity') || c.includes('level') || c.includes('priority')
+                );
+                const typeCol = columnNames.find(c =>
+                    c.includes('type') || c.includes('category') || c.includes('event') || c === 'template'
+                );
+
+                if (idCol) {
+                    return { tableName, idCol, timestampCol, sourceCol, messageCol, severityCol, typeCol };
+                }
+            } catch {
+                continue;
+            }
+        }
+    } catch (err) {
+        logger.error({ err }, 'Schema discovery failed');
     }
+
+    return null;
+}
+
+export function queryEvents(request: GetEventsRequest): EventLogEntry[] {
+    if (!db) return [];
+
+    const schema = discoverSchema();
+    if (!schema) return [];
 
     const {
         limit = 100,
@@ -141,67 +183,56 @@ export function queryEvents(request: GetEventsRequest): EventLogEntry[] {
     } = request;
 
     try {
-        let query = 'SELECT * FROM logs WHERE 1=1';
-        const params: (string | number)[] = [];
+        let sql = `SELECT * FROM ${schema.tableName}`;
+        const conditions: string[] = [];
+        const params: any[] = [];
 
-        // 严重程度过滤
-        if (severity) {
-            query += ' AND (severity = ? OR level = ?)';
-            params.push(severity, severity);
+        if (startTime && schema.timestampCol) {
+            conditions.push(`${schema.timestampCol} >= ?`);
+            params.push(startTime);
         }
-
-        // 来源过滤
-        if (source) {
-            query += ' AND source = ?';
-            params.push(source);
+        if (endTime && schema.timestampCol) {
+            conditions.push(`${schema.timestampCol} <= ?`);
+            params.push(endTime);
         }
-
-        // 模板过滤
-        if (template) {
-            query += ' AND template = ?';
+        if (source && schema.sourceCol) {
+            conditions.push(`${schema.sourceCol} LIKE ?`);
+            params.push(`%${source}%`);
+        }
+        if (search && schema.messageCol) {
+            conditions.push(`${schema.messageCol} LIKE ?`);
+            params.push(`%${search}%`);
+        }
+        if (severity && schema.severityCol) {
+            conditions.push(`${schema.severityCol} = ?`);
+            params.push(severity);
+        }
+        if (template && schema.typeCol) {
+            conditions.push(`${schema.typeCol} = ?`);
             params.push(template);
         }
 
-        // 时间范围
-        if (startTime) {
-            query += ' AND timestamp >= ?';
-            params.push(startTime);
-        }
-        if (endTime) {
-            query += ' AND timestamp <= ?';
-            params.push(endTime);
+        if (conditions.length > 0) {
+            sql += ' WHERE ' + conditions.join(' AND ');
         }
 
-        // 搜索
-        if (search) {
-            query += ' AND (message LIKE ? OR param LIKE ? OR template LIKE ?)';
-            const searchPattern = `%${search}%`;
-            params.push(searchPattern, searchPattern, searchPattern);
+        if (schema.timestampCol) {
+            sql += ` ORDER BY ${schema.timestampCol} ${sortDirection === 'asc' ? 'ASC' : 'DESC'}`;
+        } else if (schema.idCol) {
+            sql += ` ORDER BY ${schema.idCol} ${sortDirection === 'asc' ? 'ASC' : 'DESC'}`;
         }
 
-        // 排序
-        const safeSortDir = sortDirection.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-        query += ` ORDER BY id ${safeSortDir}`;
-
-        // 分页
-        query += ' LIMIT ? OFFSET ?';
+        sql += ' LIMIT ? OFFSET ?';
         params.push(limit, offset);
 
-        const results = db.exec(query, params);
-
-        if (results.length === 0) {
-            return [];
-        }
+        const results = db.exec(sql, params);
+        if (results.length === 0) return [];
 
         const columns = results[0].columns;
-        const rows = results[0].values;
-
-        return rows.map(row => {
-            const entry: EventLogEntry = { id: 0, timestamp: 0 };
-            columns.forEach((col, idx) => {
-                entry[col] = row[idx];
-            });
-            return entry;
+        return results[0].values.map(row => {
+            const obj: any = {};
+            columns.forEach((col, idx) => { obj[col] = row[idx]; });
+            return parseEventRow(obj);
         });
     } catch (err) {
         logger.error({ err }, 'Query events failed');
@@ -209,18 +240,16 @@ export function queryEvents(request: GetEventsRequest): EventLogEntry[] {
     }
 }
 
-/**
- * 获取最新事件 ID
- */
 export function getLatestEventId(): number {
-    if (!db) {
-        return 0;
-    }
+    if (!db) return 0;
+
+    const schema = discoverSchema();
+    if (!schema || !schema.idCol) return 0;
 
     try {
-        const results = db.exec('SELECT MAX(id) as maxId FROM logs');
-        if (results.length > 0 && results[0].values.length > 0) {
-            return (results[0].values[0][0] as number) || 0;
+        const result = db.exec(`SELECT MAX(${schema.idCol}) as maxId FROM ${schema.tableName}`);
+        if (result.length > 0 && result[0].values.length > 0) {
+            return (result[0].values[0][0] as number) || 0;
         }
         return 0;
     } catch (err) {
@@ -229,31 +258,22 @@ export function getLatestEventId(): number {
     }
 }
 
-/**
- * 获取新事件
- */
 export function getNewEvents(sinceId: number): EventLogEntry[] {
-    if (!db) {
-        return [];
-    }
+    if (!db) return [];
+
+    const schema = discoverSchema();
+    if (!schema || !schema.idCol) return [];
 
     try {
-        const query = 'SELECT * FROM logs WHERE id > ? ORDER BY id ASC LIMIT 100';
-        const results = db.exec(query, [sinceId]);
+        const sql = `SELECT * FROM ${schema.tableName} WHERE ${schema.idCol} > ? ORDER BY ${schema.idCol} ASC LIMIT 100`;
+        const result = db.exec(sql, [sinceId]);
+        if (result.length === 0) return [];
 
-        if (results.length === 0) {
-            return [];
-        }
-
-        const columns = results[0].columns;
-        const rows = results[0].values;
-
-        return rows.map(row => {
-            const entry: EventLogEntry = { id: 0, timestamp: 0 };
-            columns.forEach((col, idx) => {
-                entry[col] = row[idx];
-            });
-            return entry;
+        const columns = result[0].columns;
+        return result[0].values.map(row => {
+            const obj: any = {};
+            columns.forEach((col, idx) => { obj[col] = row[idx]; });
+            return parseEventRow(obj);
         });
     } catch (err) {
         logger.error({ err }, 'Get new events failed');
@@ -261,18 +281,16 @@ export function getNewEvents(sinceId: number): EventLogEntry[] {
     }
 }
 
-/**
- * 获取事件总数
- */
 export function getTotalEvents(): number {
-    if (!db) {
-        return 0;
-    }
+    if (!db) return 0;
+
+    const schema = discoverSchema();
+    if (!schema) return 0;
 
     try {
-        const results = db.exec('SELECT COUNT(*) as count FROM logs');
-        if (results.length > 0 && results[0].values.length > 0) {
-            return (results[0].values[0][0] as number) || 0;
+        const result = db.exec(`SELECT COUNT(*) as count FROM ${schema.tableName}`);
+        if (result.length > 0 && result[0].values.length > 0) {
+            return (result[0].values[0][0] as number) || 0;
         }
         return 0;
     } catch (err) {
@@ -281,18 +299,16 @@ export function getTotalEvents(): number {
     }
 }
 
-/**
- * 获取所有来源
- */
 export function getSources(): string[] {
-    if (!db) {
-        return [];
-    }
+    if (!db) return [];
+
+    const schema = discoverSchema();
+    if (!schema || !schema.sourceCol) return [];
 
     try {
-        const results = db.exec('SELECT DISTINCT source FROM logs WHERE source IS NOT NULL');
-        if (results.length > 0) {
-            return results[0].values.map(row => row[0] as string);
+        const result = db.exec(`SELECT DISTINCT ${schema.sourceCol} FROM ${schema.tableName} WHERE ${schema.sourceCol} IS NOT NULL`);
+        if (result.length > 0) {
+            return result[0].values.map(row => row[0] as string);
         }
         return [];
     } catch (err) {
@@ -301,5 +317,4 @@ export function getSources(): string[] {
     }
 }
 
-// 导出初始化函数
 export { initSql };

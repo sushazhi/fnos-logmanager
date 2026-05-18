@@ -68,6 +68,17 @@ app.use(morgan((tokens, req, res) => {
     const userAgent = tokens['user-agent'](req, res) || '-';
     const url = getLogUrl(req);
     return `${tokens['remote-addr'](req, res)} - ${tokens['remote-user'](req, res) || '-'} ${tokens.date(req, res, 'clf')} "${tokens.method(req, res)} ${url} HTTP/${tokens['http-version'](req, res)}" ${status} ${length} "${referrer}" "${userAgent}"`;
+}, {
+    skip: (req, res) => {
+        // 跳过 304 Not Modified（缓存轮询请求）
+        if (res.statusCode === 304) return true;
+        // 跳过前端高频轮询和无审计价值的只读端点
+        const pollingPaths = ['/status', '/bookmarks', '/dirs', '/logs/stats', '/settings/filter', '/channels', '/rules', '/log/tail', '/log/content', '/logs/list', '/monitor/status'];
+        if (pollingPaths.includes(req.path)) return true;
+        // 跳过静态资源（/ 根页面和 /assets/* 编译产物）
+        if (req.path === '/' || req.path.startsWith('/assets/')) return true;
+        return false;
+    }
 }));
 app.use(securityHeaders);
 app.use(cookieParser());

@@ -3,7 +3,7 @@
  * 提取自 services/eventLogger.ts 中 queryEvents 和 getNewEvents 的重复逻辑
  */
 
-import type { EventLogEntry, EventSeverity } from '../../types/eventLogger';
+import type { EventLogEntry, EventSeverity } from './types';
 
 /**
  * 计算本地时区与 UTC 的偏移量（秒）
@@ -28,6 +28,7 @@ function formatTemplateMessage(param: any): string {
         'UserAdd': (p) => `添加用户 ${p.user || '未知'}`,
         'UserDel': (p) => `删除用户 ${p.user || '未知'}`,
         'UserMod': (p) => `修改用户 ${p.user || '未知'}`,
+        'FoundDisk': (p) => `发现硬盘${p.name || p.disk || '未知'} 型号:${p.model || '未知'} 序列号:${p.serial || '未知'}`,
         'DiskWakeup': (p) => `硬盘${p.disk || '未知'}已被唤醒 型号:${p.model || '未知'} 序列号:${p.serial || '未知'}`,
         'DiskSpindown': (p) => `硬盘${p.disk || '未知'}已休眠 型号:${p.model || '未知'} 序列号:${p.serial || '未知'}`,
         'DiskAdd': (p) => `硬盘${p.disk || '未知'}已添加 型号:${p.model || '未知'}`,
@@ -69,6 +70,7 @@ function formatTemplateMessage(param: any): string {
  */
 const APP_ACTION_MAP: Record<string, string> = {
     'APP_STARTED': '启用成功',
+    'APP_AUTO_STARTED': '自动启动成功',
     'APP_STOPPED': '停止成功',
     'APP_INSTALLED': '安装成功',
     'APP_UNINSTALLED': '卸载成功',

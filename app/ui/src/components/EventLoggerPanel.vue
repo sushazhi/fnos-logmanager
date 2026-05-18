@@ -44,13 +44,6 @@
           </div>
 
           <div class="form-item">
-            <label>
-              <input type="checkbox" v-model="config.enabled" :disabled="loading">
-              启用监控
-            </label>
-          </div>
-
-          <div class="form-item">
             <label>检查间隔（秒）</label>
             <input 
               type="number" 

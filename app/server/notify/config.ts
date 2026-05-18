@@ -96,7 +96,13 @@ const defaultConfig: ChannelConfig = {
     QQ_APP_ID: '',
     QQ_APP_SECRET: '',
     QQ_OPENID: '',
-    QQ_GROUP_OPENID: ''
+    QQ_GROUP_OPENID: '',
+
+    // 微信 ClawBot
+    WECHAT_CLAWBOT_BOT_TOKEN: '',
+    WECHAT_CLAWBOT_BASE_URL: 'https://ilinkai.weixin.qq.com',
+    WECHAT_CLAWBOT_TO_USER: '',
+    WECHAT_CLAWBOT_ACCOUNT_ID: ''
 };
 
 /**

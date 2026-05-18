@@ -21,3 +21,4 @@ export { wxpusherChannel } from './wxpusher';
 export { aibotkChannel } from './aibotk';
 export { weplusbotChannel } from './weplusbot';
 export { qqbotChannel } from './qqbot';
+export { wechatClawBotChannel } from './wechatClawBot';

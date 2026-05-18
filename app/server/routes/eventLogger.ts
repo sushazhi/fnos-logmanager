@@ -7,8 +7,10 @@ import { body, query, param, validationResult } from 'express-validator';
 import { validateToken, validateCSRF } from '../middleware/auth';
 import * as eventLoggerService from '../services/eventLogger';
 import {
+    GetEventsRequest
+} from '../services/eventLogger/types';
+import {
     UpdateEventLoggerConfigRequest,
-    GetEventsRequest,
     CreateEventNotificationRuleRequest
 } from '../types/eventLogger';
 
@@ -92,7 +94,7 @@ router.get('/stats', validateToken, async (req: Request, res: Response) => {
  */
 router.get('/sources', validateToken, async (req: Request, res: Response) => {
     try {
-        const sources = eventLoggerService.getSources();
+        const sources = eventLoggerService.getSourcesList();
         res.json(sources);
     } catch (err) {
         res.status(500).json({ error: (err as Error).message });
@@ -123,11 +125,11 @@ router.get('/events',
             const request: GetEventsRequest = {
                 limit: req.query.limit ? parseInt(req.query.limit as string) : 100,
                 offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
-                startTime: req.query.startTime as string,
-                endTime: req.query.endTime as string,
+                startTime: req.query.startTime ? new Date(req.query.startTime as string).getTime() : undefined,
+                endTime: req.query.endTime ? new Date(req.query.endTime as string).getTime() : undefined,
                 severity: req.query.severity as any,
                 source: req.query.source as string,
-                eventType: req.query.eventType as string,
+                template: req.query.eventType as string,
                 search: req.query.search as string
             };
 
@@ -172,7 +174,7 @@ router.post('/start', validateToken, validateCSRF, async (req: Request, res: Res
  */
 router.post('/stop', validateToken, validateCSRF, async (req: Request, res: Response) => {
     try {
-        eventLoggerService.stop();
+        await eventLoggerService.stop();
         const status = eventLoggerService.getStatus();
         res.json(status);
     } catch (err) {

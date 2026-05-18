@@ -25,34 +25,22 @@ router.post('/logout', validateToken, validateCSRF, (req: Request, res: Response
 });
 
 router.get('/status', async (req: Request, res: Response) => {
-    const sessionToken = getSessionToken(req);
-    const isLoggedIn = sessionToken && sessionService.validateSession(sessionToken);
     const isGatewayMode = !!process.env.GATEWAY_SOCKET;
 
-    if (isGatewayMode && !isLoggedIn) {
-        const origin = req.headers.origin || '';
-        const referer = req.headers.referer || '';
-        const host = req.headers.host || '';
-        const isSameOrigin = origin === `http://${host}` || origin === `https://${host}` ||
-            referer.startsWith(`http://${host}/`) || referer.startsWith(`https://${host}/`);
-        if (isSameOrigin) {
-            const uid = (req.headers['x-trim-uid'] as string) || 'gateway';
-            const token = sessionService.createSession(uid);
-            const csrfToken = sessionService.getCSRFToken(token);
-            res.cookie('session_token', token, COOKIE_OPTIONS);
-            res.json({
-                initialized: true,
-                isLoggedIn: true,
-                csrfToken,
-                sessionToken: token,
-                sessionExpiry: 24 * 60 * 60 * 1000
-            });
-            return;
-        }
+    if (isGatewayMode) {
+        res.json({
+            initialized: true,
+            isLoggedIn: true,
+            isAdmin: req.headers['x-trim-isadmin'] === 'true',
+            username: (req.headers['x-trim-username'] as string) || ''
+        });
+        return;
     }
 
+    const sessionToken = getSessionToken(req);
+    const isLoggedIn = sessionToken && sessionService.validateSession(sessionToken);
     res.json({
-        initialized: isGatewayMode ? true : !!isLoggedIn,
+        initialized: !!isLoggedIn,
         isLoggedIn: !!isLoggedIn,
         sessionExpiry: 24 * 60 * 60 * 1000
     });

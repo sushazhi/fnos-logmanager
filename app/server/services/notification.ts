@@ -36,7 +36,8 @@ const channelNameMap: Record<string, string> = {
     pushme: 'pushme',
     wxpusher: 'wxpusher',
     aibotk: 'aibotk',
-    weplusbot: 'weplusbot'
+    weplusbot: 'weplusbot',
+    wechat_claw: 'wechat-claw-bot'
 };
 
 /**
@@ -170,6 +171,12 @@ function buildChannelConfig(channel: any): Partial<ChannelConfig> {
             if (channel.wePlusBotToken) config.WE_PLUS_BOT_TOKEN = channel.wePlusBotToken;
             if (channel.wePlusBotReceiver) config.WE_PLUS_BOT_RECEIVER = channel.wePlusBotReceiver;
             if (channel.wePlusBotVersion) config.WE_PLUS_BOT_VERSION = channel.wePlusBotVersion;
+            break;
+        case 'wechat_claw':
+            if (channel.wechatClawBotToken) config.WECHAT_CLAWBOT_BOT_TOKEN = channel.wechatClawBotToken;
+            if (channel.wechatClawBaseUrl) config.WECHAT_CLAWBOT_BASE_URL = channel.wechatClawBaseUrl;
+            if (channel.wechatClawToUser) config.WECHAT_CLAWBOT_TO_USER = channel.wechatClawToUser;
+            if (channel.wechatClawAccountId) config.WECHAT_CLAWBOT_ACCOUNT_ID = channel.wechatClawAccountId;
             break;
     }
 
@@ -376,7 +383,8 @@ export function getChannelTypeName(channel: string): string {
         wxpusher: 'WxPusher',
         aibotk: '智能微秘书',
         weplusbot: '微加机器人',
-        chronocat: 'Chronocat QQ'
+        chronocat: 'Chronocat QQ',
+        wechat_claw: '微信 ClawBot'
     };
 
     return names[channel] || channel;
@@ -409,7 +417,8 @@ export function getChannelConfigFields(channel: string): string[] {
         wxpusher: ['wxpusherAppToken', 'wxpusherTopicIds', 'wxpusherUids'],
         aibotk: ['aibotkKey', 'aibotkType', 'aibotkName'],
         weplusbot: ['wePlusBotToken', 'wePlusBotReceiver', 'wePlusBotVersion'],
-        chronocat: ['chronocatQq', 'chronocatToken', 'chronocatUrl']
+        chronocat: ['chronocatQq', 'chronocatToken', 'chronocatUrl'],
+        wechat_claw: ['wechatClawBotToken', 'wechatClawBaseUrl', 'wechatClawToUser', 'wechatClawAccountId']
     };
 
     return fields[channel] || [];

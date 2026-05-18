@@ -18,7 +18,8 @@ export type NotificationChannel =
     | 'ntfy'          // Ntfy
     | 'gotify'        // Gotify
     | 'pushdeer'      // PushDeer
-    | 'qqbot';        // QQ机器人
+    | 'qqbot'        // QQ机器人
+    | 'wechat_claw';  // 微信 ClawBot（iLink 协议）
 
 // 日志级别类型
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'all';
@@ -117,6 +118,12 @@ export interface NotificationChannelConfig {
     qqAppSecret?: string;
     qqOpenId?: string;
     qqGroupOpenId?: string;
+
+    // 微信 ClawBot 配置
+    wechatClawBotToken?: string;
+    wechatClawBaseUrl?: string;
+    wechatClawToUser?: string;
+    wechatClawAccountId?: string;
 }
 
 // 通知规则

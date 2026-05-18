@@ -217,4 +217,5 @@ export interface GitHubAsset {
 export interface AuthenticatedRequest extends Request {
     clientIP?: string;
     sessionToken?: string;
+    gatewayUid?: string;
 }

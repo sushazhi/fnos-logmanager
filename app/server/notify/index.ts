@@ -33,7 +33,8 @@ import {
     wxpusherChannel,
     aibotkChannel,
     weplusbotChannel,
-    qqbotChannel
+    qqbotChannel,
+    wechatClawBotChannel
 } from './channels';
 
 const logger = Logger.child({ module: 'Notify' });
@@ -61,6 +62,7 @@ registry.register(wxpusherChannel);
 registry.register(aibotkChannel);
 registry.register(weplusbotChannel);
 registry.register(qqbotChannel);
+registry.register(wechatClawBotChannel);
 
 /**
  * 发送通知

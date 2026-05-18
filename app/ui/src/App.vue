@@ -293,7 +293,11 @@ async function checkAuth() {
     if (data.sessionToken) {
       api.setSessionToken(data.sessionToken)
     }
-    if (!api.getCSRFToken()) {
+    if (!data.initialized || !data.isLoggedIn) {
+      isCheckingAuth.value = false
+      return
+    }
+    if (!api.getCSRFToken() && !data.isLoggedIn) {
       await api.fetchCSRFToken()
     }
     loadFilterStatus()

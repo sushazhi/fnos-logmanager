@@ -56,6 +56,7 @@ export function formatTemplateMessage(param: Record<string, unknown>): string {
         'PassMod': (p) => `${p.user || '用户'}修改密码`,
 
         // 存储相关
+        'FoundDisk': (p) => `发现硬盘${p.name || p.disk || '未知'} 型号:${p.model || '未知'} 序列号:${p.serial || '未知'}`,
         'DiskWakeup': (p) => `硬盘唤醒 ${p.disk || ''}`,
         'DiskSpindown': (p) => `硬盘休眠 ${p.disk || ''}`,
         'DiskAdd': (p) => `添加硬盘 ${p.disk || ''}`,

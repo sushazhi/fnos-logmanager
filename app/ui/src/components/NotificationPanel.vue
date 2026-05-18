@@ -198,6 +198,35 @@
             >
             <div v-if="getFieldHint(field)" class="hint">{{ getFieldHint(field) }}</div>
           </div>
+
+          <!-- 微信 ClawBot 扫码登录 -->
+          <div v-if="newChannel.channel === 'wechat_claw'" class="qr-login-section">
+            <div class="form-group" v-if="!clawQrCodeUrl">
+              <button class="qr-login-btn" @click="startClawQrLogin" :disabled="clawQrLoading">
+                {{ clawQrLoading ? '获取二维码中...' : '📱 扫码登录' }}
+              </button>
+              <div class="hint">扫码登录后可自动获取 Bot Token 和 Account ID</div>
+            </div>
+            <div class="form-group qr-active" v-else>
+              <div class="qr-code-wrapper">
+                <img :src="clawQrCodeUrl" alt="微信扫码登录" class="qr-code-img">
+                <div class="qr-status" v-if="clawQrStatus === 'waiting'">请使用微信扫描二维码</div>
+                <div class="qr-status scanning" v-else-if="clawQrStatus === 'scanning'">已扫码，请在手机上确认登录</div>
+                <div class="qr-status success" v-else-if="clawQrStatus === 'confirmed'">登录成功！凭证已自动填入</div>
+                <div class="qr-status error" v-else-if="clawQrStatus === 'expired'">二维码已过期，请重新获取</div>
+              </div>
+              <div class="qr-actions">
+                <button class="qr-cancel-btn" @click="cancelClawQrLogin" v-if="clawQrStatus !== 'confirmed'">取消</button>
+                <button class="qr-refresh-btn" @click="startClawQrLogin" v-if="clawQrStatus !== 'confirmed'" :disabled="clawQrLoading">刷新二维码</button>
+                <button class="qr-userid-btn" @click="fetchClawUserId" v-if="clawQrStatus === 'confirmed' && !newChannel.config.wechatClawToUser" :disabled="clawUserIdLoading">
+                  {{ clawUserIdLoading ? '获取中...' : '获取用户ID' }}
+                </button>
+              </div>
+              <div class="hint" v-if="clawQrStatus === 'confirmed' && !newChannel.config.wechatClawToUser">
+                在微信中给机器人发任意消息，系统将自动获取你的用户ID
+              </div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="cancel-btn" @click="closeChannelModal">取消</button>
@@ -413,6 +442,16 @@ const showAddChannel = ref(false)
 const showAddRule = ref(false)
 const editingRule = ref<NotificationRule | null>(null)
 const editingChannel = ref<ChannelConfig | null>(null)
+
+// 微信 ClawBot 扫码登录状态
+const clawQrCodeUrl = ref('')
+const clawQrCodeId = ref('')
+const clawQrStatus = ref<'waiting' | 'scanning' | 'confirmed' | 'expired'>('waiting')
+const clawQrLoading = ref(false)
+const clawUserIdLoading = ref(false)
+const clawQrTimer = ref<ReturnType<typeof setInterval> | null>(null)
+const clawQrPollAttempts = ref(0)
+const clawQrMaxAttempts = 30
 
 // 定时刷新器
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -636,7 +675,11 @@ function getFieldLabel(field: string): string {
     qqAppId: 'QQ机器人AppID',
     qqAppSecret: 'QQ机器人Secret',
     qqOpenId: 'QQ用户OpenID',
-    qqGroupOpenId: 'QQ群OpenID'
+    qqGroupOpenId: 'QQ群OpenID',
+    wechatClawBotToken: 'Bot Token',
+    wechatClawBaseUrl: '接口地址',
+    wechatClawToUser: '发送目标',
+    wechatClawAccountId: 'Account ID'
   }
   return labels[field] || field
 }
@@ -661,7 +704,11 @@ function getFieldPlaceholder(field: string): string {
     webhookUrl: 'https://example.com/webhook',
     ntfyTopic: '订阅主题名称',
     gotifyUrl: '如: https://gotify.example.com',
-    deerKey: 'PushDeer的pushkey'
+    deerKey: 'PushDeer的pushkey',
+    wechatClawBotToken: '扫码登录后自动填充',
+    wechatClawBaseUrl: '默认: https://ilinkai.weixin.qq.com',
+    wechatClawToUser: '扫码后输入微信号',
+    wechatClawAccountId: '扫码登录后自动填充'
   }
   return placeholders[field] || ''
 }
@@ -676,7 +723,10 @@ function getFieldHelpUrl(field: string): string | undefined {
 function getFieldHint(field: string): string | undefined {
   const hints: Record<string, string> = {
     qqOpenId: '留空，保存后点击测试，给机器人发消息可自动获取',
-    qqGroupOpenId: '留空，保存后点击测试，给机器人发消息可自动获取'
+    qqGroupOpenId: '留空，保存后点击测试，给机器人发消息可自动获取',
+    wechatClawBotToken: '点击"扫码登录"后自动获取',
+    wechatClawAccountId: '点击"扫码登录"后自动获取',
+    wechatClawToUser: '扫码成功后，输入要发送消息的微信号'
   }
   return hints[field]
 }
@@ -794,6 +844,11 @@ async function triggerCheck(): Promise<void> {
 }
 
 function closeChannelModal(): void {
+  cancelClawQrLogin()
+  clawQrCodeUrl.value = ''
+  clawQrCodeId.value = ''
+  clawQrStatus.value = 'waiting'
+  clawQrLoading.value = false
   showAddChannel.value = false
   editingChannel.value = null
   newChannel.value = { channel: 'dingtalk', name: '', config: {} }
@@ -871,6 +926,8 @@ async function testChannel(name: string): Promise<void> {
     const isQqbot = channel && channel.channel === 'qqbot'
     const hasOpenId = isQqbot && (channel.qqOpenId || newChannel.value.config?.qqOpenId)
     const hasGroupOpenId = isQqbot && (channel.qqGroupOpenId || newChannel.value.config?.qqGroupOpenId)
+    const isClawBot = channel && (channel as any).channel === 'wechat_claw'
+    const hasClawToken = isClawBot && ((channel as any).wechatClawBotToken || newChannel.value.config?.wechatClawBotToken)
 
     const data = await api.post(`/api/notifications/channels/${name}/test`) as {
       result: {
@@ -930,6 +987,8 @@ async function testChannel(name: string): Promise<void> {
     } else if (isQqbot && !hasOpenId && !hasGroupOpenId && resultMsg.includes('监听')) {
       showAlert('提示', '已启动监听，请给QQ机器人发消息...\n系统会自动检测', 'warning')
       pollCapturedOpenId(name)
+    } else if (isClawBot && !hasClawToken) {
+      showAlert('提示', '请先编辑渠道，点击"扫码登录"完成微信认证后再测试', 'warning')
     } else {
       showAlert('失败', '测试通知发送失败: ' + (resultMsg || '未知错误'), 'error')
     }
@@ -971,15 +1030,233 @@ function pollCapturedOpenId(name: string): void {
           const ch = channels.value.find(c => c.name === name)
           if (ch) ch.qqGroupOpenId = captured.groupOpenId
         }
-        message += '\n\n已自动填入，请保存后再测试发送'
-        showAlert('获取成功', message, 'success', copyText)
+        const ch = channels.value.find(c => c.name === name)
+        if (ch) {
+          try {
+            await api.put(`/api/notifications/channels/${name}`, ch)
+            message += '\n\n已自动保存，正在发送测试通知...'
+            showAlert('获取成功', message, 'success', copyText)
+            const testResult = await api.post(`/api/notifications/channels/${name}/test`) as {
+              result: { success: boolean; error?: string; message?: string }
+            }
+            if (testResult.result.success) {
+              showAlert('测试成功', '测试通知已发送', 'success')
+            } else {
+              showAlert('测试失败', testResult.result.error || testResult.result.message || '发送失败', 'error')
+            }
+          } catch {
+            message += '\n\n已自动填入，请保存后再测试发送'
+            showAlert('获取成功', message, 'success', copyText)
+          }
+        } else {
+          message += '\n\n已自动填入，请保存后再测试发送'
+          showAlert('获取成功', message, 'success', copyText)
+        }
       }
     } catch { /* ignore */ }
     if (attempts >= maxAttempts) {
       clearInterval(timer)
+      showAlert('超时', '未在60秒内获取到 OpenID，请确认已给机器人发消息', 'warning')
     }
   }, 3000)
 }
+
+// ---------- 微信 ClawBot 扫码登录 ----------
+
+async function startClawQrLogin(): Promise<void> {
+  cancelClawQrLogin()
+  clawQrLoading.value = true
+  clawQrCodeUrl.value = ''
+  clawQrCodeId.value = ''
+  clawQrStatus.value = 'waiting'
+
+  try {
+    const data = await api.get('/api/notifications/wechat-claw/qrcode') as {
+      success?: boolean
+      qrcode?: string
+      qrcodeUrl?: string
+      qrcodeBase64?: string
+      message?: string
+    }
+    // 优先使用 base64，其次用 URL，最后用 qrcode 构造
+    const qrSrc = data.qrcodeBase64
+      ? 'data:image/png;base64,' + data.qrcodeBase64
+      : (data.qrcodeUrl || data.qrcode || '')
+    if (!qrSrc) {
+      showAlert('错误', data.message || '获取二维码失败：返回为空', 'error')
+      clawQrLoading.value = false
+      return
+    }
+    clawQrCodeUrl.value = qrSrc
+    clawQrCodeId.value = data.qrcode || qrSrc
+    clawQrLoading.value = false
+    clawQrStatus.value = 'waiting'
+    clawQrPollAttempts.value = 0
+
+    // 开始轮询扫码状态
+    clawQrTimer.value = setInterval(pollClawQrStatus, 3000)
+  } catch (e) {
+    clawQrLoading.value = false
+    const msg = e instanceof Error ? e.message : '获取二维码失败'
+    showAlert('错误', msg, 'error')
+  }
+}
+
+async function pollClawQrStatus(): Promise<void> {
+  if (!clawQrCodeId.value) return
+
+  clawQrPollAttempts.value++
+  if (clawQrPollAttempts.value > clawQrMaxAttempts) {
+    cancelClawQrLogin()
+    showAlert('超时', '扫码超时，请重新获取二维码', 'warning')
+    return
+  }
+
+  try {
+    const data = await api.get('/api/notifications/wechat-claw/status?qrcode=' + encodeURIComponent(clawQrCodeId.value)) as {
+      success: boolean
+      status: string
+      token?: string
+      accountId?: string
+      scannerId?: string
+    }
+
+    const s = (data.status || 'waiting').toLowerCase()
+
+    if (s === 'expired' || s === 'timeout') {
+      clawQrStatus.value = 'expired'
+      cancelClawQrLogin()
+      return
+    }
+
+    if (s === 'confirmed' || s === 'success' || s === 'ok' || (s === 'scanned' && data.token)) {
+      clawQrStatus.value = 'confirmed'
+      cancelClawQrLogin()
+
+      // 填入 token 和 accountId
+      if (data.token) {
+        newChannel.value.config.wechatClawBotToken = data.token
+      }
+      if (data.accountId) {
+        newChannel.value.config.wechatClawAccountId = data.accountId
+      }
+      // 扫码用户的 ID 自动填入发送目标
+      if (data.scannerId && !newChannel.value.config.wechatClawToUser) {
+        newChannel.value.config.wechatClawToUser = data.scannerId
+      }
+
+      // 再尝试从 captured 接口获取补充凭证
+      try {
+        const credentials = await api.get('/api/notifications/wechat-claw/captured') as {
+          botToken: string | null
+          accountId: string | null
+        }
+        if (credentials.botToken) {
+          newChannel.value.config.wechatClawBotToken = credentials.botToken
+        }
+        if (credentials.accountId) {
+          newChannel.value.config.wechatClawAccountId = credentials.accountId
+        }
+      } catch { /* ignore */ }
+
+      // 自动轮询 getUpdates 捕获用户 ID（MoviePilot 方式）
+      startClawAutoCapture()
+
+      showAlert('登录成功', '凭证已自动填入，请在微信中给机器人发一条消息以获取用户ID', 'success')
+      return
+    }
+
+    if (s === 'scanned') {
+      clawQrStatus.value = 'scanning'
+    }
+  } catch {
+    // 忽略轮询错误，继续重试
+  }
+}
+
+function cancelClawQrLogin(): void {
+  if (clawQrTimer.value) {
+    clearInterval(clawQrTimer.value)
+    clawQrTimer.value = null
+  }
+  stopClawAutoCapture()
+}
+
+let clawAutoTimer: ReturnType<typeof setInterval> | null = null
+let clawAutoAttempts = 0
+const clawAutoMaxAttempts = 20 // 约 60 秒
+
+function startClawAutoCapture(): void {
+  stopClawAutoCapture()
+  clawAutoAttempts = 0
+  clawAutoTimer = setInterval(async () => {
+    clawAutoAttempts++
+    if (clawAutoAttempts > clawAutoMaxAttempts) {
+      stopClawAutoCapture()
+      return
+    }
+    // 如果已经填入了 toUser，停止轮询
+    if (newChannel.value.config.wechatClawToUser) {
+      stopClawAutoCapture()
+      return
+    }
+    try {
+      const data = await api.get('/api/notifications/wechat-claw/updates') as {
+        success: boolean
+        messages?: Array<{ userId: string; text?: string }>
+      }
+      if (data.messages && data.messages.length > 0) {
+        const userId = data.messages[0].userId
+        if (userId) {
+          newChannel.value.config.wechatClawToUser = userId
+          stopClawAutoCapture()
+          showAlert('成功', '已自动获取到用户ID，请保存配置后测试', 'success')
+        }
+      }
+    } catch { /* 忽略轮询错误，继续重试 */ }
+  }, 3000)
+}
+
+function stopClawAutoCapture(): void {
+  if (clawAutoTimer !== null) {
+    clearInterval(clawAutoTimer)
+    clawAutoTimer = null
+  }
+}
+
+async function fetchClawUserId(): Promise<void> {
+  clawUserIdLoading.value = true
+  try {
+    const data = await api.get('/api/notifications/wechat-claw/updates') as {
+      success: boolean
+      messages?: Array<{ userId: string; text?: string }>
+      message?: string
+    }
+    if (data.messages && data.messages.length > 0) {
+      const userId = data.messages[0].userId
+      if (userId) {
+        newChannel.value.config.wechatClawToUser = userId
+        showAlert('成功', '已获取用户ID：' + userId, 'success')
+        return
+      }
+    }
+    showAlert('提示', data.message || '暂未获取到消息，请在微信中给机器人发一条消息后重试', 'info')
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '获取用户ID失败'
+    showAlert('错误', msg, 'error')
+  } finally {
+    clawUserIdLoading.value = false
+  }
+}
+
+// 监听渠道类型切换，预填默认值
+watch(() => newChannel.value.channel, (type) => {
+  if (type === 'wechat_claw') {
+    if (!newChannel.value.config.wechatClawBaseUrl) {
+      newChannel.value.config.wechatClawBaseUrl = 'https://ilinkai.weixin.qq.com'
+    }
+  }
+})
 
 function closeRuleModal(): void {
   showAddRule.value = false
@@ -1846,6 +2123,98 @@ input:checked + .slider:before {
 
 .submit-btn:hover {
   background: var(--primary-hover);
+}
+
+/* 微信 ClawBot 扫码登录 */
+.qr-login-section {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.qr-login-btn {
+  width: 100%;
+  padding: 12px;
+  border: 2px dashed var(--primary-color);
+  border-radius: var(--radius-sm);
+  background: var(--primary-bg);
+  color: var(--primary-color);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.qr-login-btn:hover:not(:disabled) {
+  background: var(--primary-color);
+  color: white;
+}
+
+.qr-login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.qr-active {
+  text-align: center;
+}
+
+.qr-code-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  background: white;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.qr-code-img {
+  width: 220px;
+  height: 220px;
+  image-rendering: pixelated;
+}
+
+.qr-status {
+  font-size: 0.8125rem;
+  color: var(--text-color-2);
+  text-align: center;
+}
+
+.qr-status.scanning {
+  color: var(--warning-color);
+}
+
+.qr-status.success {
+  color: var(--success-color);
+  font-weight: 500;
+}
+
+.qr-status.error {
+  color: var(--error-color);
+}
+
+.qr-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: center;
+}
+
+.qr-cancel-btn,
+.qr-refresh-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: var(--bg-color-2);
+  color: var(--text-color-1);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.qr-cancel-btn:hover,
+.qr-refresh-btn:hover {
+  background: var(--bg-color-3);
 }
 
 @media (max-width: 768px) {

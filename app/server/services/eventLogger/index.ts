@@ -4,9 +4,9 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { promisify } from 'util';
 import Logger from '../../utils/logger';
 import config from '../../utils/config';
-import * as notificationStore from '../notificationStore';
 import * as notificationService from '../notification';
 
 import {
@@ -44,11 +44,26 @@ import {
 
 const logger = Logger.child({ module: 'EventLogger' });
 
+const readFileAsync = promisify(fs.readFile);
+const writeFileAsync = promisify(fs.writeFile);
+const mkdirAsync = promisify(fs.mkdir);
+
+const DEFAULT_CONFIG: EventLoggerConfig = {
+    dbPath: '/usr/trim/var/eventlogger_service/logger_data.db3',
+    enabled: false,
+    checkInterval: 30000,
+    eventTypes: ['*'],
+    minSeverity: 'info',
+    notificationChannels: []
+};
+
+let configFilePath: string | null = null;
+
 // 状态变量
 let isRunning = false;
 let checkInterval: NodeJS.Timeout | null = null;
 let lastEventId = 0;
-let configData: EventLoggerConfig;
+let configData: EventLoggerConfig = { ...DEFAULT_CONFIG };
 let rules: EventLoggerNotificationRule[] = [];
 let status: EventLoggerStatus = {
     isRunning: false,
@@ -67,16 +82,55 @@ const notificationCache = new Map<string, { lastSent: number; count: number }>()
  * 初始化服务
  */
 export async function init(cfg?: Partial<EventLoggerConfig>): Promise<void> {
-    await initSql();
+    const configDir = path.join(config.dataDir, 'config');
+    configFilePath = path.join(configDir, 'eventlogger-config.json');
+    console.log('[EventLogger] init, configDir:', configDir, 'configFilePath:', configFilePath);
 
-    configData = {
-        dbPath: cfg?.dbPath || config.eventLogger.dbPath,
-        enabled: cfg?.enabled ?? config.eventLogger.enabled,
-        checkInterval: cfg?.checkInterval || config.eventLogger.checkInterval,
-        eventTypes: cfg?.eventTypes || config.eventLogger.eventTypes,
-        minSeverity: cfg?.minSeverity || config.eventLogger.minSeverity,
-        notificationChannels: cfg?.notificationChannels || config.eventLogger.notificationChannels
+    try {
+        await mkdirAsync(configDir, { recursive: true });
+    } catch {
+        // 目录已存在
+    }
+
+    // 用环境变量/默认值初始化默认配置
+    const defaults: EventLoggerConfig = {
+        dbPath: config.eventLogger.dbPath || DEFAULT_CONFIG.dbPath,
+        enabled: config.eventLogger.enabled,
+        checkInterval: config.eventLogger.checkInterval || DEFAULT_CONFIG.checkInterval,
+        eventTypes: config.eventLogger.eventTypes?.length ? config.eventLogger.eventTypes : DEFAULT_CONFIG.eventTypes,
+        minSeverity: config.eventLogger.minSeverity || DEFAULT_CONFIG.minSeverity,
+        notificationChannels: config.eventLogger.notificationChannels?.length ? config.eventLogger.notificationChannels : DEFAULT_CONFIG.notificationChannels
     };
+
+    // 从磁盘读取持久化配置（与 notificationStore 同模式）
+    try {
+        const data = await readFileAsync(configFilePath, 'utf8');
+        const saved = JSON.parse(data) as Partial<EventLoggerConfig>;
+        configData = {
+            dbPath: saved.dbPath ?? defaults.dbPath,
+            enabled: saved.enabled ?? defaults.enabled,
+            checkInterval: saved.checkInterval ?? defaults.checkInterval,
+            eventTypes: saved.eventTypes ?? defaults.eventTypes,
+            minSeverity: saved.minSeverity ?? defaults.minSeverity,
+            notificationChannels: saved.notificationChannels ?? defaults.notificationChannels
+        };
+    } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+            // 文件不存在，使用默认配置，立即写入
+            configData = { ...defaults };
+            await saveElConfig();
+        } else {
+            logger.error({ err: e }, 'Failed to load eventlogger config, using defaults');
+            configData = { ...defaults };
+            await saveElConfig();
+        }
+    }
+
+    console.log('[EventLogger] config loaded:', JSON.stringify(configData));
+    logger.info({ config: configData, path: configFilePath }, 'EventLogger config loaded');
+
+    // 初始化 SQL.js
+    await initSql();
 
     status.dbPath = configData.dbPath;
 
@@ -95,6 +149,37 @@ export async function init(cfg?: Partial<EventLoggerConfig>): Promise<void> {
     // 如果启用，自动启动
     if (configData.enabled) {
         await start();
+    }
+}
+
+/**
+ * 保存配置到磁盘（与 notificationStore 同模式）
+ */
+async function saveElConfig(): Promise<void> {
+    if (!configFilePath) {
+        const msg = 'EventLogger: 配置文件路径未设置，无法保存';
+        console.error(msg);
+        throw new Error(msg);
+    }
+
+    try {
+        const dir = path.dirname(configFilePath);
+        await mkdirAsync(dir, { recursive: true });
+        const toSave = {
+            enabled: configData.enabled,
+            dbPath: configData.dbPath,
+            checkInterval: configData.checkInterval,
+            eventTypes: configData.eventTypes,
+            minSeverity: configData.minSeverity,
+            notificationChannels: configData.notificationChannels
+        };
+        const json = JSON.stringify(toSave, null, 2);
+        console.log('[EventLogger] saveElConfig:', configFilePath, json);
+        await writeFileAsync(configFilePath, json, 'utf8');
+        console.log('[EventLogger] saveElConfig 成功');
+    } catch (e) {
+        console.error('[EventLogger] saveElConfig 失败:', configFilePath, e);
+        throw e;
     }
 }
 
@@ -295,6 +380,7 @@ async function processEvents(): Promise<void> {
  * 启动服务
  */
 export async function start(): Promise<void> {
+    console.log('[EventLogger] start() called, isRunning:', isRunning, 'configFilePath:', configFilePath);
     if (isRunning) {
         logger.warn('EventLogger already running');
         return;
@@ -302,6 +388,8 @@ export async function start(): Promise<void> {
 
     isRunning = true;
     status.isRunning = true;
+    configData.enabled = true;
+    await saveElConfig();
 
     logger.info({ checkInterval: configData.checkInterval }, 'EventLogger started');
 
@@ -323,13 +411,15 @@ export async function start(): Promise<void> {
 /**
  * 停止服务
  */
-export function stop(): void {
+export async function stop(): Promise<void> {
     if (!isRunning) {
         return;
     }
 
     isRunning = false;
     status.isRunning = false;
+    configData.enabled = false;
+    await saveElConfig();
 
     if (checkInterval) {
         clearInterval(checkInterval);
@@ -344,7 +434,7 @@ export function stop(): void {
  * 重启服务
  */
 export async function restart(): Promise<void> {
-    stop();
+    await stop();
     await start();
 }
 
@@ -391,13 +481,22 @@ export function getEvents(request: GetEventsRequest): GetEventsResponse {
  * 更新配置
  */
 export async function updateConfig(updates: Partial<EventLoggerConfig>): Promise<void> {
+    const wasEnabled = configData.enabled;
     configData = { ...configData, ...updates };
 
-    // 保存配置
-    const configPath = path.join(config.dataDir, 'eventlogger-config.json');
-    fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
+    await saveElConfig();
 
-    // 如果检查间隔改变，重启
+    // 同步更新内存中的 config.eventLogger
+    Object.assign(config.eventLogger, configData);
+
+    if (updates.enabled !== undefined && updates.enabled !== wasEnabled) {
+        if (updates.enabled && !isRunning) {
+            await start();
+        } else if (!updates.enabled && isRunning) {
+            await stop();
+        }
+    }
+
     if (updates.checkInterval && isRunning) {
         await restart();
     }
@@ -427,8 +526,8 @@ export function getSourcesList(): string[] {
 /**
  * 清理资源
  */
-export function dispose(): void {
-    stop();
+export async function dispose(): Promise<void> {
+    await stop();
     notificationCache.clear();
     rules = [];
 }

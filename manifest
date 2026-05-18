@@ -1,7 +1,7 @@
 appname = logmanager
-version = 0.6.2
+version = 0.7.0
 display_name = 日志管理
-desc = <b>飞牛日志管理工具</b>，集中管理飞牛三方应用散落在各个文件夹的日志文件。<br><br>🌐 <b>统一网关接入：</b><br>- 通过 fnOS 统一网关访问，无需独立端口<br>- 网关自动校验登录态，免密码登录<br>- 原生 WebSocket 实时通信<br><br>📁 <b>多标签页日志查看：</b><br>- 同时打开多个日志文件，标签栏切换<br>- 深色终端风格显示，关键词/正则搜索高亮<br>- 日志实时追踪<br>- 多格式导出(TXT/JSON/CSV)<br><br>📁 <b>支持的日志目录：</b><br>- 存储空间应用日志 (@appdata/@appshare等)<br>- /var/log/apps/ (系统应用日志)<br>- Docker容器日志<br>- 归档日志文件(.gz, .bz2, .xz, .zip等)<br><br>🔔 <b>通知推送(22种渠道)：</b><br>- Bark/钉钉/飞书/企业微信/Telegram/QQ机器人等<br>- 自定义监控规则，关键词匹配（支持正则）<br>- 冷却时间与静默时段设置<br><br>⚙️ <b>管理功能：</b><br>- 定时自动清理策略(cron/自定义间隔)<br>- 日志书签收藏，快速访问<br>- 清理已卸载应用空文件夹<br>- 日志备份与归档<br>- 系统事件监控与审计日志<br><br>🎨 <b>UI风格：</b><br>- 深色终端/日间夜间主题/自定义主题色<br><br>🐛 <b>问题反馈：</b><a href="https://github.com/sushazhi/fnos-logmanager/issues" target="_blank">GitHub Issues</a>
+desc = <b>飞牛日志管理工具</b>，集中管理飞牛三方应用散落在各个文件夹的日志文件。<br><br>🌐 <b>统一网关接入：</b><br>- 通过 fnOS 统一网关访问，无需独立端口<br>- 网关自动校验登录态，免密码登录<br>- 原生 WebSocket 实时通信<br><br>📁 <b>多标签页日志查看：</b><br>- 同时打开多个日志文件，标签栏切换<br>- 深色终端风格显示，关键词/正则搜索高亮<br>- 日志实时追踪<br>- 多格式导出(TXT/JSON/CSV)<br><br>📁 <b>支持的日志目录：</b><br>- 存储空间应用日志 (@appdata/@appshare等)<br>- /var/log/apps/ (系统应用日志)<br>- Docker容器日志<br>- 归档日志文件(.gz, .bz2, .xz, .zip等)<br><br>🔔 <b>通知推送(23种渠道)：</b><br>- Bark/钉钉/飞书/企业微信/Telegram/QQ机器人/微信ClawBot等<br>- 自定义监控规则，关键词匹配（支持正则）<br>- 冷却时间与静默时段设置<br><br>⚙️ <b>管理功能：</b><br>- 定时自动清理策略(cron/自定义间隔)<br>- 日志书签收藏，快速访问<br>- 清理已卸载应用空文件夹<br>- 日志备份与归档<br>- 系统事件监控与审计日志<br><br>🎨 <b>UI风格：</b><br>- 深色终端/日间夜间主题/自定义主题色<br><br>🐛 <b>问题反馈：</b><a href="https://github.com/sushazhi/fnos-logmanager/issues" target="_blank">GitHub Issues</a>
 
 # 系统要求
 platform = all
@@ -26,4 +26,4 @@ desktop_uidir = ui
 desktop_applaunchname = logmanager.Application
 
 # 更新日志
-changelog = v0.6.2<br>1. 接入 fnOS 统一网关，无需独立端口<br>2. 网关模式免密码登录（X-Trim-* Header 认证）<br>3. 原生 WebSocket 替代 HTTP 轮询<br>4. 移除端口配置和检查<br>5. 修复主题色不生效问题
+changelog = v0.7.0<br>1. 接入 fnOS 统一网关，无需独立端口<br>2. 网关模式免密码登录<br>3. 原生 WebSocket 替代 HTTP 轮询<br>4. 移除端口配置和检查<br>5. 修复主题色不生效问题<br>6. 新增微信 ClawBot 通知渠道（iLink 协议，扫码登录）<br>7. 过滤访问日志中高频轮询请求，减少日志写入量

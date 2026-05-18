@@ -120,9 +120,17 @@ const configFile = path.join(config.dataDir, 'config', 'config.json');
 try {
     if (fs.existsSync(configFile)) {
         const fileContent = fs.readFileSync(configFile, 'utf8');
-        const fileConfig = JSON.parse(fileContent) as { log_dirs?: string[] };
+        const fileConfig = JSON.parse(fileContent) as { log_dirs?: string[]; event_logger?: { enabled?: boolean; dbPath?: string; checkInterval?: number; eventTypes?: string[]; minSeverity?: string; notificationChannels?: string[] } };
         if (fileConfig.log_dirs && Array.isArray(fileConfig.log_dirs)) {
             config.logDirs = fileConfig.log_dirs;
+        }
+        if (fileConfig.event_logger) {
+            if (fileConfig.event_logger.enabled !== undefined) config.eventLogger.enabled = fileConfig.event_logger.enabled;
+            if (fileConfig.event_logger.dbPath) config.eventLogger.dbPath = fileConfig.event_logger.dbPath;
+            if (fileConfig.event_logger.checkInterval) config.eventLogger.checkInterval = fileConfig.event_logger.checkInterval;
+            if (fileConfig.event_logger.eventTypes) config.eventLogger.eventTypes = fileConfig.event_logger.eventTypes;
+            if (fileConfig.event_logger.minSeverity) config.eventLogger.minSeverity = fileConfig.event_logger.minSeverity as any;
+            if (fileConfig.event_logger.notificationChannels) config.eventLogger.notificationChannels = fileConfig.event_logger.notificationChannels;
         }
     }
 } catch {
