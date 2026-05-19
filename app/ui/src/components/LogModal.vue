@@ -17,7 +17,7 @@
         <span class="title">{{ title }}</span>
         <div class="header-actions">
           <span class="line-count">{{ totalLines }} 行{{ truncated ? ` / 共 ${totalLinesInFile} 行` : '' }}</span>
-          <span class="tail-error" v-if="tailError">{{ tailError }}</span>
+          <span class="tail-error" v-if="streamError">{{ streamError }}</span>
           <button
             class="action-btn"
             :class="{ 'tail-active': isTailing }"
@@ -114,7 +114,8 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import DOMPurify from 'dompurify'
 import { useLogSearch } from '../composables/useLogSearch'
-import api, { API_BASE } from '../services/api'
+import { useLogStream } from '../composables/useLogStream'
+import { useDockerLogStream } from '../composables/useDockerLogStream'
 import { useLogsStore } from '../stores/useLogsStore'
 
 interface Props {
@@ -167,12 +168,21 @@ const searchOptions = reactive({
   mode: 'keyword' as 'keyword' | 'regex'
 })
 
+// 文件日志 WebSocket 流
+const logStream = useLogStream()
+// Docker 日志 WebSocket 流
+const dockerLogStream = useDockerLogStream()
+
 const isTailing = ref(false)
-let tailTimer: ReturnType<typeof setInterval> | null = null
-let tailOffset = -1
 let autoScrollToBottom = false
-const tailContent = ref('')
-const tailError = ref('')
+
+// 使用 streamingContent 替换 tailContent，streamError 替换 tailError
+const streamingContent = computed(() =>
+  props.isDocker ? dockerLogStream.streamingContent.value : logStream.streamingContent.value
+)
+const streamError = computed(() =>
+  props.isDocker ? dockerLogStream.streamError.value : logStream.streamError.value
+)
 
 const LINE_HEIGHT = 24
 const BUFFER_SIZE = 10
@@ -186,7 +196,10 @@ const visibleRange = ref<VisibleRange>({ start: 0, end: 50 })
 
 const allLines = computed(() => {
   const content = props.content || ''
-  const fullContent = isTailing.value && tailContent.value ? content + '\n' + tailContent.value : content
+  const tailLines = isTailing.value && streamingContent.value.length
+    ? '\n' + streamingContent.value.join('\n')
+    : ''
+  const fullContent = content + tailLines
   if (!fullContent || fullContent === '(空文件)') return []
   return fullContent.split('\n')
 })
@@ -418,73 +431,23 @@ function toggleTail(): void {
     return
   }
 
-  tailContent.value = ''
-  tailError.value = ''
-  tailOffset = -1
-
   const filePathToSend = props.isDocker ? props.containerName : props.filePath
   if (!filePathToSend) {
-    tailError.value = '无法追踪: 缺少文件路径或容器名'
     return
   }
+
+  // 清空之前的内容
+  logStream.clearContent()
+  dockerLogStream.clearContent()
 
   isTailing.value = true
   scrollToBottom()
 
-  async function pollTail(): Promise<void> {
-    if (!isTailing.value) return
-
-    try {
-      const token = api.getSessionToken()
-      let url: string
-      if (props.isDocker) {
-        url = `${API_BASE}/api/docker/tail?container=${encodeURIComponent(props.containerName || props.filePath)}&offset=${tailOffset}`
-      } else {
-        url = `${API_BASE}/api/log/tail?path=${encodeURIComponent(props.filePath || props.containerName)}&offset=${tailOffset}`
-      }
-
-      const headers: Record<string, string> = {
-        'X-Requested-With': 'XMLHttpRequest'
-      }
-      if (token) {
-        headers['X-Session-Token'] = token
-      }
-      const csrfToken = sessionStorage.getItem('logmanager_csrf_token')
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken
-      }
-
-      const response = await fetch(url, { credentials: 'include', headers })
-      if (!response.ok) {
-        if (response.status === 401) {
-          tailError.value = '认证已过期，请重新登录'
-          stopTail()
-          return
-        }
-        tailError.value = `追踪请求失败: ${response.status}`
-        return
-      }
-
-      const data = await response.json()
-      if (data.deleted) {
-        tailError.value = '日志文件已被删除'
-        stopTail()
-        return
-      }
-
-      tailOffset = data.offset
-
-      if (data.content) {
-        tailContent.value += data.content
-        scrollToBottom()
-      }
-    } catch (err) {
-      tailError.value = '追踪请求错误'
-    }
+  if (props.isDocker) {
+    dockerLogStream.subscribe(filePathToSend)
+  } else {
+    logStream.subscribe(filePathToSend)
   }
-
-  pollTail()
-  tailTimer = setInterval(pollTail, 1000)
 }
 
 function scrollToBottom(): void {
@@ -503,14 +466,23 @@ function scrollToBottom(): void {
 }
 
 function stopTail(): void {
-  if (tailTimer) {
-    clearInterval(tailTimer)
-    tailTimer = null
-  }
   isTailing.value = false
   autoScrollToBottom = false
-  tailOffset = -1
+  logStream.unsubscribe()
+  dockerLogStream.unsubscribe()
 }
+
+// WebSocket 推送新内容时自动滚到底部
+// 使用 deep:true 因为 composable 内用 push() 原地修改数组，引用不变
+watch(streamingContent, () => {
+  if (isTailing.value && logBody.value) {
+    nextTick(() => {
+      if (logBody.value) {
+        logBody.value.scrollTop = logBody.value.scrollHeight
+      }
+    })
+  }
+}, { deep: true })
 
 onMounted(() => {
   handleScroll()
@@ -519,6 +491,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopTail()
+  logStream.disconnect()
+  dockerLogStream.disconnect()
   cleanupSearch()
   document.removeEventListener('click', handleClickOutside)
 })
@@ -543,7 +517,7 @@ onUnmounted(() => {
   cursor: pointer;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
   transition: all var(--transition-fast);
   min-width: 0;
@@ -565,7 +539,7 @@ onUnmounted(() => {
   max-width: 160px;
 }
 .tab-close {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   line-height: 1;
   width: 16px;
   height: 16px;
@@ -641,7 +615,7 @@ onUnmounted(() => {
 }
 
 .line-count {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-3);
   background: var(--bg-color-3);
   padding: var(--spacing-xs) var(--spacing-sm);
@@ -651,7 +625,7 @@ onUnmounted(() => {
 .close-btn {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   cursor: pointer;
   color: var(--text-color-3);
   padding: 0;
@@ -672,7 +646,7 @@ onUnmounted(() => {
   border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-color-2);
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   cursor: pointer;
   line-height: 1.4;
   transition: all var(--transition-fast);
@@ -691,12 +665,12 @@ onUnmounted(() => {
 }
 
 .action-icon {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   line-height: 1;
 }
 
 .action-text {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
 }
 
 .action-btn.tail-active {
@@ -719,7 +693,7 @@ onUnmounted(() => {
 
 .tail-error {
   color: var(--error-color);
-  font-size: 0.6875rem;
+  font-size: var(--font-size-xs);
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -762,7 +736,7 @@ onUnmounted(() => {
   border: none;
   background: none;
   text-align: left;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-2);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -786,11 +760,11 @@ onUnmounted(() => {
   background: var(--warning-bg);
   border-bottom: 1px solid var(--warning-color);
   color: var(--text-color-1);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
 }
 
 .warning-icon {
-  font-size: 1rem;
+  font-size: var(--font-size-xl);
 }
 
 .load-all-btn {
@@ -800,7 +774,7 @@ onUnmounted(() => {
   border: none;
   border-radius: var(--radius-xs);
   color: white;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   cursor: pointer;
   font-weight: 500;
   transition: background var(--transition-fast);
@@ -829,7 +803,7 @@ onUnmounted(() => {
   padding: var(--spacing-sm) var(--spacing-md);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   background: var(--card-bg);
   color: var(--text-color-1);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
@@ -863,7 +837,7 @@ onUnmounted(() => {
   border: none;
   background: transparent;
   color: var(--text-color-3);
-  font-size: 0.6875rem;
+  font-size: var(--font-size-xs);
   cursor: pointer;
   border-radius: calc(var(--radius-xs) - 2px);
   transition: all var(--transition-fast);
@@ -883,7 +857,7 @@ onUnmounted(() => {
 }
 
 .search-error {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--error-color);
   white-space: nowrap;
   font-weight: 500;
@@ -893,7 +867,7 @@ onUnmounted(() => {
   background: var(--bg-color-3);
   border: none;
   color: var(--text-color-2);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   cursor: pointer;
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-xs);
@@ -915,7 +889,7 @@ onUnmounted(() => {
 }
 
 .match-info {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-3);
   min-width: 70px;
 }
@@ -926,7 +900,7 @@ onUnmounted(() => {
   border-radius: var(--radius-xs);
   background: var(--card-bg);
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-1);
   min-width: 65px;
   transition: all var(--transition-fast);
@@ -945,7 +919,7 @@ onUnmounted(() => {
 }
 
 .match-count {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-3);
   white-space: nowrap;
 }
@@ -962,7 +936,7 @@ onUnmounted(() => {
   border-radius: var(--radius-xs);
   background: var(--card-bg);
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-1);
   transition: all var(--transition-fast);
 }
@@ -1044,14 +1018,14 @@ onUnmounted(() => {
   background: #e8b339;
   color: #1a1a2e;
   padding: 0 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-3xs);
 }
 
 :deep(.highlight.current) {
   background: #0a59f7;
   color: white;
   padding: 0 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-3xs);
   font-weight: bold;
 }
 
@@ -1077,7 +1051,7 @@ onUnmounted(() => {
   }
 
   .modal-header .title {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
     font-weight: 500;
     flex: 1;
     order: 0;
@@ -1092,7 +1066,7 @@ onUnmounted(() => {
   }
 
   .line-count {
-    font-size: 0.625rem;
+    font-size: var(--font-size-2xs);
     padding: 2px 6px;
     white-space: nowrap;
     background: var(--bg-color-3);
@@ -1101,7 +1075,7 @@ onUnmounted(() => {
   }
 
   .close-btn {
-    font-size: 1.25rem;
+    font-size: var(--font-size-3xl);
     line-height: 1;
     color: var(--text-color-2);
     transition: color var(--transition-fast);
@@ -1118,11 +1092,11 @@ onUnmounted(() => {
 
   .action-btn {
     padding: 2px 7px;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
   }
 
   .action-icon {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
   }
 
   .action-dropdown {
@@ -1136,7 +1110,7 @@ onUnmounted(() => {
 
   .dropdown-option {
     padding: 5px 10px;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
   }
 
   .modal-search {
@@ -1149,14 +1123,14 @@ onUnmounted(() => {
 
   .segment-btn {
     padding: 2px 6px;
-    font-size: 0.5625rem;
+    font-size: var(--font-size-2xs);
   }
 
   .search-input {
     flex: 1;
     min-width: 120px;
     padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     background: var(--card-bg);
     border-color: var(--border-color);
     color: var(--text-color-1);
@@ -1172,7 +1146,7 @@ onUnmounted(() => {
 
   .clear-btn {
     padding: 2px 6px;
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     min-width: 24px;
     max-width: 24px;
     background: var(--bg-color-3);
@@ -1193,14 +1167,14 @@ onUnmounted(() => {
   }
 
   .match-info {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     min-width: 50px;
     color: var(--text-color-2);
   }
 
   .nav-btn {
     padding: 2px var(--spacing-sm);
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     min-width: 50px;
     background: var(--card-bg);
     border-color: var(--border-color);
@@ -1218,7 +1192,7 @@ onUnmounted(() => {
     order: 3;
     width: 100%;
     text-align: center;
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-color-2);
   }
 
@@ -1228,7 +1202,7 @@ onUnmounted(() => {
 
   .jump-btn {
     padding: 2px var(--spacing-sm);
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     background: var(--card-bg);
     border-color: var(--border-color);
     color: var(--text-color-1);
@@ -1256,7 +1230,7 @@ onUnmounted(() => {
   }
 
   .log-viewer {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     min-width: max-content;
   }
 
@@ -1269,11 +1243,11 @@ onUnmounted(() => {
     min-width: 40px;
     padding-right: var(--spacing-sm);
     margin-right: var(--spacing-sm);
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 
   .line-content {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     white-space: pre;
     overflow: visible;
     text-overflow: unset;
@@ -1293,16 +1267,16 @@ onUnmounted(() => {
   }
 
   .modal-header .title {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 
   .line-count {
-    font-size: 0.625rem;
+    font-size: var(--font-size-2xs);
     padding: 2px 4px;
   }
 
   .close-btn {
-    font-size: 1.125rem;
+    font-size: var(--font-size-2xl);
   }
 
   .modal-search {
@@ -1311,28 +1285,28 @@ onUnmounted(() => {
 
   .search-input {
     min-width: 100px;
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 
   .nav-btn {
     padding: 2px 6px;
-    font-size: 0.625rem;
+    font-size: var(--font-size-2xs);
     min-width: 40px;
   }
 
   .log-viewer {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 
   .line-number {
     min-width: 35px;
     padding-right: 6px;
     margin-right: 6px;
-    font-size: 0.625rem;
+    font-size: var(--font-size-2xs);
   }
 
   .line-content {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 }
 </style>

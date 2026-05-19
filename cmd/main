@@ -30,7 +30,7 @@ start_process() {
         error_exit "无法创建数据目录 ${TRIM_PKGVAR}"
     fi
     
-    CONFIG_FILE="${TRIM_PKGVAR}/config/config.json"
+    CONFIG_FILE="${TRIM_PKGVAR}/config.json"
     BACKUP_DIR="/vol1/@appshare/logmanager/backup"
     if [ -f "$CONFIG_FILE" ]; then
         CONFIG_BACKUP=$(grep -o '"backup_dir"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" 2>/dev/null | grep -o '"[^"]*"$' | tr -d '"')
@@ -79,13 +79,21 @@ start_process() {
         error_exit "服务器文件不存在: $SERVER_DIR/server.js"
     fi
     
-    GATEWAY_SOCKET=""
-    if [ -n "${TRIM_APPDEST}" ]; then
-        GATEWAY_SOCKET="${TRIM_APPDEST}/logmanager.sock"
-        rm -f "$GATEWAY_SOCKET" 2>/dev/null
-    fi
+    ARCH=$(uname -m)
     
-    LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" GATEWAY_SOCKET="$GATEWAY_SOCKET" node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
+    if [ "$ARCH" = "x86_64" ]; then
+        # x86：监听 Unix Socket，通过统一网关通信
+        GATEWAY_SOCKET=""
+        if [ -n "${TRIM_APPDEST}" ]; then
+            GATEWAY_SOCKET="${TRIM_APPDEST}/logmanager.sock"
+            rm -f "$GATEWAY_SOCKET" 2>/dev/null
+        fi
+        
+        LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" GATEWAY_SOCKET="$GATEWAY_SOCKET" PORT=8090 node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
+    else
+        # ARM：监听 HTTP 端口，通过 localhost 通信
+        LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" PORT=8090 node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
+    fi
     local pid=$!
     printf "%s" "$pid" > "$PID_FILE"
     
@@ -96,7 +104,11 @@ start_process() {
         echo ""
         echo "=========================================="
         echo "  飞牛应用日志管理已启动"
-        echo "  访问地址: 通过统一网关 /app/logmanager"
+        if [ "$ARCH" = "x86_64" ]; then
+            echo "  访问地址: 通过统一网关 /app/logmanager"
+        else
+            echo "  访问地址: http://localhost:8090"
+        fi
         echo "  数据目录: ${TRIM_PKGVAR}"
         echo "  日志: cat ${TRIM_PKGVAR}/info.log"
         echo "=========================================="

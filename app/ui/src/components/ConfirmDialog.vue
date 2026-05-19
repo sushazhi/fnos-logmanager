@@ -120,7 +120,7 @@ defineExpose({ show })
 }
 
 .confirm-title {
-  font-size: 1.125rem;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--text-color-1);
   margin-bottom: var(--spacing-sm);
@@ -128,7 +128,7 @@ defineExpose({ show })
 }
 
 .confirm-message {
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-2);
   margin-bottom: var(--spacing-2xl);
   line-height: 1.5;
@@ -147,7 +147,7 @@ defineExpose({ show })
 
 .message-dir {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--primary-color);
   background: var(--bg-color-2);
   padding: var(--spacing-xs) var(--spacing-sm);
@@ -166,7 +166,7 @@ defineExpose({ show })
   padding: var(--spacing-md);
   border: none;
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);

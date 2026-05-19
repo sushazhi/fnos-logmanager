@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import os from 'os';
 import { Request, Response, NextFunction } from 'express';
 import config from '../utils/config';
 
@@ -13,8 +14,43 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     res.removeHeader('X-Powered-By');
     res.removeHeader('Server');
 
-    const host = req.headers.host || '';
-    const hostBase = host.split(':')[0];
+    // 获取客户端可见的主机名，供 CSP 和 frame-ancestors 使用
+    // 环境：可能经过 fnOS 网关（Unix socket）或反向代理，Host 头可能为内部地址
+    function getClientHost(req: Request): string {
+        // 1. X-Forwarded-Host（网关/反向代理透传的原始 Host）
+        const forwardedHost = req.headers['x-forwarded-host'] as string | undefined;
+        if (forwardedHost) {
+            const fh = forwardedHost.split(':')[0];
+            if (fh && fh !== '127.0.0.1' && fh !== 'localhost') return fh;
+        }
+        // 2. Origin 头（浏览器实际访问地址，但导航请求不携带）
+        const origin = req.headers.origin || '';
+        if (origin) {
+            try {
+                const oh = new URL(origin).hostname;
+                if (oh && oh !== '127.0.0.1' && oh !== 'localhost') return oh;
+            } catch { /* fall through */ }
+        }
+        // 3. Host 头（网关/反向代理可能改写为内部地址）
+        const host = req.headers.host || '';
+        const hostBase = host.split(':')[0];
+        if (hostBase && hostBase !== '127.0.0.1' && hostBase !== 'localhost') {
+            return hostBase;
+        }
+        // 4. 全失败时，尝试获取本机 LAN IP
+        try {
+            const interfaces = os.networkInterfaces();
+            for (const name of Object.keys(interfaces)) {
+                for (const iface of interfaces[name] || []) {
+                    if (iface.family === 'IPv4' && !iface.internal) {
+                        return iface.address;
+                    }
+                }
+            }
+        } catch { /* fall through */ }
+        return hostBase || '127.0.0.1';
+    }
+    const hostBase = getClientHost(req);
     // 判断是否为 IP 地址（纯数字和点组成）
     const isIpAddress = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostBase);
     
@@ -30,6 +66,9 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
         frameAncestors = `'self' https://*.${mainDomain} http://*.${mainDomain}`;
     }
 
+    // WebSocket 直连本地端口（ARM CGI 代理 / x86 绕过网关），需加入 CSP
+    const wsOrigin = ` ws://${hostBase}:${config.port}`;
+
     const cspNonce = crypto.randomBytes(16).toString('base64');
     res.locals.cspNonce = cspNonce;
 
@@ -39,7 +78,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
         `style-src 'self' 'unsafe-inline'; ` +
         `img-src 'self' data:; ` +
         `font-src 'self' data:; ` +
-        `connect-src 'self' https://api.github.com; ` +
+        `connect-src 'self' https://api.github.com${wsOrigin}; ` +
         `frame-ancestors ${frameAncestors}; ` +
         `base-uri 'self'; ` +
         `form-action 'self'; ` +

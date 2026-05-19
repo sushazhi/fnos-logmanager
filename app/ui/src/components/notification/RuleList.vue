@@ -84,7 +84,7 @@ function getLogLevelName(level: string): string {
   width: 100%;
   padding: 8px 16px;
   border: 1px solid var(--primary-color);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: var(--primary-color);
   font-size: 13px;
@@ -107,7 +107,7 @@ function getLogLevelName(level: string): string {
   align-items: center;
   padding: 12px;
   background: var(--bg-secondary);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
 }
 
 .rule-info {
@@ -133,11 +133,11 @@ function getLogLevelName(level: string): string {
 }
 
 .detail-item {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   padding: 2px 6px;
   background: var(--bg-tertiary);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
 }
 
 .rule-actions {
@@ -150,10 +150,10 @@ function getLogLevelName(level: string): string {
 .edit-btn {
   padding: 4px 8px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
@@ -164,7 +164,7 @@ function getLogLevelName(level: string): string {
 .delete-btn {
   padding: 4px 8px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: var(--danger-color);
   font-size: 16px;
@@ -209,7 +209,7 @@ function getLogLevelName(level: string): string {
   bottom: 0;
   background-color: var(--bg-tertiary);
   transition: 0.3s;
-  border-radius: 24px;
+  border-radius: var(--radius-xl);
 }
 
 .slider:before {

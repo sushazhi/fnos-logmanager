@@ -195,7 +195,6 @@ class ILinkClient {
             });
 
             const payload = this.parseJson(resp);
-            logger.debug({ body: resp.body }, '微信 ClawBot 获取二维码响应');
 
             if (!payload || Object.keys(payload).length === 0) {
                 return { success: false, message: '获取二维码失败：空响应' };

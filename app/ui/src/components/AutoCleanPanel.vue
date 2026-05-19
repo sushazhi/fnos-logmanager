@@ -283,20 +283,20 @@ onMounted(() => {
 <style scoped>
 .status-msg {
   padding: 8px 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   margin-bottom: 12px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--font-size-base);
 }
 .status-msg.success {
-  background: #1a3a1a;
-  color: #4caf50;
-  border: 1px solid #2e5e2e;
+  background: var(--success-bg);
+  color: var(--success-color);
+  border: 1px solid var(--success-color);
 }
 .status-msg.error {
-  background: #3a1a1a;
-  color: #f44336;
-  border: 1px solid #5e2e2e;
+  background: var(--error-bg);
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
 }
 .modal-overlay {
   position: fixed;
@@ -332,7 +332,7 @@ onMounted(() => {
 
 .panel-header h3 {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--text-color-1);
 }
@@ -340,7 +340,7 @@ onMounted(() => {
 .close-btn {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   cursor: pointer;
   color: var(--text-color-2);
   padding: 0 var(--spacing-sm);
@@ -366,7 +366,7 @@ onMounted(() => {
 
 .section-header h4 {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: var(--font-size-lg);
   font-weight: 500;
   color: var(--text-color-1);
 }
@@ -379,7 +379,7 @@ onMounted(() => {
   border: none;
   border-radius: var(--radius-xs);
   cursor: pointer;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
 }
 
@@ -406,7 +406,7 @@ onMounted(() => {
 .form-row label {
   display: block;
   margin-bottom: var(--spacing-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
   color: var(--text-color-1);
 }
@@ -417,7 +417,7 @@ onMounted(() => {
   padding: var(--spacing-sm);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   background: var(--card-bg);
   color: var(--text-color-1);
   box-sizing: border-box;
@@ -447,7 +447,7 @@ onMounted(() => {
   padding: var(--spacing-sm);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   background: var(--card-bg);
   color: var(--text-color-1);
   box-sizing: border-box;
@@ -461,8 +461,8 @@ onMounted(() => {
 .hint {
   display: block;
   margin-top: 4px;
-  font-size: 0.6875rem;
-  color: var(--text-color-3, #999);
+  font-size: var(--font-size-xs);
+  color: var(--text-color-3);
 }
 
 .form-actions {
@@ -477,7 +477,7 @@ onMounted(() => {
   border: none;
   border-radius: var(--radius-xs);
   cursor: pointer;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
 }
 
@@ -501,7 +501,7 @@ onMounted(() => {
   text-align: center;
   color: var(--text-color-2);
   padding: var(--spacing-xl);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
 }
 
 .rule-list {
@@ -535,22 +535,22 @@ onMounted(() => {
 
 .rule-name {
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-1);
 }
 
 .rule-type,
 .rule-condition,
 .rule-schedule {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-3xs);
   background: var(--bg-color-3);
   color: var(--text-color-2);
 }
 
 .rule-meta {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-3);
 }
 
@@ -583,7 +583,7 @@ onMounted(() => {
   bottom: 0;
   background-color: var(--bg-color-4);
   transition: var(--transition-base);
-  border-radius: 18px;
+  border-radius: var(--radius-full);
 }
 
 .slider::before {
@@ -610,10 +610,10 @@ input:checked + .slider::before {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   padding: 2px 6px;
   color: var(--text-color-2);
-  border-radius: 3px;
+  border-radius: var(--radius-3xs);
 }
 
 .action-btn:hover {

@@ -68,7 +68,7 @@
 
 - **通知推送** 
   - 日志监控与多渠道通知
-  - 支持 Bark、钉钉、飞书、企业微信、Telegram、QQ机器人 等 22 种通知渠道
+  - 支持 Bark、钉钉、飞书、企业微信、Telegram、QQ机器人 等 23 种通知渠道
   - 自定义监控规则，关键词匹配（支持正则表达式）
   - 日志级别过滤
   - 冷却时间与静默时段设置
@@ -82,9 +82,7 @@
   - 事件统计与历史记录
 
 - **安全特性**
-  - 统一网关认证（X-Trim-* Header）+ 应用密码双重认证
-  - Argon2id 密码哈希
-  - 登录失败锁定（5次失败锁定30分钟）
+  - 统一网关认证（X-Trim-* Header）
   - 敏感信息自动过滤
   - 审计日志记录
   - CSRF 验证（网关模式自动跳过）
@@ -96,17 +94,16 @@
   - CSRF token 时序安全比较（crypto.timingSafeEqual）
   - WebSocket Origin 验证（防跨域劫持）
   - SSE/WebSocket 连接数限制（防 DoS）
-  - 敏感操作速率限制
+  - 敏感操作速率限制（按端独立计数）
   - 所有 GET 端点速率限制
   - 通知配置字段白名单过滤
   - 统一错误处理，生产环境隐藏堆栈和错误详情
   - CSP 安全策略（connect-src 限制、frame-ancestors 动态计算）
   - Cookie httpOnly + SameSite=Lax
   - localStorage 解析校验 + CSS 注入防护
-  - Token 输入框 type=password
 
 - **UI 设计** 
-  - 鸿蒙 NEXT 6.0 设计风格
+  - 鸿蒙 6.1 设计风格
   - 全局 CSS 变量色彩体系
   - 日间/夜间主题
   - 自定义主题色（预览与实际一致）
@@ -207,7 +204,6 @@
 ### 设置
 
 点击右上角设置图标进入设置：
-- 修改密码
 - 切换主题
 - 更改主题色
 - 查看审计日志
@@ -257,10 +253,12 @@ git push --tags
 │   │   │   ├── dockerLogStream.ts  # Docker 日志 WebSocket 流
 │   │   │   ├── notifyWebSocket.ts  # 通知 WebSocket
 │   │   │   ├── autoClean.ts        # 自动清理服务（cron/秒级间隔）
+│   │   │   ├── logMonitor.ts       # 日志监控与规则匹配
 │   │   │   ├── bookmark.ts         # 书签服务
 │   │   │   ├── session.ts          # 会话服务（timingSafeEqual）
 │   │   │   └── ...
 │   │   ├── utils/                  # 工具
+│   │   │   ├── configManager.ts    # 配置管理器（分层覆盖：env > file > default）
 │   │   │   ├── validation.ts       # 输入验证/路径安全/容器名验证
 │   │   │   ├── filter.ts           # 敏感信息过滤
 │   │   │   ├── streamReader.ts     # 流式读取
@@ -311,24 +309,23 @@ git push --tags
 
 ### 后端
 - **运行时**: Node.js 24+
-- **框架**: Express 4.18.2
-- **语言**: TypeScript 5.9.3
-- **密码加密**: @node-rs/argon2 (Argon2id)
-- **日志**: Pino 8.21.0
+- **框架**: Express 5.2.1
+- **语言**: TypeScript 6.0.3
+- **日志**: Pino 10.3.1
 - **数据库**: sql.js 1.10.3 (SQLite WASM)
-- **HTTP客户端**: undici 6.24.1
-- **WebSocket**: ws 8.20.0
+- **HTTP客户端**: undici 8.3.0
+- **WebSocket**: ws 8.20.1
 
 ### 前端
 - **框架**: Vue 3.5.31 (Composition API)
-- **状态管理**: Pinia 2.1.7
-- **构建工具**: Vite 7.3.1
-- **语言**: TypeScript 5.9.3
+- **状态管理**: Pinia 3.0.4
+- **构建工具**: Vite 8.0.13
+- **语言**: TypeScript 6.0.3
 - **安全**: DOMPurify 3.3.3
 
 ### 架构特点
 - **统一网关**: Unix Socket + 前缀剥离，无需独立端口
-- **认证体系**: 网关 X-Trim-* Header 自动登录 + 应用密码可选
+- **认证体系**: 网关 X-Trim-* Header 自动登录
 - **状态管理**: Pinia 统一管理应用状态（含多标签页管理）
 - **错误处理**: 统一的错误类型和响应格式（isOperational + statusCode 双重检查）
 - **性能优化**: 流式读取、缓存机制、请求去重、Web Worker 搜索
@@ -337,10 +334,8 @@ git push --tags
 
 ## 安全说明
 
-- 统一网关认证（X-Trim-* Header 自动登录）+ 应用密码双重认证
+- 统一网关认证（X-Trim-* Header 自动登录）
 - 网关模式下 CSRF/内网 IP 检查自动跳过（网关已校验）
-- 密码使用 Argon2id 加密存储
-- 登录失败 5 次锁定 30 分钟
 - 敏感信息（密码、密钥等）自动过滤
 - 审计日志记录所有敏感操作
 - 路径遍历防护（isAllowedPath + safePath + isSymlinkPath 三重检查）
@@ -352,7 +347,7 @@ git push --tags
 - SSE/WS 连接数限制防 DoS
 - Cookie httpOnly + SameSite=Lax
 - 统一错误处理，生产环境隐藏堆栈信息和错误详情
-- 请求限流保护（含所有 GET 端点）
+- 请求限流保护（含按端独立计数的敏感操作速率限制 + GET 端点限制）
 - 通知配置字段白名单过滤
 - 导出格式白名单验证
 - CSP 安全策略（connect-src 限制、frame-ancestors 动态计算主域名）

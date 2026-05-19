@@ -1,7 +1,18 @@
 :root {
-  /* HarmonyOS NEXT 6.0 - 字体系统 */
+  /* HarmonyOS NEXT 6.1 - 字体系统 */
   --base-font-size: 16px;
   --font-family: 'HarmonyOS Sans', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacFontFont, sans-serif;
+  --font-size-2xs: 0.625rem;   /* 10px */
+  --font-size-xs: 0.6875rem;   /* 11px */
+  --font-size-sm: 0.75rem;     /* 12px */
+  --font-size-base: 0.8125rem; /* 13px */
+  --font-size-md: 0.875rem;    /* 14px */
+  --font-size-lg: 0.9375rem;   /* 15px */
+  --font-size-xl: 1rem;        /* 16px */
+  --font-size-2xl: 1.125rem;   /* 18px */
+  --font-size-3xl: 1.25rem;    /* 20px */
+  --font-size-4xl: 1.375rem;   /* 22px */
+  --font-size-5xl: 1.5rem;     /* 24px */
 
   /* 主题色 - 鸿蒙蓝青 */
   --primary-gradient: linear-gradient(135deg, #0A59F7 0%, #317AF7 50%, #54B2F7 100%);
@@ -74,13 +85,16 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
 
-  /* 圆角 - 鸿蒙6.0大圆角 */
+  /* 圆角 - 鸿蒙6.1大圆角 */
+  --radius-3xs: 2px;
+  --radius-2xs: 4px;
   --radius-xs: 8px;
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 20px;
   --radius-xl: 24px;
   --radius-2xl: 28px;
+  --radius-full: 9999px;
 
   /* 间距 */
   --spacing-xs: 4px;
@@ -97,7 +111,7 @@
   --transition-slow: 0.35s cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* 深色模式 - 鸿蒙6.0 */
+/* 深色模式 - 鸿蒙6.1 */
 .dark-theme {
   --primary-gradient: linear-gradient(135deg, #317AF7 0%, #54B2F7 50%, #7DC8F8 100%);
 

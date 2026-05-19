@@ -43,9 +43,8 @@ let status: EventLoggerStatus = {
 const cooldownCache = new Map<string, number>();
 
 export async function init(cfg?: Partial<EventLoggerConfig>): Promise<void> {
-    const configDir = path.join(config.dataDir, 'config');
-    configFilePath = path.join(configDir, 'eventlogger-config.json');
-    try { await mkdirAsync(configDir, { recursive: true }); } catch { /* ok */ }
+    configFilePath = path.join(config.dataDir, 'eventlogger-config.json');
+    try { await mkdirAsync(config.dataDir, { recursive: true }); } catch { /* ok */ }
 
     const defaults: EventLoggerConfig = {
         dbPath: config.eventLogger.dbPath || DEFAULT_CONFIG.dbPath,

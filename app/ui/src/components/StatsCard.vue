@@ -4,7 +4,7 @@
     <div class="stats-grid">
       <div class="stat-card stat-card-blue">
         <div class="stat-icon">
-          <!-- 鸿蒙6图标: 文档 -->
+          <!-- 鸿蒙6.1图标: 文档 -->
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M14 2V8H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -19,7 +19,7 @@
       </div>
       <div class="stat-card stat-card-green">
         <div class="stat-icon">
-          <!-- 鸿蒙6图标: 存储/数据库 -->
+          <!-- 鸿蒙6.1图标: 存储/数据库 -->
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.5"/>
             <path d="M21 12C21 13.66 16.9706 15 12 15C7.02944 15 3 13.66 3 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -33,7 +33,7 @@
       </div>
       <div class="stat-card stat-card-orange">
         <div class="stat-icon">
-          <!-- 鸿蒙6图标: 归档/压缩包 -->
+          <!-- 鸿蒙6.1图标: 归档/压缩包 -->
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M21 8V21H3V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             <rect x="1" y="3" width="22" height="5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -47,7 +47,7 @@
       </div>
       <div class="stat-card stat-card-red">
         <div class="stat-icon">
-          <!-- 鸿蒙6图标: 大文件/警告 -->
+          <!-- 鸿蒙6.1图标: 大文件/警告 -->
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M13 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V9L13 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M13 2V9H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -179,7 +179,7 @@ defineProps<{
 }
 
 .stat-card .value {
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   font-weight: 600;
   margin-bottom: var(--spacing-xs);
   letter-spacing: -0.02em;
@@ -187,7 +187,7 @@ defineProps<{
 }
 
 .stat-card .label {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   font-weight: 400;
   opacity: 0.9;
   white-space: nowrap;
@@ -217,17 +217,17 @@ defineProps<{
   }
 
   .stat-card .value {
-    font-size: 1.25rem;
+    font-size: var(--font-size-3xl);
   }
 
   .stat-card .label {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 }
 
 @media (max-width: 480px) {
   .stat-card .value {
-    font-size: 1.125rem;
+    font-size: var(--font-size-2xl);
   }
 
   .stat-icon {

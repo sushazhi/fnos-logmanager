@@ -4,30 +4,12 @@ echo "正在配置飞牛应用日志管理..."
 
 APP_NAME="logmanager"
 SERVER_DIR="${TRIM_APPDEST}/server"
-CONFIG_DIR="${TRIM_PKGVAR}/config"
-
-# 创建配置目录
-if ! mkdir -p "$CONFIG_DIR"; then
-    echo "Error: 无法创建配置目录 $CONFIG_DIR" > "$TRIM_TEMP_LOGFILE"
-    exit 1
-fi
-
-# 迁移旧配置文件到 config 子目录（兼容旧版本升级）
-for oldfile in "${TRIM_PKGVAR}/.password" "${TRIM_PKGVAR}/.init-time" "${TRIM_PKGVAR}/audit.log" \
-    "${TRIM_PKGVAR}/notification-config.json" "${TRIM_PKGVAR}/notification-history.json" \
-    "${TRIM_PKGVAR}/bookmarks.json" "${TRIM_PKGVAR}/autoclean-config.json" \
-    "${TRIM_PKGVAR}/.sessions.json" "${TRIM_PKGVAR}/eventlogger-rules.json" \
-    "${TRIM_PKGVAR}/eventlogger-config.json"; do
-    if [ -f "$oldfile" ]; then
-        mv "$oldfile" "$CONFIG_DIR/" 2>/dev/null
-    fi
-done
 
 BACKUP_DIR="/vol1/@appshare/logmanager/backup"
 
 # 创建配置文件（已存在则不覆盖）
-if [ ! -f "$CONFIG_DIR/config.json" ]; then
-cat > "$CONFIG_DIR/config.json" << EOF
+if [ ! -f "${TRIM_PKGVAR}/config.json" ]; then
+cat > "${TRIM_PKGVAR}/config.json" << EOF
 {
     "log_dirs": [
         "/vol1/@appdata",

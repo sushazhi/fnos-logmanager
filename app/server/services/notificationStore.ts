@@ -47,14 +47,13 @@ let historyFilePath: string | null = null;
  * 初始化存储模块
  */
 export async function init(): Promise<void> {
-    // 使用 config 目录下的通知配置文件（重装不覆盖）
-    const configDir = path.join(config.dataDir, 'config');
-    configFilePath = path.join(configDir, DEFAULT_CONFIG_FILE);
-    historyFilePath = path.join(configDir, HISTORY_FILE);
+    // 所有配置文件直接放在 dataDir 根目录
+    configFilePath = path.join(config.dataDir, DEFAULT_CONFIG_FILE);
+    historyFilePath = path.join(config.dataDir, HISTORY_FILE);
 
     // 确保目录存在
     try {
-        await mkdir(configDir, { recursive: true });
+        await mkdir(config.dataDir, { recursive: true });
     } catch {
         // 目录已存在
     }
@@ -63,7 +62,6 @@ export async function init(): Promise<void> {
     await loadConfig();
     await loadHistory();
 
-    console.log('[NotificationStore] 初始化完成');
 }
 
 /**
@@ -78,7 +76,6 @@ async function loadConfig(): Promise<void> {
 
         // 版本兼容性检查
         if (parsed.version !== CONFIG_VERSION) {
-            console.log('[NotificationStore] 配置版本不匹配，使用默认配置');
             cachedConfig = { ...DEFAULT_CONFIG };
         } else {
             cachedConfig = parsed;
@@ -119,9 +116,7 @@ async function saveConfig(): Promise<void> {
     }
 
     try {
-        console.log('[NotificationStore] 保存配置到:', configFilePath);
         await writeFile(configFilePath, JSON.stringify(cachedConfig, null, 2), 'utf8');
-        console.log('[NotificationStore] 配置保存成功');
     } catch (e) {
         console.error('[NotificationStore] 保存配置失败:', e);
         throw e;

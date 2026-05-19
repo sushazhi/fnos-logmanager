@@ -73,7 +73,7 @@ function getChannelTypeName(channel: string): string {
   width: 100%;
   padding: 8px 16px;
   border: 1px solid var(--primary-color);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: var(--primary-color);
   font-size: 13px;
@@ -96,7 +96,7 @@ function getChannelTypeName(channel: string): string {
   align-items: center;
   padding: 12px;
   background: var(--bg-secondary);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
 }
 
 .channel-info {
@@ -111,7 +111,7 @@ function getChannelTypeName(channel: string): string {
 }
 
 .channel-type {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -138,10 +138,10 @@ function getChannelTypeName(channel: string): string {
 .edit-btn, .test-btn {
   padding: 4px 8px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
@@ -152,7 +152,7 @@ function getChannelTypeName(channel: string): string {
 .delete-btn {
   padding: 4px 8px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: var(--danger-color);
   font-size: 16px;
@@ -192,7 +192,7 @@ function getChannelTypeName(channel: string): string {
   bottom: 0;
   background-color: var(--bg-tertiary);
   transition: 0.3s;
-  border-radius: 24px;
+  border-radius: var(--radius-xl);
 }
 
 .slider:before {

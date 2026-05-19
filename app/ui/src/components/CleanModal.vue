@@ -70,7 +70,7 @@ function execute(): void {
 }
 
 .modal-header {
-  font-size: 1.125rem;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   margin-bottom: var(--spacing-xl);
   color: var(--text-color-1);
@@ -85,7 +85,7 @@ function execute(): void {
   display: block;
   margin-bottom: var(--spacing-sm);
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-1);
 }
 
@@ -95,7 +95,7 @@ function execute(): void {
   padding: var(--spacing-sm);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xs);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-family: var(--font-family);
   background: var(--card-bg);
   color: var(--text-color-1);
@@ -124,7 +124,7 @@ function execute(): void {
   border: none;
   border-radius: var(--radius-xs);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
   transition: all var(--transition-fast);
 }

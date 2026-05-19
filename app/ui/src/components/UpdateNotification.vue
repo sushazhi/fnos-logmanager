@@ -192,7 +192,7 @@ onMounted(() => {
 
 .update-notification-title {
   font-weight: 600;
-  font-size: 1.125rem;
+  font-size: var(--font-size-2xl);
   color: var(--text-color-1);
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
@@ -200,7 +200,7 @@ onMounted(() => {
 }
 
 .update-notification-version {
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--primary-color);
   margin-top: var(--spacing-xs);
   font-weight: 500;
@@ -209,7 +209,7 @@ onMounted(() => {
 }
 
 .update-notification-changelog {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
   margin-top: var(--spacing-sm);
   line-height: 1.5;
@@ -228,7 +228,7 @@ onMounted(() => {
 .update-notification-btn {
   padding: var(--spacing-sm) var(--spacing-lg);
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
@@ -281,7 +281,7 @@ onMounted(() => {
   width: 100%;
   height: 8px;
   background: var(--bg-color-3);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   overflow: hidden;
   margin: var(--spacing-md) 0;
 }
@@ -293,21 +293,21 @@ onMounted(() => {
 }
 
 .progress-text {
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   font-weight: 600;
   color: var(--primary-color);
   margin: var(--spacing-sm) 0;
 }
 
 .progress-message {
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-2);
 }
 
 .update-notification-close {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   color: var(--text-color-3);
   cursor: pointer;
   padding: var(--spacing-xs) var(--spacing-sm);
@@ -384,19 +384,19 @@ onMounted(() => {
   }
 
   .update-notification-title {
-    font-size: 1rem;
+    font-size: var(--font-size-xl);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   .update-notification-version {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   .update-notification-changelog {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
     margin-top: var(--spacing-sm);
     max-height: 80px;
     -webkit-font-smoothing: antialiased;
@@ -411,7 +411,7 @@ onMounted(() => {
 
   .update-notification-btn {
     padding: var(--spacing-xs) var(--spacing-md);
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
     flex: 1;
     min-width: 80px;
     text-align: center;
@@ -423,7 +423,7 @@ onMounted(() => {
     position: absolute;
     top: var(--spacing-xs);
     right: var(--spacing-xs);
-    font-size: 1.25rem;
+    font-size: var(--font-size-3xl);
     width: 28px;
     height: 28px;
     display: flex;
@@ -448,20 +448,20 @@ onMounted(() => {
   }
 
   .update-notification-title {
-    font-size: 1rem;
+    font-size: var(--font-size-xl);
   }
 
   .update-notification-version {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .update-notification-btn {
     padding: var(--spacing-xs) var(--spacing-lg);
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .update-notification-changelog {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 }
 </style>

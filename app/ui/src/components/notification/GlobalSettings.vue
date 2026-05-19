@@ -71,7 +71,7 @@ const intervals = CHECK_INTERVALS;
 .setting-row select {
   padding: 4px 8px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 13px;
@@ -103,7 +103,7 @@ const intervals = CHECK_INTERVALS;
   bottom: 0;
   background-color: var(--bg-tertiary);
   transition: 0.3s;
-  border-radius: 24px;
+  border-radius: var(--radius-xl);
 }
 
 .slider:before {

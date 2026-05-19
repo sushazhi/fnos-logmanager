@@ -56,7 +56,6 @@ function matchesLogLevel(line: string, level: string): boolean {
     const patterns = LOG_LEVEL_PATTERNS[level];
     if (!patterns) return true;
     const result = patterns.some(pattern => pattern.test(line));
-    logger.debug({ line: line.substring(0, 80), level, result }, 'matchesLogLevel');
     return result;
 }
 
@@ -69,13 +68,9 @@ function matchKeyword(line: string, keyword: string): boolean {
     if (slashMatch) {
         try {
             const regex = new RegExp(slashMatch[1], slashMatch[2] || 'i');
-            const result = regex.test(line);
-            logger.debug({ keyword, pattern: slashMatch[1], flags: slashMatch[2], line: line.substring(0, 100), result }, 'matchKeyword regex slash');
-            return result;
+            return regex.test(line);
         } catch {
-            const fallback = line.toLowerCase().includes(keyword.toLowerCase());
-            logger.debug({ keyword, line: line.substring(0, 100), result: fallback }, 'matchKeyword slash fallback');
-            return fallback;
+            return line.toLowerCase().includes(keyword.toLowerCase());
         }
     }
     
@@ -84,28 +79,20 @@ function matchKeyword(line: string, keyword: string): boolean {
         const pattern = keyword.substring(6);
         try {
             const regex = new RegExp(pattern, 'i');
-            const result = regex.test(line);
-            logger.debug({ keyword, pattern, line: line.substring(0, 100), result }, 'matchKeyword regex prefix');
-            return result;
+            return regex.test(line);
         } catch {
-            const fallback = line.toLowerCase().includes(keyword.toLowerCase());
-            logger.debug({ keyword, line: line.substring(0, 100), result: fallback }, 'matchKeyword regex fallback');
-            return fallback;
+            return line.toLowerCase().includes(keyword.toLowerCase());
         }
     }
     
     // 普通文本匹配
     const lineLower = line.toLowerCase();
     const keywordLower = keyword.toLowerCase();
-    const result = lineLower.includes(keywordLower);
-    logger.debug({ keyword, line: line.substring(0, 100), result }, 'matchKeyword plain');
-    return result;
+    return lineLower.includes(keywordLower);
 }
 
 // 检查日志行是否匹配规则
 function matchesRule(line: string, rule: any): boolean {
-    logger.debug({ ruleName: rule.name, line: line.substring(0, 100), logLevel: rule.logLevel, keywords: rule.keywords, pattern: rule.pattern }, 'matchesRule check');
-
     // 排除关键词优先检查（匹配任何排除关键词则直接跳过）
     if (rule.excludeKeywords && rule.excludeKeywords.length > 0) {
         for (const keyword of rule.excludeKeywords) {
@@ -132,7 +119,6 @@ function matchesRule(line: string, rule: any): boolean {
                 }
             }
             if (!matched) {
-                logger.debug({ ruleName: rule.name, keywords, line: line.substring(0, 100) }, 'matchesRule FAIL: no keyword matched');
                 return false;
             }
         }
@@ -142,25 +128,19 @@ function matchesRule(line: string, rule: any): boolean {
             try {
                 const regex = new RegExp(pattern, 'i');
                 if (!regex.test(line)) {
-                    logger.debug({ ruleName: rule.name, pattern, line: line.substring(0, 100) }, 'matchesRule FAIL: pattern not match');
                     return false;
                 }
             } catch (e) {
                 logger.warn({ ruleName: rule.name, pattern, err: e }, 'matchesRule: invalid regex pattern');
             }
         }
-        
-        logger.debug({ ruleName: rule.name, line: line.substring(0, 100) }, 'matchesRule PASS');
         return true;
     }
     
     // 无关键词也无正则，只用级别文本匹配
     if (!matchesLogLevel(line, rule.logLevel)) {
-        logger.debug({ ruleName: rule.name, logLevel: rule.logLevel, line: line.substring(0, 100) }, 'matchesRule FAIL: log level not match');
         return false;
     }
-    
-    logger.debug({ ruleName: rule.name, logLevel: rule.logLevel, line: line.substring(0, 100) }, 'matchesRule PASS (level only)');
     return true;
 }
 
@@ -240,7 +220,6 @@ async function getNewContent(filePath: string, lastSize: number): Promise<{ cont
 async function processLogFile(filePath: string, appName: string | null): Promise<void> {
     const fileInfo = watchedFiles.get(filePath);
     if (!fileInfo) {
-        logger.debug({ file: filePath }, 'processLogFile: file not in watchedFiles');
         return;
     }
     
@@ -264,7 +243,6 @@ async function processLogFile(filePath: string, appName: string | null): Promise
     
     // 按行处理
     const lines = result.content.split('\n');
-    logger.debug({ file: filePath, appName, lineCount: lines.length, newBytes: result.content.length }, 'processLogFile: new content');
     for (const line of lines) {
         if (!line.trim()) continue;
         
@@ -272,7 +250,6 @@ async function processLogFile(filePath: string, appName: string | null): Promise
         for (const rule of activeRules) {
             // 检查应用名称匹配
             if (!matchesAppName(appName || '', rule.appName)) {
-                logger.debug({ rule: rule.name, ruleAppName: rule.appName, fileAppName: appName, file: filePath }, 'processLogFile: appName not match');
                 continue;
             }
             
@@ -280,7 +257,6 @@ async function processLogFile(filePath: string, appName: string | null): Promise
             if (rule.logPaths && rule.logPaths.length > 0) {
                 const pathMatch = rule.logPaths.some((p: string) => filePath === p || filePath.startsWith(p));
                 if (!pathMatch) {
-                    logger.debug({ rule: rule.name, logPaths: rule.logPaths, file: filePath }, 'processLogFile: logPath not match');
                     continue;
                 }
             }
@@ -290,13 +266,11 @@ async function processLogFile(filePath: string, appName: string | null): Promise
             
             // 检查频率控制
             if (!notificationStore.canSendNotification(rule)) {
-                logger.debug({ rule: rule.name }, 'processLogFile: cooldown active');
                 continue;
             }
             
             // 检查静默时段
             if (notificationStore.isInQuietHours(rule)) {
-                logger.debug({ rule: rule.name }, 'processLogFile: quiet hours');
                 continue;
             }
             

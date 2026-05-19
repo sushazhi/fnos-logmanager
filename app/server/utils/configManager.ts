@@ -25,7 +25,6 @@ class ConfigManager {
     define<T>(definition: ConfigDefinition<T>): void {
         this.definitions.set(definition.key, definition as ConfigDefinition<unknown>);
         this.set(definition.key, definition.defaultValue, 'default');
-        logger.debug({ key: definition.key, defaultValue: definition.defaultValue }, 'Config definition registered');
     }
 
     /**
@@ -45,13 +44,11 @@ class ConfigManager {
         const priority: ConfigSource[] = ['env', 'file', 'default'];
 
         if (currentSource && priority.indexOf(currentSource) > priority.indexOf(source)) {
-            logger.debug({ key, source, currentSource }, 'Config ignored due to lower priority');
             return;
         }
 
         this.config.set(key, value);
         this.sources.set(key, source);
-        logger.debug({ key, value, source }, 'Config set');
     }
 
     /**

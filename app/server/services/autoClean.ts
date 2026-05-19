@@ -112,12 +112,12 @@ function parseCronNextTime(expression: string): number | null {
 }
 
 function getConfigPath(): string {
-    return path.join(config.dataDir, 'config', CONFIG_FILENAME);
+    return path.join(config.dataDir, CONFIG_FILENAME);
 }
 
 async function ensureDataDir(): Promise<void> {
     try {
-        await fs.promises.mkdir(path.join(config.dataDir, 'config'), { recursive: true, mode: 0o700 });
+        await fs.promises.mkdir(config.dataDir, { recursive: true, mode: 0o700 });
     } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
     }

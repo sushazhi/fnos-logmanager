@@ -163,7 +163,7 @@ loadVisibleDirs()
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-xs);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-1);
   flex: none;
   width: auto;
@@ -190,7 +190,7 @@ loadVisibleDirs()
 
 .config-hint {
   margin: 0 0 var(--spacing-sm) 0;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
 }
 
@@ -207,7 +207,7 @@ loadVisibleDirs()
   padding: var(--spacing-xs) var(--spacing-sm);
   background: var(--card-bg);
   border-radius: var(--radius-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   cursor: pointer;
   color: var(--text-color-1);
   transition: all var(--transition-fast);
@@ -218,7 +218,7 @@ loadVisibleDirs()
 }
 
 .dir-status {
-  font-size: 0.6875rem;
+  font-size: var(--font-size-xs);
   padding: 2px var(--spacing-xs);
   border-radius: var(--radius-xs);
   font-weight: 500;
@@ -276,7 +276,7 @@ loadVisibleDirs()
 
 .log-dir-item h3 {
   margin: 0 0 var(--spacing-xs) 0;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
   color: var(--text-color-1);
 }
@@ -292,13 +292,13 @@ loadVisibleDirs()
 
 .log-dir-item .stat-value {
   display: block;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--primary-color);
 }
 
 .log-dir-item .stat span:last-child {
-  font-size: 0.6875rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-3);
 }
 
@@ -313,18 +313,18 @@ loadVisibleDirs()
   }
 
   .log-dir-item h3 {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .log-dir-item .stat-value {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .log-dir-item .stat span:last-child {
-    font-size: 0.625rem;
+    font-size: var(--font-size-2xs);
   }
 
   .dir-checkboxes {
@@ -344,7 +344,7 @@ loadVisibleDirs()
   }
 
   .log-dir-item h3 {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 
   .log-dir-item .stats {
@@ -352,11 +352,11 @@ loadVisibleDirs()
   }
 
   .log-dir-item .stat-value {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 
   .log-dir-item .stat span:last-child {
-    font-size: 0.625rem;
+    font-size: var(--font-size-2xs);
   }
 }
 </style>

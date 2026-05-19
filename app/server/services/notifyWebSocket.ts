@@ -34,15 +34,17 @@ function getSessionTokenFromRequest(req: any): string {
 /**
  * 初始化通知 WebSocket 服务器
  */
-export function initNotifyWebSocket(server: Server): void {
+export function initNotifyWebSocket(_server: Server): void {
     wss = new WebSocketServer({
-        server,
-        path: '/api/notifications/ws',
+        noServer: true,
         verifyClient: (info, callback) => {
-            if (process.env.GATEWAY_SOCKET) {
+            // 通过 Unix Socket 来的连接（网关代理）：由网关处理认证
+            const isUnixSocket = info.req.socket.remoteFamily === 'AF_UNIX' || !info.req.socket.localAddress;
+            if (isUnixSocket && process.env.GATEWAY_SOCKET) {
                 callback(true);
                 return;
             }
+            // 直连 TCP 连接：验证 session token
             const token = getSessionTokenFromRequest(info.req);
             if (!token || !sessionService.validateSession(token)) {
                 logger.warn('NotifyWS connection rejected: invalid or missing session token');
@@ -51,11 +53,12 @@ export function initNotifyWebSocket(server: Server): void {
             }
 
             const origin = info.req.headers.origin || '';
-            if (origin && !process.env.GATEWAY_SOCKET) {
+            if (origin) {
                 const host = info.req.headers.host || '';
                 try {
-                    const originHost = new URL(origin).host;
-                    if (originHost !== host) {
+                    const originHost = new URL(origin).hostname;
+                    const requestHost = host.split(':')[0];
+                    if (originHost !== requestHost) {
                         logger.warn({ origin, host }, 'NotifyWS connection rejected: origin mismatch');
                         callback(false, 403, 'Forbidden');
                         return;
@@ -120,6 +123,19 @@ export function initNotifyWebSocket(server: Server): void {
     });
 
     logger.info('Notification WebSocket server initialized');
+}
+
+/**
+ * 在 server.on('upgrade') 中调用，路由 WebSocket 升级请求
+ */
+export function handleNotifyWSUpgrade(req: any, socket: any, head: any): boolean {
+    if (!wss) return false;
+    const url = req.url || '';
+    if (!url.startsWith('/api/notifications/ws')) return false;
+    wss.handleUpgrade(req, socket, head, (ws) => {
+        wss!.emit('connection', ws, req);
+    });
+    return true;
 }
 
 /**

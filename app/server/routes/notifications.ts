@@ -369,7 +369,6 @@ router.post('/rules', validateToken, validateCSRF, sensitiveActionRateLimit(10, 
             triggerCount: 0
         };
 
-        console.log('[Notifications] 创建规则对象:', JSON.stringify(rule, null, 2));
         await notificationStore.addRule(rule);
         res.json({ success: true, rule });
     } catch (err) {

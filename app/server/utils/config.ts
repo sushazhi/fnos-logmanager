@@ -112,11 +112,11 @@ const config: AppConfig = {
     initTimestampFile: ''
 };
 
-config.passwordFile = path.join(config.dataDir, 'config', '.password');
+config.passwordFile = path.join(config.dataDir, '.password');
 config.auditLogFile = path.join(config.dataDir, 'audit.log');
-config.initTimestampFile = path.join(config.dataDir, 'config', '.init-time');
+config.initTimestampFile = path.join(config.dataDir, '.init-time');
 
-const configFile = path.join(config.dataDir, 'config', 'config.json');
+const configFile = path.join(config.dataDir, 'config.json');
 try {
     if (fs.existsSync(configFile)) {
         const fileContent = fs.readFileSync(configFile, 'utf8');

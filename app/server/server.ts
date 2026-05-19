@@ -3,6 +3,7 @@ import path from 'path';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import http from 'http';
+import net from 'net';
 import stream from 'stream';
 import Logger from './utils/logger';
 
@@ -31,9 +32,9 @@ import notificationRoutes from './routes/notifications';
 import eventLoggerRoutes from './routes/eventLogger';
 import * as logMonitor from './services/logMonitor';
 import * as eventLoggerService from './services/eventLogger';
-import { initLogStream, closeLogStream } from './services/logStream';
-import { initDockerLogStream, closeDockerLogStream } from './services/dockerLogStream';
-import { initNotifyWebSocket, closeNotifyWebSocket } from './services/notifyWebSocket';
+import { initLogStream, closeLogStream, handleLogStreamUpgrade } from './services/logStream';
+import { initDockerLogStream, closeDockerLogStream, handleDockerStreamUpgrade } from './services/dockerLogStream';
+import { initNotifyWebSocket, closeNotifyWebSocket, handleNotifyWSUpgrade } from './services/notifyWebSocket';
 import * as autoCleanService from './services/autoClean';
 
 const envValidation = validateEnv();
@@ -87,6 +88,11 @@ app.use(morgan((tokens, req, res) => {
     skip: (req, res) => {
         // 跳过 304 Not Modified（缓存轮询请求）
         if (res.statusCode === 304) return true;
+        // 跳过已被限流的请求（429 已拒绝，无审计价值）
+        if (res.statusCode === 429) return true;
+        // 跳过 CGI 代理内部 curl 请求（ARM 模式下 router.cgi 转发的内部流量）
+        const ua = req.headers['user-agent'] || '';
+        if (ua.includes('curl/') && req.ip === '127.0.0.1') return true;
         // 跳过前端高频轮询和无审计价值的只读端点
         const pollingPaths = ['/status', '/bookmarks', '/dirs', '/logs/stats', '/settings/filter', '/channels', '/rules', '/log/tail', '/log/content', '/logs/list', '/monitor/status'];
         if (pollingPaths.includes(req.path)) return true;
@@ -143,6 +149,7 @@ const server = http.createServer((req: http.IncomingMessage, res: http.ServerRes
 });
 
 server.on('upgrade', (req: http.IncomingMessage, socket: stream.Duplex, head: Buffer) => {
+    // 网关模式：剥离前缀
     if (GATEWAY_SOCKET && req.url) {
         if (req.url.startsWith(GATEWAY_PREFIX + '/')) {
             req.url = req.url.slice(GATEWAY_PREFIX.length);
@@ -150,6 +157,11 @@ server.on('upgrade', (req: http.IncomingMessage, socket: stream.Duplex, head: Bu
             req.url = req.url.slice(GATEWAY_PREFIX.length) || '/';
         }
     }
+    // 手动路由到对应的 WebSocketServer（noServer 模式，避免 ws 库内部 upgrade 监听器冲突）
+    if (handleLogStreamUpgrade(req, socket, head)) return;
+    if (handleDockerStreamUpgrade(req, socket, head)) return;
+    if (handleNotifyWSUpgrade(req, socket, head)) return;
+    socket.destroy();
 });
 
 async function startServer() {
@@ -176,31 +188,46 @@ async function startServer() {
     }
 }
 
+function createUnixSocketProxy(): void {
+    // 创建 Unix socket 代理：将 fnOS 网关的 Unix socket 流量转发到主服务器的 TCP 端口
+    // 主服务器统一监听 0.0.0.0:port 处理所有 HTTP+WS 流量，ws 库直接操作 socket 无帧损坏
+    const proxy = net.createServer((gatewaySocket: net.Socket) => {
+        const serverSocket = net.connect(config.port, '127.0.0.1', () => {
+            gatewaySocket.pipe(serverSocket);
+            serverSocket.pipe(gatewaySocket);
+        });
+        serverSocket.once('error', () => gatewaySocket.destroy());
+        gatewaySocket.on('error', () => { /* 不冒泡 */ });
+    });
+    proxy.on('error', (err: Error) => {
+        logger.error({ err, socket: SOCKET_PATH }, 'Unix socket 代理错误');
+    });
+    proxy.listen(SOCKET_PATH!, () => {
+        try { require('fs').chmodSync(SOCKET_PATH!, 0o660); } catch { /* ignore */ }
+        logger.info({ socket: SOCKET_PATH, port: config.port }, 'Unix socket 代理已启动');
+    });
+}
+
 function listenServer(): void {
-    if (SOCKET_PATH) {
-        try {
-            const fs = require('fs');
-            if (fs.existsSync(SOCKET_PATH)) {
-                fs.unlinkSync(SOCKET_PATH);
-            }
-        } catch { /* ignore */ }
-        
-        server.listen(SOCKET_PATH, async () => {
+    // 主服务器始终监听 TCP 端口（HTTP+WS 统一处理，ws 库直接操作 socket）
+    server.listen(config.port, '0.0.0.0', async () => {
+        await startServer();
+
+        logger.info({ port: config.port }, '服务已启动');
+        auditService.addAuditLog('SERVER_START', { mode: 'direct', port: config.port }).catch(() => {});
+
+        if (SOCKET_PATH) {
+            // 网关模式：额外监听 Unix socket 供 fnOS 网关转发
+            // 将网关流量代理到主服务器的 TCP 端口，确保 HTTP/WS 都经主服务器统一处理
             try {
                 const fs = require('fs');
-                fs.chmodSync(SOCKET_PATH, 0o660);
+                if (fs.existsSync(SOCKET_PATH)) {
+                    fs.unlinkSync(SOCKET_PATH);
+                }
             } catch { /* ignore */ }
-            logger.info({ socket: SOCKET_PATH }, '服务已启动（网关模式）');
-            auditService.addAuditLog('SERVER_START', { mode: 'gateway', socket: SOCKET_PATH }).catch(() => {});
-            await startServer();
-        });
-    } else {
-        server.listen(config.port, '0.0.0.0', async () => {
-            logger.info({ port: config.port }, '服务已启动');
-            auditService.addAuditLog('SERVER_START', { mode: 'direct', port: config.port }).catch(() => {});
-            await startServer();
-        });
-    }
+            createUnixSocketProxy();
+        }
+    });
 }
 
 listenServer();

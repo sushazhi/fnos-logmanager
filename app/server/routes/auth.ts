@@ -28,20 +28,37 @@ router.get('/status', async (req: Request, res: Response) => {
     const isGatewayMode = !!process.env.GATEWAY_SOCKET;
 
     if (isGatewayMode) {
+        // 也创建 session token，供直连 WebSocket 使用（绕过网关）
+        const gatewaySessionToken = sessionService.createSession('local');
+        res.cookie('session_token', gatewaySessionToken, COOKIE_OPTIONS);
         res.json({
             initialized: true,
             isLoggedIn: true,
             isAdmin: req.headers['x-trim-isadmin'] === 'true',
-            username: (req.headers['x-trim-username'] as string) || ''
+            username: (req.headers['x-trim-username'] as string) || '',
+            sessionToken: gatewaySessionToken,
+            sessionExpiry: 24 * 60 * 60 * 1000
         });
         return;
     }
 
-    const sessionToken = getSessionToken(req);
-    const isLoggedIn = sessionToken && sessionService.validateSession(sessionToken);
+    // 非网关模式（如 ARM CGI 代理）：自动创建或复用本地会话
+    let sessionToken = getSessionToken(req);
+    let isLoggedIn = sessionToken ? sessionService.validateSession(sessionToken) : false;
+
+    if (!isLoggedIn) {
+        sessionToken = sessionService.createSession('local');
+        res.cookie('session_token', sessionToken, COOKIE_OPTIONS);
+        isLoggedIn = true;
+    }
+
+    const csrfToken = sessionService.getCSRFToken(sessionToken || '');
+
     res.json({
-        initialized: !!isLoggedIn,
-        isLoggedIn: !!isLoggedIn,
+        initialized: true,
+        isLoggedIn: true,
+        csrfToken,
+        sessionToken,
         sessionExpiry: 24 * 60 * 60 * 1000
     });
 });

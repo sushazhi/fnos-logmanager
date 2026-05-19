@@ -103,62 +103,65 @@ jobs:
           chmod +x fnpack
           echo "fnpack downloaded ($(stat -c%s fnpack) bytes)"
 
-      - name: Verify project structure
+      - name: Setup build directory
         run: |
-          echo "=== Project structure ==="
-          ls -la
-          echo ""
-          echo "=== Required files ==="
-          for file in manifest ICON.PNG ICON_256.PNG app cmd config wizard; do
-            if [ ! -e "$file" ]; then
-              echo "ERROR: Required file/directory '$file' not found!"
-              exit 1
-            fi
-            echo "  ✓ $file"
+          # Mirror build.ps1 [1/5]: clean and recreate build directory
+          echo "Setting up build directory..."
+          mkdir -p build/app/ui
+          mkdir -p build/app/server
+          mkdir -p build/cmd
+          mkdir -p build/config
+          mkdir -p build/wizard
+
+      - name: Copy project files to build directory
+        run: |
+          # Mirror build.ps1 [3/5]: copy all project files
+
+          # Root files
+          cp -r cmd/* build/cmd/
+          cp -r config/* build/config/
+          cp -r wizard/* build/wizard/
+
+          # Inject version into build manifest (mirror build.ps1 manifest update)
+          sed "s/^version[[:space:]]*=.*/version = ${APP_VERSION}/" manifest > build/manifest
+
+          for file in LICENSE ICON.PNG ICON_256.PNG; do
+            if [ -f "$file" ]; then cp "$file" build/; fi
           done
 
-      - name: Create .fpk package
-        run: |
-          mkdir -p build
-          
-          # Copy root files
-          cp -r cmd build/
-          cp -r config build/
-          cp -r wizard build/
-          cp manifest build/
-          cp LICENSE build/
-          cp ICON.PNG build/
-          cp ICON_256.PNG build/
-          
-          # Copy Vue build output
-          mkdir -p build/app/ui
+          # Vue build output
           cp -r app/ui/dist/* build/app/ui/
-          cp -r app/ui/config build/app/ui/
+          if [ -f "app/ui/config" ]; then cp -r app/ui/config build/app/ui/; fi
           if [ -d "app/ui/images" ]; then cp -r app/ui/images build/app/ui/; fi
-          
-          # Copy compiled server files from dist
-          mkdir -p build/app/server
+
+          echo "Project files copied"
+
+      - name: Copy compiled server files
+        run: |
+          # Mirror build.ps1 [4/5]: copy compiled TypeScript output
           cp app/server/dist/server.js build/app/server/
           cp app/server/package.json build/app/server/
-          
-          # Copy compiled server subdirectories
+
           for subdir in utils middleware services routes types notify errors; do
             if [ -d "app/server/dist/$subdir" ]; then
-              mkdir -p "build/app/server/$subdir"
-              cp -r app/server/dist/$subdir/* "build/app/server/$subdir/"
+              cp -r "app/server/dist/$subdir" "build/app/server/$subdir"
               echo "  Copied $subdir/"
             fi
           done
-          
-          # Build package
+
+          echo "Server files copied"
+
+      - name: Create .fpk package
+        run: |
+          # Mirror build.ps1 [5/5]: run fnpack build
           cd build
           ../fnpack build .
-          
+
           if [ ! -f "logmanager.fpk" ]; then
             echo "ERROR: fnpack did not generate logmanager.fpk"
             exit 1
           fi
-          
+
           PACKAGE_NAME="logmanager-${APP_VERSION}.fpk"
           mv logmanager.fpk "../${PACKAGE_NAME}"
           echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
@@ -193,7 +196,7 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           CHANGELOG=$(grep '^changelog[[:space:]]*=' manifest | sed 's/^changelog[[:space:]]*=[[:space:]]*//' | sed 's/<br>/\n/g')
-          
+
           gh release create "$TAG" \
             "${PACKAGE_NAME}" \
             --title "$TAG" \

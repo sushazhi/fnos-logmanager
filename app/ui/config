@@ -4,10 +4,10 @@
             "title": "飞牛日志管理",
             "icon": "images/icon_{0}.png",
             "type": "iframe",
-            "gatewaySocket": "logmanager.sock",
+            "url": "/cgi/ThirdParty/logmanager/router.cgi/",
+            "allUsers": true,
             "gatewayPrefix": "/app/logmanager",
-            "url": "/app/logmanager",
-            "allUsers": true
+            "gatewaySocket": "logmanager.sock"
         }
     }
 }

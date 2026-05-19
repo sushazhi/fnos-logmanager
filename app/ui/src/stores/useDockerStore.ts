@@ -37,7 +37,7 @@ export const useDockerStore = defineStore('docker', () => {
     const { setStatus } = useStatusStore()
     setStatus('正在获取容器日志...', 'loading')
     try {
-      const data = await api.get<{ logs: string }>(`/api/docker/logs?container=${encodeURIComponent(container)}`)
+      const data = await api.get<{ logs: string }>(`/api/docker/logs?container=${encodeURIComponent(container)}&lines=2000`)
       return {
         title: `Docker: ${container}`,
         content: data.logs || '(无日志)'

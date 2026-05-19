@@ -50,44 +50,44 @@ function submit() {
 
 .modal-content {
   background: var(--card-bg);
-  color: var(--text-primary, #333);
-  padding: 30px;
-  border-radius: 12px;
+  color: var(--text-color-1);
+  padding: var(--spacing-3xl);
+  border-radius: var(--radius-sm);
   max-width: 400px;
   width: 90%;
 }
 
 .modal-header {
-  font-size: 18px;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-xl);
 }
 
 .modal-body p {
-  margin-bottom: 15px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .form-group input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid var(--border-color, #ddd);
-  border-radius: 6px;
-  font-size: 14px;
-  background: var(--input-bg, #fff);
-  color: var(--text-primary, #333);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-md);
+  background: var(--bg-color-1);
+  color: var(--text-color-1);
 }
 
 .modal-footer {
-  margin-top: 20px;
+  margin-top: var(--spacing-xl);
   text-align: right;
 }
 
 .modal-footer button {
-  padding: 10px 20px;
-  background: var(--primary-gradient, linear-gradient(135deg, var(--primary-color) 0%, var(--card-color-1-light) 100%));
+  padding: var(--spacing-sm) var(--spacing-xl);
+  background: var(--primary-gradient);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
 }
 </style>

@@ -15,7 +15,7 @@
   padding: var(--spacing-xl);
   text-align: center;
   color: var(--text-color-3);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   border-top: 1px solid var(--border-color);
 }
 

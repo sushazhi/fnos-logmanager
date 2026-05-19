@@ -1,10 +1,7 @@
 /**
  * 模板消息处理器
  */
-import Logger from '../../utils/logger';
 import { EventLogEntry } from './types';
-
-const logger = Logger.child({ module: 'TemplateHandler' });
 
 /**
  * 将时间戳转换为本地时间字符串
@@ -133,9 +130,6 @@ export function formatTemplateMessage(param: Record<string, unknown>): string {
     }
 
     // 未知模板，返回原始信息
-    if (template) {
-        logger.debug({ template }, 'Unknown template type');
-    }
 
     return param.message as string || JSON.stringify(param);
 }

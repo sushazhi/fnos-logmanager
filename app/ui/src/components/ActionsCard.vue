@@ -123,7 +123,7 @@ button {
     var(--card-color-2) 100%
   );
   color: var(--text-color);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-weight: 600;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -189,7 +189,7 @@ button.warning:hover {
 
 .filter-label {
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-1);
 }
 
@@ -215,7 +215,7 @@ button.warning:hover {
   bottom: 0;
   background-color: var(--bg-color-4);
   transition: var(--transition-base);
-  border-radius: 22px;
+  border-radius: var(--radius-xl);
 }
 
 .slider::before {
@@ -240,7 +240,7 @@ input:checked + .slider::before {
 }
 
 .filter-status {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   font-weight: 400;
   color: var(--text-color-2);
 }
@@ -252,7 +252,7 @@ input:checked + .slider::before {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-weight: 400;
 }
 
@@ -277,7 +277,7 @@ input:checked + .slider::before {
 }
 
 .status-icon {
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
 }
 
 @media (max-width: 768px) {
@@ -287,11 +287,11 @@ input:checked + .slider::before {
 
   button {
     padding: var(--spacing-sm) var(--spacing-xs);
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .filter-label {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 }
 

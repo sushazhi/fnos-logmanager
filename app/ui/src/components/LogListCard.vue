@@ -213,7 +213,7 @@ function escapeRegex(string) {
 
 .drawer-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-xl);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -222,7 +222,7 @@ function escapeRegex(string) {
   background: none;
   border: none;
   color: white;
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   cursor: pointer;
   padding: 0;
   line-height: 1;
@@ -247,7 +247,7 @@ function escapeRegex(string) {
   padding: var(--spacing-sm) var(--spacing-md);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xs);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-family: var(--font-family);
   background: var(--card-bg);
   color: var(--text-color-1);
@@ -267,7 +267,7 @@ function escapeRegex(string) {
   background: var(--bg-color-3);
   border: none;
   color: var(--text-color-2);
-  font-size: 1rem;
+  font-size: var(--font-size-xl);
   cursor: pointer;
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-xs);
@@ -280,7 +280,7 @@ function escapeRegex(string) {
 }
 
 .search-count {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-2);
   white-space: nowrap;
 }
@@ -301,7 +301,7 @@ function escapeRegex(string) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   transition: background var(--transition-fast);
   gap: var(--spacing-md);
 }
@@ -355,21 +355,21 @@ function escapeRegex(string) {
 
 .log-item button {
   padding: 4px var(--spacing-sm);
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
 }
 
 .no-results {
   padding: var(--spacing-3xl) var(--spacing-xl);
   text-align: center;
   color: var(--text-color-3);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
 }
 
 .highlight {
   background: var(--warning-bg);
   color: var(--warning-color);
   padding: 0 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-3xs);
 }
 
 @media (max-width: 768px) {
@@ -389,11 +389,11 @@ function escapeRegex(string) {
   }
 
   .drawer-header h3 {
-    font-size: 0.9375rem;
+    font-size: var(--font-size-lg);
   }
 
   .close-btn {
-    font-size: 1.125rem;
+    font-size: var(--font-size-2xl);
     width: 18px;
     padding: 0;
     margin-left: auto;
@@ -406,16 +406,16 @@ function escapeRegex(string) {
 
   .search-input {
     padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .clear-btn {
     padding: 4px var(--spacing-xs);
-    font-size: 0.875rem;
+    font-size: var(--font-size-md);
   }
 
   .search-count {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 
   .log-item {
@@ -425,14 +425,14 @@ function escapeRegex(string) {
 
   .log-item .path {
     width: 100%;
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     margin-bottom: var(--spacing-xs);
     white-space: normal;
     word-break: break-all;
   }
 
   .log-item .size {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     margin-left: 0;
   }
 
@@ -446,7 +446,7 @@ function escapeRegex(string) {
   .log-item .actions button {
     flex: 1;
     padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 
   .log-item.header {
@@ -455,7 +455,7 @@ function escapeRegex(string) {
 
   .no-results {
     padding: var(--spacing-2xl) var(--spacing-lg);
-    font-size: 0.875rem;
+    font-size: var(--font-size-md);
   }
 }
 
@@ -469,7 +469,7 @@ function escapeRegex(string) {
   }
 
   .drawer-header h3 {
-    font-size: 0.9375rem;
+    font-size: var(--font-size-lg);
   }
 
   .drawer-search {
@@ -479,7 +479,7 @@ function escapeRegex(string) {
 
   .search-input {
     padding: var(--spacing-xs) var(--spacing-xs);
-    font-size: 0.875rem;
+    font-size: var(--font-size-md);
   }
 
   .log-item {
@@ -487,16 +487,16 @@ function escapeRegex(string) {
   }
 
   .log-item .path {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .log-item .size {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .log-item .actions button {
     padding: var(--spacing-xs) var(--spacing-xs);
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 }
 </style>

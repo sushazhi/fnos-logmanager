@@ -76,8 +76,10 @@ export function sensitiveActionRateLimit(maxRequests: number = 30, windowMs: num
     return (req: Request, res: Response, next: NextFunction): void => {
         const ip = getClientIP(req);
         const now = Date.now();
+        // 按 IP+路径独立计数（不同敏感操作互不影响）
+        const key = ip + ':' + req.path;
 
-        const record = sensitiveActionMap.get(ip) || { count: 0, resetTime: now + windowMs };
+        const record = sensitiveActionMap.get(key) || { count: 0, resetTime: now + windowMs };
 
         if (now > record.resetTime) {
             record.count = 1;
@@ -86,7 +88,7 @@ export function sensitiveActionRateLimit(maxRequests: number = 30, windowMs: num
             record.count++;
         }
 
-        boundedSet(sensitiveActionMap, ip, record);
+        boundedSet(sensitiveActionMap, key, record);
 
         if (record.count > maxRequests) {
             res.setHeader('Retry-After', String(Math.ceil((record.resetTime - now) / 1000)));

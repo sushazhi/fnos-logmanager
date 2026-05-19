@@ -71,8 +71,8 @@ defineEmits<{
 
 .status-badge {
   padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: var(--radius-2xs);
+  font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
@@ -98,11 +98,11 @@ defineEmits<{
   justify-content: space-between;
   padding: 8px 12px;
   background: var(--bg-secondary);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
 }
 
 .info-item .label {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -121,7 +121,7 @@ defineEmits<{
   flex: 1;
   padding: 8px 16px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: var(--primary-color);
   color: white;
   font-size: 13px;

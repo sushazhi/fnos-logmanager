@@ -208,7 +208,7 @@ onMounted(() => {
 
 .settings-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-xl);
   font-weight: 500;
   color: var(--text-color-1);
   flex: 1;
@@ -218,7 +218,7 @@ onMounted(() => {
 .close-btn {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   cursor: pointer;
   color: var(--text-color-2);
   padding: 0;
@@ -250,7 +250,7 @@ onMounted(() => {
   display: block;
   margin-bottom: var(--spacing-sm);
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-1);
 }
 
@@ -267,7 +267,7 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   background: var(--bg-color-2);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--text-color-1);
   transition: all var(--transition-fast);
@@ -284,7 +284,7 @@ onMounted(() => {
 }
 
 .font-size-value {
-  font-size: 1rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   min-width: 50px;
   text-align: center;
@@ -303,7 +303,7 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   background: var(--bg-color-2);
   cursor: pointer;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   transition: all var(--transition-fast);
   color: var(--text-color-1);
 }
@@ -365,7 +365,7 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-1);
   transition: all var(--transition-fast);
 }
@@ -387,7 +387,7 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-1);
   transition: all var(--transition-fast);
 }
@@ -421,7 +421,7 @@ onMounted(() => {
     flex: 1;
     min-width: 80px;
     padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 
   .color-options {
@@ -447,11 +447,11 @@ onMounted(() => {
   }
 
   .settings-header h3 {
-    font-size: 0.9375rem;
+    font-size: var(--font-size-lg);
   }
 
   .close-btn {
-    font-size: 1.125rem;
+    font-size: var(--font-size-2xl);
     width: 18px;
     padding: 0;
     margin-left: auto;
@@ -466,7 +466,7 @@ onMounted(() => {
   }
 
   .setting-item label {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .font-size-controls {
@@ -476,11 +476,11 @@ onMounted(() => {
   .font-size-controls button {
     width: 36px;
     height: 36px;
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .font-size-value {
-    font-size: 0.9375rem;
+    font-size: var(--font-size-lg);
   }
 
   .theme-buttons {
@@ -489,7 +489,7 @@ onMounted(() => {
 
   .theme-buttons button {
     padding: var(--spacing-xs);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 
   .color-options {

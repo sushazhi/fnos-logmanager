@@ -119,7 +119,7 @@ defineExpose({
   background: var(--bg-color-1);
   border: 1px solid var(--bg-color-4);
   border-radius: var(--radius-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -147,7 +147,7 @@ defineExpose({
 
 .bookmark-icon {
   flex-shrink: 0;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
 }
 
 .bookmark-name {
@@ -161,7 +161,7 @@ defineExpose({
   background: none;
   color: var(--text-color-3);
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   width: 16px;
   height: 16px;
   display: flex;
@@ -206,7 +206,7 @@ defineExpose({
 }
 
 .add-icon {
-  font-size: 1rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   line-height: 1;
 }
@@ -222,7 +222,7 @@ defineExpose({
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--bg-color-4);
   border-radius: var(--radius-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   background: var(--bg-color-1);
   color: var(--text-color);
   max-width: 200px;
@@ -239,7 +239,7 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
   cursor: pointer;
   white-space: nowrap;
@@ -250,7 +250,7 @@ defineExpose({
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--bg-color-4);
   border-radius: var(--radius-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   cursor: pointer;
   transition: all var(--transition-fast);
   font-weight: 500;

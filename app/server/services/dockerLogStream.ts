@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { spawn, ChildProcess } from 'child_process';
 import Logger from '../utils/logger';
+import config from '../utils/config';
 import { isValidContainerName } from '../utils/validation';
 import { filterSensitiveInfo } from '../utils/filter';
 import * as sessionService from '../services/session';
@@ -33,28 +34,31 @@ function getSessionTokenFromRequest(req: any): string {
     return url.searchParams.get('token') || '';
 }
 
-export function initDockerLogStream(server: Server): void {
+export function initDockerLogStream(_server: Server): void {
     wss = new WebSocketServer({
-        server,
-        path: '/api/docker/stream',
+        noServer: true,
         verifyClient: (info, callback) => {
-            if (process.env.GATEWAY_SOCKET) {
+            // 通过 Unix Socket 来的连接（网关代理）：由网关处理认证
+            const isUnixSocket = info.req.socket.remoteFamily === 'AF_UNIX' || !info.req.socket.localAddress;
+            if (isUnixSocket && process.env.GATEWAY_SOCKET) {
                 callback(true);
                 return;
             }
+            // 直连 TCP 连接：验证 session token
             const token = getSessionTokenFromRequest(info.req);
             if (!token || !sessionService.validateSession(token)) {
-                logger.warn('WebSocket connection rejected: invalid or missing session token');
+                logger.warn('Docker WS connection rejected: invalid or missing session token');
                 callback(false, 401, 'Unauthorized');
                 return;
             }
 
             const origin = info.req.headers.origin || '';
-            if (origin && !process.env.GATEWAY_SOCKET) {
+            if (origin) {
                 const host = info.req.headers.host || '';
                 try {
-                    const originHost = new URL(origin).host;
-                    if (originHost !== host) {
+                    const originHost = new URL(origin).hostname;
+                    const requestHost = host.split(':')[0];
+                    if (originHost !== requestHost) {
                         logger.warn({ origin, host }, 'Docker WS connection rejected: origin mismatch');
                         callback(false, 403, 'Forbidden');
                         return;
@@ -123,6 +127,19 @@ export function initDockerLogStream(server: Server): void {
     logger.info('Docker log stream WebSocket server initialized');
 }
 
+/**
+ * 在 server.on('upgrade') 中调用，路由 WebSocket 升级请求
+ */
+export function handleDockerStreamUpgrade(req: any, socket: any, head: any): boolean {
+    if (!wss) return false;
+    const url = req.url || '';
+    if (!url.startsWith('/api/docker/stream')) return false;
+    wss.handleUpgrade(req, socket, head, (ws) => {
+        wss!.emit('connection', ws, req);
+    });
+    return true;
+}
+
 function handleMessage(ws: WebSocket, message: any): void {
     switch (message.type) {
         case 'ping': {
@@ -145,7 +162,7 @@ function handleMessage(ws: WebSocket, message: any): void {
             cleanupClient(ws);
 
             try {
-                const dockerProcess = spawn('docker', ['logs', container, '-f'], {
+                const dockerProcess = spawn('docker', ['logs', '--tail', '0', container, '-f'], {
                     stdio: ['ignore', 'pipe', 'pipe']
                 });
 
@@ -179,7 +196,8 @@ function handleMessage(ws: WebSocket, message: any): void {
 
                 dockerProcess.on('close', (code) => {
                     logger.info({ container, code }, 'Docker logs process exited');
-                    if (ws.readyState === WebSocket.OPEN) {
+                    // 主动 kill（取消订阅/断开连接）不发错误给前端
+                    if (!dockerProcess.killed && ws.readyState === WebSocket.OPEN) {
                         ws.send(JSON.stringify({ type: 'error', message: `Docker logs process exited with code ${code}` }));
                     }
                     cleanupClient(ws);

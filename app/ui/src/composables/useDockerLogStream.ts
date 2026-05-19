@@ -1,33 +1,32 @@
 /**
- * 实时日志流 Composable
- * 使用 WebSocket 实现日志实时跟踪（类似 tail -f）
+ * Docker 日志实时流 Composable
+ * 使用 WebSocket 实现 Docker 容器日志实时跟踪（docker logs -f）
  */
 
 import { ref, onUnmounted } from 'vue'
 import api from '../services/api'
 
-interface StreamMessage {
-  type: 'connected' | 'subscribed' | 'unsubscribed' | 'data' | 'file_rotated' | 'file_deleted' | 'error'
+interface DockerStreamMessage {
+  type: 'connected' | 'subscribed' | 'data' | 'error' | 'pong'
   content?: string
-  filePath?: string
-  offset?: number
-  totalSize?: number
-  initialSize?: number
+  container?: string
   message?: string
 }
 
-export function useLogStream() {
+export function useDockerLogStream() {
   const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
   const isSubscribed = ref(false)
   const streamingContent = ref<string[]>([])
   const streamError = ref<string | null>(null)
-  const currentFile = ref<string | null>(null)
+  const currentContainer = ref<string | null>(null)
 
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let reconnectAttempts = 0
   const MAX_RECONNECT_ATTEMPTS = 5
   const RECONNECT_BASE_DELAY = 1000
+  let pingTimer: ReturnType<typeof setInterval> | null = null
+  let intentionalClose = false
 
   function getWsUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -35,17 +34,18 @@ export function useLogStream() {
     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
     if (window.location.pathname.startsWith('/app/logmanager')) {
       // x86 网关模式：直连后端端口绕过网关（网关不支持 WS 代理）
-      return `${protocol}//${window.location.hostname}:8090/api/logs/stream${tokenParam}`
+      return `${protocol}//${window.location.hostname}:8090/api/docker/stream${tokenParam}`
     }
     if (window.location.pathname.startsWith('/cgi/')) {
       // ARM 直连模式：直连后端端口
-      return `${protocol}//${window.location.hostname}:8090/api/logs/stream${tokenParam}`
+      return `${protocol}//${window.location.hostname}:8090/api/docker/stream${tokenParam}`
     }
-    return `${protocol}//${window.location.host}/api/logs/stream${tokenParam}`
+    return `${protocol}//${window.location.host}/api/docker/stream${tokenParam}`
   }
 
   function connect(): void {
     if (ws.value && ws.value.readyState === WebSocket.OPEN) return
+    intentionalClose = false
 
     try {
       const socket = new WebSocket(getWsUrl())
@@ -54,11 +54,12 @@ export function useLogStream() {
         isConnected.value = true
         streamError.value = null
         reconnectAttempts = 0
+        startPing()
       }
 
       socket.onmessage = (event) => {
         try {
-          const message: StreamMessage = JSON.parse(event.data)
+          const message: DockerStreamMessage = JSON.parse(event.data)
           handleMessage(message)
         } catch {
           // Ignore invalid messages
@@ -69,7 +70,10 @@ export function useLogStream() {
         isConnected.value = false
         isSubscribed.value = false
         ws.value = null
-        attemptReconnect()
+        stopPing()
+        if (!intentionalClose) {
+          attemptReconnect()
+        }
       }
 
       socket.onerror = () => {
@@ -82,7 +86,7 @@ export function useLogStream() {
     }
   }
 
-  function handleMessage(message: StreamMessage): void {
+  function handleMessage(message: DockerStreamMessage): void {
     switch (message.type) {
       case 'connected':
         isConnected.value = true
@@ -90,13 +94,8 @@ export function useLogStream() {
 
       case 'subscribed':
         isSubscribed.value = true
-        currentFile.value = message.filePath || null
+        currentContainer.value = message.container || null
         streamingContent.value = []
-        break
-
-      case 'unsubscribed':
-        isSubscribed.value = false
-        currentFile.value = null
         break
 
       case 'data':
@@ -110,20 +109,28 @@ export function useLogStream() {
         }
         break
 
-      case 'file_rotated':
-        // 文件被轮转，清空当前内容
-        streamingContent.value = ['--- 文件已轮转 ---']
-        break
-
-      case 'file_deleted':
-        isSubscribed.value = false
-        currentFile.value = null
-        streamError.value = '日志文件已被删除'
-        break
-
       case 'error':
         streamError.value = message.message || '未知错误'
         break
+
+      case 'pong':
+        break
+    }
+  }
+
+  function startPing(): void {
+    stopPing()
+    pingTimer = setInterval(() => {
+      if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+        ws.value.send('ping')
+      }
+    }, 25000)
+  }
+
+  function stopPing(): void {
+    if (pingTimer) {
+      clearInterval(pingTimer)
+      pingTimer = null
     }
   }
 
@@ -139,7 +146,7 @@ export function useLogStream() {
     }, delay)
   }
 
-  function subscribe(filePath: string, pollInterval: number = 1000): void {
+  function subscribe(container: string): void {
     if (!ws.value || ws.value.readyState !== WebSocket.OPEN) {
       connect()
       // 等待连接建立后订阅
@@ -148,8 +155,7 @@ export function useLogStream() {
           clearInterval(waitConnect)
           ws.value!.send(JSON.stringify({
             type: 'subscribe',
-            filePath,
-            pollInterval
+            container
           }))
         }
       }, 100)
@@ -160,8 +166,7 @@ export function useLogStream() {
 
     ws.value.send(JSON.stringify({
       type: 'subscribe',
-      filePath,
-      pollInterval
+      container
     }))
   }
 
@@ -170,16 +175,18 @@ export function useLogStream() {
       ws.value.send(JSON.stringify({ type: 'unsubscribe' }))
     }
     isSubscribed.value = false
-    currentFile.value = null
+    currentContainer.value = null
     streamingContent.value = []
   }
 
   function disconnect(): void {
+    intentionalClose = true
     if (reconnectTimer) {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
     }
-    reconnectAttempts = MAX_RECONNECT_ATTEMPTS // 阻止自动重连
+    reconnectAttempts = MAX_RECONNECT_ATTEMPTS
+    stopPing()
 
     if (ws.value) {
       ws.value.close()
@@ -187,7 +194,7 @@ export function useLogStream() {
     }
     isConnected.value = false
     isSubscribed.value = false
-    currentFile.value = null
+    currentContainer.value = null
     streamingContent.value = []
   }
 
@@ -204,7 +211,7 @@ export function useLogStream() {
     isSubscribed,
     streamingContent,
     streamError,
-    currentFile,
+    currentContainer,
     connect,
     subscribe,
     unsubscribe,

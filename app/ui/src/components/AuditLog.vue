@@ -167,7 +167,7 @@ function formatDetails(details) {
 
 .modal {
   background: var(--card-bg);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: 100%;
   overflow: hidden;
@@ -212,7 +212,7 @@ function formatDetails(details) {
 .filter-btn {
   padding: 6px 14px;
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--card-bg);
   color: var(--text-color-2);
   font-size: 13px;
@@ -255,7 +255,7 @@ function formatDetails(details) {
 
 .log-item {
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: 8px;
   background: var(--bg-color-2);
   border-left: 4px solid var(--primary-color);
@@ -289,13 +289,13 @@ function formatDetails(details) {
 }
 
 .log-time {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .log-details {
-  font-size: 12px;
-  color: var(--text-secondary, #666);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -304,11 +304,11 @@ function formatDetails(details) {
 .log-ip {
   background: var(--card-bg, white);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
 }
 
 .log-extra {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
 }
 
 /* 移动端适配 */
@@ -330,14 +330,14 @@ function formatDetails(details) {
   }
 
   .modal-header h3 {
-    font-size: 1rem;
+    font-size: var(--font-size-xl);
     font-weight: 500;
     white-space: nowrap;
     color: var(--text-color-1);
   }
 
   .close-btn {
-    font-size: 1.375rem;
+    font-size: var(--font-size-4xl);
     color: var(--text-color-2);
     min-width: 32px;
     min-height: 32px;
@@ -359,7 +359,7 @@ function formatDetails(details) {
 
   .filter-btn {
     padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     background: var(--card-bg);
     border-color: var(--border-color);
     color: var(--text-color-2);
@@ -413,18 +413,18 @@ function formatDetails(details) {
   }
 
   .log-action {
-    font-size: 0.875rem;
+    font-size: var(--font-size-md);
     font-weight: 500;
     color: var(--text-color-1);
   }
 
   .log-time {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-color-3);
   }
 
   .log-details {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     color: var(--text-color-2);
     flex-direction: column;
     gap: var(--spacing-xs);
@@ -432,19 +432,19 @@ function formatDetails(details) {
 
   .log-ip {
     padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     background: var(--card-bg);
     border-radius: var(--radius-xs);
   }
 
   .log-extra {
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
     color: var(--text-color-3);
   }
 
   .loading, .empty {
     padding: var(--spacing-2xl) var(--spacing-lg);
-    font-size: 0.875rem;
+    font-size: var(--font-size-md);
     color: var(--text-color-2);
   }
 }
@@ -466,11 +466,11 @@ function formatDetails(details) {
   }
 
   .modal-header h3 {
-    font-size: 0.9375rem;
+    font-size: var(--font-size-lg);
   }
 
   .close-btn {
-    font-size: 1.25rem;
+    font-size: var(--font-size-3xl);
   }
 
   .filter-bar {
@@ -480,7 +480,7 @@ function formatDetails(details) {
 
   .filter-btn {
     padding: 4px var(--spacing-xs);
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 
   .modal-body {
@@ -498,30 +498,30 @@ function formatDetails(details) {
   }
 
   .log-action {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 
   .log-time {
-    font-size: 0.625rem;
+    font-size: var(--font-size-2xs);
   }
 
   .log-details {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     gap: 2px;
   }
 
   .log-ip {
     padding: 2px var(--spacing-xs);
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 
   .log-extra {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 
   .loading, .empty {
     padding: var(--spacing-xl) var(--spacing-md);
-    font-size: 0.8125rem;
+    font-size: var(--font-size-base);
   }
 }
 
@@ -536,7 +536,7 @@ function formatDetails(details) {
   }
 
   .modal-header h3 {
-    font-size: 1.0625rem;
+    font-size: var(--font-size-2xl);
   }
 }
 

@@ -171,7 +171,7 @@ onMounted(() => {
   gap: 8px;
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   transition: background-color 0.2s;
 }
 
@@ -180,12 +180,12 @@ onMounted(() => {
 }
 
 .version-text {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-color-3);
 }
 
 .update-badge {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   color: var(--warning-color);
   font-weight: 600;
   animation: pulse 2s infinite;
@@ -211,7 +211,7 @@ onMounted(() => {
 
 .update-dialog {
   background: var(--text-color);
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   width: 90%;
   max-width: 500px;
   max-height: 80vh;
@@ -291,7 +291,7 @@ onMounted(() => {
   margin: 20px 0;
   text-align: left;
   background: var(--text-color);
-  border-radius: 8px;
+  border-radius: var(--radius-xs);
   padding: 16px;
 }
 
@@ -328,7 +328,7 @@ onMounted(() => {
 .btn-primary,
 .btn-secondary {
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: var(--radius-2xs);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -362,7 +362,7 @@ onMounted(() => {
   width: 100%;
   height: 8px;
   background: var(--text-color-1);
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   overflow: hidden;
   margin-bottom: 12px;
 }

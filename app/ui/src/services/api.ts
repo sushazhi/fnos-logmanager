@@ -11,6 +11,8 @@ import {
 
 export const API_BASE = window.location.pathname.startsWith('/app/logmanager')
   ? '/app/logmanager'
+  : window.location.pathname.startsWith('/cgi/ThirdParty/logmanager/router.cgi')
+  ? '/cgi/ThirdParty/logmanager/router.cgi'
   : ''
 
 // CSRF Token 存储说明：

@@ -61,14 +61,14 @@ header::after {
 
 h1 {
   margin: 0 0 var(--spacing-xs) 0;
-  font-size: 1.375rem;
+  font-size: var(--font-size-4xl);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.3;
 }
 
 .version {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   font-weight: 400;
   opacity: 0.8;
 }
@@ -80,7 +80,7 @@ h1 {
   }
 
   h1 {
-    font-size: 1.125rem;
+    font-size: var(--font-size-2xl);
   }
 }
 
@@ -90,11 +90,11 @@ h1 {
   }
 
   h1 {
-    font-size: 1rem;
+    font-size: var(--font-size-xl);
   }
 
   .version {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
   }
 }
 </style>

@@ -25,13 +25,17 @@ export function useNotifyWebSocket() {
 
   function getWsUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const base = `${protocol}//${window.location.host}`
     const token = api.getSessionToken()
     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
     if (window.location.pathname.startsWith('/app/logmanager')) {
-      return `${base}/app/logmanager/api/notifications/ws${tokenParam}`
+      // x86 网关模式：直连后端端口绕过网关（网关不支持 WS 代理）
+      return `${protocol}//${window.location.hostname}:8090/api/notifications/ws${tokenParam}`
     }
-    return `${base}/api/notifications/ws${tokenParam}`
+    if (window.location.pathname.startsWith('/cgi/')) {
+      // ARM 直连模式：直连后端端口
+      return `${protocol}//${window.location.hostname}:8090/api/notifications/ws${tokenParam}`
+    }
+    return `${protocol}//${window.location.host}/api/notifications/ws${tokenParam}`
   }
 
   function connect(): void {

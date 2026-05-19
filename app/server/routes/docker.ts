@@ -179,7 +179,7 @@ router.get('/docker/stream', [
 
     sendEvent('connected', { message: 'Docker stream connected' });
 
-    const dockerProcess = spawn('docker', ['logs', container, '-f'], {
+    const dockerProcess = spawn('docker', ['logs', '--tail', '0', container, '-f'], {
         stdio: ['ignore', 'pipe', 'pipe']
     });
 

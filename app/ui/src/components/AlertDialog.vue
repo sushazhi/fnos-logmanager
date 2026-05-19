@@ -165,7 +165,7 @@ function fallbackCopy() {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   font-weight: bold;
 }
 
@@ -191,13 +191,13 @@ function fallbackCopy() {
 
 .modal-body h4 {
   margin: 0 0 var(--spacing-sm) 0;
-  font-size: 1.125rem;
+  font-size: var(--font-size-2xl);
   color: var(--text-color-1);
 }
 
 .modal-body p {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: var(--font-size-lg);
   color: var(--text-color-2);
   line-height: 1.5;
   white-space: pre-wrap;
@@ -214,7 +214,7 @@ function fallbackCopy() {
   padding: var(--spacing-sm) var(--spacing-xl);
   border: none;
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   cursor: pointer;
   transition: all var(--transition-fast);
   min-width: 80px;

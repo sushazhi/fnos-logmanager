@@ -155,7 +155,6 @@ const emit = defineEmits<{
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 const status = ref<EventLoggerStatus | null>(null)
-let refreshTimer: ReturnType<typeof setInterval> | null = null
 const config = ref<EventLoggerConfig>({
   dbPath: '/usr/trim/var/eventlogger_service/logger_data.db3',
   enabled: false,
@@ -300,27 +299,25 @@ async function forceCheck() {
   }
 }
 
-function startRefreshTimer() {
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-    refreshTimer = null
-  }
-  // 使用 UI 中设置的检查间隔（秒）作为刷新周期
-  // 定时刷新使用 refreshData（不设 loading，避免按钮闪烁）
-  const intervalMs = (config.value.checkInterval || 30) * 1000
-  refreshTimer = setInterval(() => {
-    refreshData()
-  }, intervalMs)
-}
+// 页面可见时自动刷新
+let visibilityHandler: (() => void) | null = null
 
 onMounted(() => {
-  loadData().then(() => startRefreshTimer())
+  loadData()
+
+  // 页面从隐藏切换到可见时刷新数据
+  visibilityHandler = () => {
+    if (!document.hidden) {
+      refreshData()
+    }
+  }
+  document.addEventListener('visibilitychange', visibilityHandler)
 })
 
 onUnmounted(() => {
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-    refreshTimer = null
+  if (visibilityHandler) {
+    document.removeEventListener('visibilitychange', visibilityHandler)
+    visibilityHandler = null
   }
 })
 </script>
@@ -362,7 +359,7 @@ onUnmounted(() => {
 
 .panel-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-xl);
   font-weight: 500;
   color: var(--text-color-1);
 }
@@ -370,7 +367,7 @@ onUnmounted(() => {
 .close-btn {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
   cursor: pointer;
   color: var(--text-color-2);
   padding: 0;
@@ -400,15 +397,15 @@ onUnmounted(() => {
 
 .error-text {
   flex: 1;
-  font-size: 0.8125rem;
-  color: var(--error-color, #ef4444);
+  font-size: var(--font-size-base);
+  color: var(--error-color);
   word-break: break-word;
 }
 
 .error-dismiss {
   background: none;
   border: none;
-  font-size: 1.2rem;
+  font-size: var(--font-size-3xl);
   cursor: pointer;
   color: var(--text-color-3);
   padding: 0;
@@ -439,12 +436,12 @@ onUnmounted(() => {
 
 .status-icon .running {
   color: var(--success-color);
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
 }
 
 .status-icon .stopped {
   color: var(--text-color-3);
-  font-size: 1.5rem;
+  font-size: var(--font-size-5xl);
 }
 
 .status-info {
@@ -458,7 +455,7 @@ onUnmounted(() => {
 }
 
 .status-detail {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
   word-break: break-all;
   line-height: 1.4;
@@ -468,23 +465,23 @@ onUnmounted(() => {
   font-size: inherit;
   background: var(--bg-color-3);
   padding: 0 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-3xs);
 }
 
 .db-ok {
-  color: var(--success-color, #22c55e);
+  color: var(--success-color);
   margin-left: 4px;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
 }
 
 .db-err {
-  color: var(--error-color, #ef4444);
+  color: var(--error-color);
   margin-left: 4px;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
 }
 
 .status-error {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--error-color);
 }
 
@@ -500,7 +497,7 @@ onUnmounted(() => {
 .stats-section h4,
 .events-section h4 {
   margin: 0 0 var(--spacing-md) 0;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
   color: var(--text-color-1);
 }
@@ -512,7 +509,7 @@ onUnmounted(() => {
 .form-item label {
   display: block;
   margin-bottom: var(--spacing-xs);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
 }
 
@@ -523,7 +520,7 @@ onUnmounted(() => {
   padding: var(--spacing-sm) var(--spacing-md);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xs);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   background: var(--bg-color-2);
   color: var(--text-color-1);
   box-sizing: border-box;
@@ -551,7 +548,7 @@ onUnmounted(() => {
   border: none;
   border-radius: var(--radius-xs);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
   transition: background var(--transition-fast);
 }
 
@@ -579,7 +576,7 @@ onUnmounted(() => {
   background: var(--bg-color-2);
   color: var(--text-color-1);
   cursor: pointer;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   transition: all var(--transition-fast);
 }
 
@@ -627,14 +624,14 @@ onUnmounted(() => {
 
 .stat-value {
   display: block;
-  font-size: 1.25rem;
+  font-size: var(--font-size-3xl);
   font-weight: 600;
   color: var(--text-color-1);
 }
 
 .stat-label {
   display: block;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-3);
   text-transform: capitalize;
 }
@@ -681,28 +678,28 @@ onUnmounted(() => {
 
 .event-source {
   font-weight: 500;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-1);
 }
 
 .event-severity {
-  font-size: 0.6875rem;
+  font-size: var(--font-size-xs);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: var(--bg-color-3);
   color: var(--text-color-2);
   text-transform: uppercase;
 }
 
 .event-message {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
   word-break: break-word;
   margin-bottom: 4px;
 }
 
 .event-time {
-  font-size: 0.6875rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-3);
 }
 
@@ -710,7 +707,7 @@ onUnmounted(() => {
   text-align: center;
   padding: var(--spacing-xl);
   color: var(--text-color-3);
-  font-size: 0.875rem;
+  font-size: var(--font-size-md);
 }
 
 @media (max-width: 600px) {
