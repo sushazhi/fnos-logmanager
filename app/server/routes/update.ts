@@ -17,6 +17,7 @@ const GITHUB_API = 'https://api.github.com';
 const GITHUB_HOSTS = ['github.com', 'api.github.com', 'objects.githubusercontent.com'];
 
 const BINARY_PROXY = 'https://ghfast.top/';
+const RAW_PROXY_URL = 'https://ghfast.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/version.json';
 
 const systemStatus: UpdateStatus = {
     ready: 'true',
@@ -156,6 +157,42 @@ router.get('/version', validateToken, (_req: Request, res: Response) => {
     }
 });
 
+async function fetchVersionJsonViaProxy(): Promise<{ version: string }> {
+    return new Promise((resolve, reject) => {
+        if (!isHttpsUrl(RAW_PROXY_URL) || !isAllowedHost(RAW_PROXY_URL)) {
+            reject(new Error('版本检查代理链接不安全'));
+            return;
+        }
+
+        const req = https.get(RAW_PROXY_URL, { timeout: 15000 }, (response) => {
+            let data = '';
+            response.on('data', chunk => data += chunk);
+            response.on('end', () => {
+                try {
+                    if (response.statusCode !== 200) {
+                        reject(new Error(`代理返回 ${response.statusCode}`));
+                        return;
+                    }
+                    const parsed = JSON.parse(data);
+                    if (!parsed.version || typeof parsed.version !== 'string') {
+                        reject(new Error('version.json 格式无效'));
+                        return;
+                    }
+                    resolve({ version: parsed.version });
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        });
+
+        req.on('error', reject);
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('版本检查代理请求超时'));
+        });
+    });
+}
+
 router.get('/check', validateToken, apiRateLimit(config.update.checkRateLimit.maxRequests, config.update.checkRateLimit.windowMs), async (_req: Request, res: Response) => {
     try {
         if (cachedCheck && cachedCheck.expiresAt > Date.now()) {
@@ -165,47 +202,78 @@ router.get('/check', validateToken, apiRateLimit(config.update.checkRateLimit.ma
 
         const currentVersion = process.env.TRIM_APPVER || '0.0.0';
 
-        const latestRelease = await new Promise<GitHubRelease>((resolve, reject) => {
-            const url = `${GITHUB_API}/repos/${GITHUB_REPO}/releases/latest`;
+        let latestRelease: GitHubRelease | null = null;
+        let usedFallback = false;
 
-            const options = {
-                headers: {
-                    'User-Agent': 'fnos-logmanager-updater',
-                    'Accept': 'application/vnd.github.v3+json'
-                },
-                timeout: 30000
-            };
+        // 优先尝试 GitHub API
+        try {
+            latestRelease = await new Promise<GitHubRelease>((resolve, reject) => {
+                const url = `${GITHUB_API}/repos/${GITHUB_REPO}/releases/latest`;
 
-            const req = https.get(url, options, (response) => {
-                let data = '';
-                response.on('data', chunk => data += chunk);
-                response.on('end', () => {
-                    try {
-                        if (response.statusCode === 200) {
-                            const release = JSON.parse(data);
-                            resolve({
-                                version: release.tag_name.replace('v', ''),
-                                changelog: release.body,
-                                publishedAt: release.published_at,
-                                assets: release.assets
-                            });
-                        } else {
-                            reject(new Error(`GitHub API 返回 ${response.statusCode}`));
+                const options = {
+                    headers: {
+                        'User-Agent': 'fnos-logmanager-updater',
+                        'Accept': 'application/vnd.github.v3+json'
+                    },
+                    timeout: 30000
+                };
+
+                const req = https.get(url, options, (response) => {
+                    let data = '';
+                    response.on('data', chunk => data += chunk);
+                    response.on('end', () => {
+                        try {
+                            if (response.statusCode === 200) {
+                                const release = JSON.parse(data);
+                                resolve({
+                                    version: release.tag_name.replace('v', ''),
+                                    changelog: release.body,
+                                    publishedAt: release.published_at,
+                                    assets: release.assets
+                                });
+                            } else {
+                                reject(new Error(`GitHub API 返回 ${response.statusCode}`));
+                            }
+                        } catch (e) {
+                            reject(e);
                         }
-                    } catch (e) {
-                        reject(e);
-                    }
+                    });
+                });
+
+                req.on('error', reject);
+                req.on('timeout', () => {
+                    req.destroy();
+                    reject(new Error('GitHub API 请求超时'));
                 });
             });
+        } catch (apiErr) {
+            // GitHub API 失败，降级到 version.json 代理检查
+            console.warn('GitHub API 检查失败，切换到 version.json 代理:', (apiErr as Error).message);
+            try {
+                const rawVersion = await fetchVersionJsonViaProxy();
+                latestRelease = {
+                    version: rawVersion.version,
+                    changelog: '',
+                    publishedAt: '',
+                    assets: []
+                };
+                usedFallback = true;
+            } catch (proxyErr) {
+                throw new Error('GitHub API 和代理均不可用: ' + (proxyErr as Error).message);
+            }
+        }
 
-            req.on('error', reject);
-            req.on('timeout', () => {
-                req.destroy();
-                reject(new Error('GitHub API 请求超时'));
-            });
-        });
+        if (!latestRelease) {
+            res.status(500).json({ success: false, error: '无法获取最新版本信息' });
+            return;
+        }
 
         const hasUpdate = compareVersion(latestRelease.version, currentVersion) > 0;
+
+        // 代理模式缓存时间更短（版本尚未发布到 release 时尽快更新）
+        const cacheMs = usedFallback
+            ? Math.min(config.update.checkCacheMs, 120000) // 最多 2 分钟
+            : config.update.checkCacheMs;
 
         const payload = {
             success: true,
@@ -219,7 +287,7 @@ router.get('/check', validateToken, apiRateLimit(config.update.checkRateLimit.ma
 
         cachedCheck = {
             payload,
-            expiresAt: Date.now() + config.update.checkCacheMs
+            expiresAt: Date.now() + cacheMs
         };
 
         res.json(payload);

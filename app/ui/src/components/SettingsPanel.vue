@@ -52,9 +52,24 @@
       
       <div class="setting-item">
         <label>审计日志</label>
-        <button class="audit-btn" @click="$emit('showAudit')">
+        <button class="action-btn" @click="$emit('showAudit')">
           查看审计日志
         </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="setting-item">
+        <label>版本更新</label>
+        <div class="version-display">当前版本: <strong>v{{ appVersion }}</strong></div>
+        <button class="action-btn" :disabled="checking" @click="manualCheck">
+          <span v-if="checking" class="checking-spinner"></span>
+          {{ checking ? '正在检查...' : '检查更新' }}
+        </button>
+        <div v-if="checkResult" class="check-result" :class="checkResult.type">
+          {{ checkResult.message }}
+          <span v-if="checkResult.type === 'success' && updateInfo" class="result-update-btn" @click="startUpdate">立即更新</span>
+        </div>
       </div>
     </div>
   </div>
@@ -64,6 +79,7 @@
 import { ref, onMounted } from 'vue'
 import api from '../services/api'
 import { applyThemeColor } from '../composables/useThemeColor'
+import { useUpdate } from '../composables/useUpdate'
 
 interface ThemeSettings {
   fontSize: number
@@ -82,6 +98,37 @@ const emit = defineEmits<{
   update: [settings: ThemeSettings]
   showAudit: []
 }>()
+
+const { appVersion, updateInfo, checkForUpdates, installUpdate } = useUpdate()
+
+const checking = ref(false)
+const checkResult = ref<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
+
+async function manualCheck() {
+  if (checking.value) return
+  checking.value = true
+  checkResult.value = null
+  try {
+    const result = await checkForUpdates()
+    if (result) {
+      checkResult.value = { type: 'success', message: `发现新版本 v${result.version}` }
+    } else {
+      checkResult.value = { type: 'info', message: '已是最新版本' }
+    }
+  } catch {
+    checkResult.value = { type: 'error', message: '检查更新失败，请稍后重试' }
+  } finally {
+    checking.value = false
+  }
+}
+
+async function startUpdate() {
+  try {
+    await installUpdate()
+  } catch {
+    checkResult.value = { type: 'error', message: '安装更新失败' }
+  }
+}
 
 const fontSize = ref<number>(16)
 const theme = ref<'light' | 'dark' | 'auto'>('light')
@@ -358,7 +405,18 @@ onMounted(() => {
   margin: var(--spacing-xl) 0;
 }
 
-.audit-btn {
+.version-display {
+  font-size: var(--font-size-md);
+  color: var(--text-color-2);
+  margin-bottom: var(--spacing-sm);
+}
+
+.version-display strong {
+  color: var(--text-color-1);
+  font-weight: 600;
+}
+
+.action-btn {
   width: 100%;
   padding: var(--spacing-sm);
   background: var(--bg-color-2);
@@ -368,16 +426,78 @@ onMounted(() => {
   font-size: var(--font-size-md);
   color: var(--text-color-1);
   transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
 }
 
-.audit-btn:hover {
+.action-btn:hover:not(:disabled) {
   background: var(--primary-color);
   color: white;
   border-color: var(--primary-color);
 }
 
-.audit-btn:active {
+.action-btn:active:not(:disabled) {
   transform: scale(0.98);
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checking-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: settings-spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+@keyframes settings-spin {
+  to { transform: rotate(360deg); }
+}
+
+.check-result {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-2xs);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.check-result.success {
+  color: var(--success-color);
+  background: color-mix(in srgb, var(--success-color) 10%, transparent);
+}
+
+.check-result.error {
+  color: var(--danger-color);
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+}
+
+.check-result.info {
+  color: var(--text-color-2);
+  background: var(--bg-color-3);
+}
+
+.result-update-btn {
+  color: var(--primary-color);
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.result-update-btn:hover {
+  color: var(--primary-hover);
 }
 
 .notification-btn {
