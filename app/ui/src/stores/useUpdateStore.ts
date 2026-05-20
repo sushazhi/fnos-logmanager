@@ -66,7 +66,9 @@ export const useUpdateStore = defineStore('update', () => {
         cache: 'no-store',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       })
-      if (!response.ok) return null
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
 
       const data = await response.json() as {
         success: boolean
@@ -74,9 +76,14 @@ export const useUpdateStore = defineStore('update', () => {
         latestVersion?: string
         changelog?: string
         publishedAt?: string
+        error?: string
       }
 
-      if (data.success && data.hasUpdate) {
+      if (!data.success) {
+        throw new Error(data.error || '服务器返回错误')
+      }
+
+      if (data.hasUpdate) {
         if (!DEBUG_MODE) {
           if (getIgnoredVersion() === data.latestVersion) {
             return null
@@ -98,7 +105,7 @@ export const useUpdateStore = defineStore('update', () => {
       return null
     } catch (e) {
       console.error('检查更新失败:', e)
-      return null
+      throw e
     }
   }
 

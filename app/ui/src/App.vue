@@ -302,7 +302,7 @@ async function checkAuth() {
     }
     loadFilterStatus()
     refreshAll()
-    checkForUpdates()
+    checkForUpdates().catch(() => {})
     loadBookmarks()
   } catch (e) {
     console.error('认证检查失败:', e)

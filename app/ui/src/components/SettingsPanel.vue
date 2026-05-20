@@ -106,6 +106,9 @@ const checkResult = ref<{ type: 'success' | 'error' | 'info'; message: string } 
 
 async function manualCheck() {
   if (checking.value) return
+  // 手动检查时清除忽略记录和关闭时间，确保能看到最新结果
+  try { localStorage.removeItem('logmanager_ignore_version') } catch {}
+  try { localStorage.removeItem('logmanager_update_close_time') } catch {}
   checking.value = true
   checkResult.value = null
   try {

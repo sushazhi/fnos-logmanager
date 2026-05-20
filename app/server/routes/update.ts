@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import { validateToken, validateCSRF } from '../middleware/auth';
-import { sensitiveActionRateLimit, apiRateLimit } from '../middleware/rateLimit';
+import { sensitiveActionRateLimit } from '../middleware/rateLimit';
 import * as auditService from '../services/audit';
 import config from '../utils/config';
 import { isValidGitHubUrl } from '../utils/validation';
@@ -193,7 +193,7 @@ async function fetchVersionJsonViaProxy(): Promise<{ version: string }> {
     });
 }
 
-router.get('/check', validateToken, apiRateLimit(config.update.checkRateLimit.maxRequests, config.update.checkRateLimit.windowMs), async (_req: Request, res: Response) => {
+router.get('/check', validateToken, async (_req: Request, res: Response) => {
     try {
         if (cachedCheck && cachedCheck.expiresAt > Date.now()) {
             res.json(cachedCheck.payload);
