@@ -5,6 +5,7 @@
 
 import { ref, onUnmounted } from 'vue'
 import api from '../services/api'
+import { buildWsUrl } from '../utils/env'
 
 interface DockerStreamMessage {
   type: 'connected' | 'subscribed' | 'data' | 'error' | 'pong'
@@ -29,18 +30,7 @@ export function useDockerLogStream() {
   let intentionalClose = false
 
   function getWsUrl(): string {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const token = api.getSessionToken()
-    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
-    if (window.location.pathname.startsWith('/app/logmanager')) {
-      // x86 网关模式：直连后端端口绕过网关（网关不支持 WS 代理）
-      return `${protocol}//${window.location.hostname}:8090/api/docker/stream${tokenParam}`
-    }
-    if (window.location.pathname.startsWith('/cgi/')) {
-      // ARM 直连模式：直连后端端口
-      return `${protocol}//${window.location.hostname}:8090/api/docker/stream${tokenParam}`
-    }
-    return `${protocol}//${window.location.host}/api/docker/stream${tokenParam}`
+    return buildWsUrl('/api/docker/stream', api.getSessionToken())
   }
 
   function connect(): void {
