@@ -42,7 +42,7 @@ router.get('/status', async (req: Request, res: Response) => {
         return;
     }
 
-    // 非网关模式（如 ARM CGI 代理）：自动创建或复用本地会话
+    // 兜底直连模式：自动创建或复用本地会话
     let sessionToken = getSessionToken(req);
     let isLoggedIn = sessionToken ? sessionService.validateSession(sessionToken) : false;
 

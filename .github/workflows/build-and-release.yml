@@ -150,7 +150,6 @@ jobs:
           cp -r app/ui/dist/* build/app/ui/
           if [ -f "app/ui/config" ]; then cp -r app/ui/config build/app/ui/; fi
           if [ -d "app/ui/images" ]; then cp -r app/ui/images build/app/ui/; fi
-          if [ -f "app/ui/router.cgi" ]; then cp "app/ui/router.cgi" build/app/ui/; fi
 
           echo "Project files copied"
 

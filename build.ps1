@@ -202,13 +202,11 @@ if (Test-Path $UI_DIST) {
     Copy-Item "$UI_DIST\*" "$BUILD_DIR\app\ui\" -Recurse -Force
     if (Test-Path "$UI_DIR\config") { Copy-Item "$UI_DIR\config" "$BUILD_DIR\app\ui\" -Force }
     if (Test-Path "$UI_DIR\images") { Copy-Item "$UI_DIR\images" "$BUILD_DIR\app\ui\" -Recurse -Force }
-    if (Test-Path "$UI_DIR\router.cgi") { Copy-Item "$UI_DIR\router.cgi" "$BUILD_DIR\app\ui\" -Force }
     Write-Host "  Vue dist files copied" -ForegroundColor Green
 } else {
     if (Test-Path "$PROJECT_DIR\app\ui\config") { Copy-Item "$PROJECT_DIR\app\ui\config" "$BUILD_DIR\app\ui\" -Force }
     if (Test-Path "$PROJECT_DIR\app\ui\images") { Copy-Item "$PROJECT_DIR\app\ui\images" "$BUILD_DIR\app\ui\" -Recurse -Force }
     if (Test-Path "$PROJECT_DIR\app\ui\index.html") { Copy-Item "$PROJECT_DIR\app\ui\index.html" "$BUILD_DIR\app\ui\" -Force }
-    if (Test-Path "$PROJECT_DIR\app\ui\router.cgi") { Copy-Item "$PROJECT_DIR\app\ui\router.cgi" "$BUILD_DIR\app\ui\" -Force }
     Write-Host "  Static UI files copied" -ForegroundColor Green
 }
 

@@ -90,9 +90,6 @@ app.use(morgan((tokens, req, res) => {
         if (res.statusCode === 304) return true;
         // 跳过已被限流的请求（429 已拒绝，无审计价值）
         if (res.statusCode === 429) return true;
-        // 跳过 CGI 代理内部 curl 请求（ARM 模式下 router.cgi 转发的内部流量）
-        const ua = req.headers['user-agent'] || '';
-        if (ua.includes('curl/') && req.ip === '127.0.0.1') return true;
         // 跳过前端高频轮询和无审计价值的只读端点
         const pollingPaths = ['/status', '/bookmarks', '/dirs', '/logs/stats', '/settings/filter', '/channels', '/rules', '/log/tail', '/log/content', '/logs/list', '/monitor/status'];
         if (pollingPaths.includes(req.path)) return true;
