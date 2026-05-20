@@ -5,7 +5,7 @@ desc = <b>飞牛日志管理工具</b>，集中管理飞牛三方应用散落在
 
 # 系统要求
 platform = all
-os_min_version = 1.1.31
+os_min_version = 1.1.3104
 source = thirdparty
 
 # 开发者信息
@@ -26,4 +26,4 @@ desktop_uidir = ui
 desktop_applaunchname = logmanager.Application
 
 # 更新日志
-changelog = v0.7.1<br>1. 修复 X86 自升级失败（install-local 加 --volume 参数）<br>2. 设置面板新增手动检查更新按钮<br>3. 版本检查降级机制：GitHub API 不可用时走代理读取 version.json<br><br>v0.7.1<br>1. 修复 X86 自升级失败<br><br>v0.7.0<br>1. 接入 fnOS 统一网关，无需独立端口（arm暂不支持）<br>2. 网关模式免密码登录<br>3. 原生 WebSocket 替代 HTTP 轮询<br>4. 移除端口配置和检查<br>5. 修复主题色不生效问题<br>6. 新增微信 ClawBot 通知渠道（iLink 协议，扫码登录）<br>7. 过滤访问日志中高频请求，减少日志写入量
+changelog = v0.7.1<br>1. 修复 X86 自升级失败<br>2. 设置面板新增手动检查更新按钮<br>3. ARM 架构接入统一网关<br><br>v0.7.0<br>1. 接入 fnOS 统一网关，无需独立端口（arm暂不支持）<br>2. 网关模式免密码登录<br>3. 原生 WebSocket 替代 HTTP 轮询<br>4. 移除端口配置和检查<br>5. 修复主题色不生效问题<br>6. 新增微信 ClawBot 通知渠道（iLink 协议，扫码登录）<br>7. 过滤访问日志中高频请求，减少日志写入量

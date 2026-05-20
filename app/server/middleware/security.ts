@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import os from 'os';
 import { Request, Response, NextFunction } from 'express';
-import config from '../utils/config';
 
 export function securityHeaders(req: Request, res: Response, next: NextFunction): void {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -66,9 +65,6 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
         frameAncestors = `'self' https://*.${mainDomain} http://*.${mainDomain}`;
     }
 
-    // WebSocket 直连本地端口（ARM CGI 代理 / x86 绕过网关），需加入 CSP
-    const wsOrigin = ` ws://${hostBase}:${config.port}`;
-
     const cspNonce = crypto.randomBytes(16).toString('base64');
     res.locals.cspNonce = cspNonce;
 
@@ -78,7 +74,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
         `style-src 'self' 'unsafe-inline'; ` +
         `img-src 'self' data:; ` +
         `font-src 'self' data:; ` +
-        `connect-src 'self' https://api.github.com${wsOrigin}; ` +
+        `connect-src 'self' https://api.github.com; ` +
         `frame-ancestors ${frameAncestors}; ` +
         `base-uri 'self'; ` +
         `form-action 'self'; ` +

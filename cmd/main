@@ -79,21 +79,14 @@ start_process() {
         error_exit "服务器文件不存在: $SERVER_DIR/server.js"
     fi
     
-    ARCH=$(uname -m)
-    
-    if [ "$ARCH" = "x86_64" ]; then
-        # x86：监听 Unix Socket，通过统一网关通信
-        GATEWAY_SOCKET=""
-        if [ -n "${TRIM_APPDEST}" ]; then
-            GATEWAY_SOCKET="${TRIM_APPDEST}/logmanager.sock"
-            rm -f "$GATEWAY_SOCKET" 2>/dev/null
-        fi
-        
-        LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" GATEWAY_SOCKET="$GATEWAY_SOCKET" PORT=8090 node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
-    else
-        # ARM：监听 HTTP 端口，通过 localhost 通信
-        LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" PORT=8090 node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
+    # 所有架构统一通过 fnOS 统一网关通信（Unix Socket）
+    GATEWAY_SOCKET=""
+    if [ -n "${TRIM_APPDEST}" ]; then
+        GATEWAY_SOCKET="${TRIM_APPDEST}/logmanager.sock"
+        rm -f "$GATEWAY_SOCKET" 2>/dev/null
     fi
+    
+    LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" GATEWAY_SOCKET="$GATEWAY_SOCKET" PORT=8090 node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
     local pid=$!
     printf "%s" "$pid" > "$PID_FILE"
     
@@ -104,11 +97,7 @@ start_process() {
         echo ""
         echo "=========================================="
         echo "  飞牛应用日志管理已启动"
-        if [ "$ARCH" = "x86_64" ]; then
-            echo "  访问地址: 通过统一网关 /app/logmanager"
-        else
-            echo "  访问地址: http://localhost:8090"
-        fi
+        echo "  访问地址: 通过统一网关 /app/logmanager"
         echo "  数据目录: ${TRIM_PKGVAR}"
         echo "  日志: cat ${TRIM_PKGVAR}/info.log"
         echo "=========================================="
