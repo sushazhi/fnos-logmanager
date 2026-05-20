@@ -112,14 +112,20 @@ function isValidCommand(command: string, args: string[]): boolean {
                 return /^\d+$/.test(args[1]);
             }
             
-            // install-local 命令：只允许特定参数
+            // install-local 命令：接受 --env config.env [--volume <num>]
             if (args[0] === 'install-local') {
-                if (args.length !== 3) return false;
+                const argLen = args.length;
+                if (argLen !== 3 && argLen !== 5) return false;
                 if (args[1] !== '--env') return false;
                 // 配置文件名必须是安全的
                 const configFile = args[2];
                 if (configFile.includes('..') || configFile.includes('/') || configFile.includes('\\')) return false;
                 if (!configFile.endsWith('.env')) return false;
+                // 可选 --volume <数字>
+                if (argLen === 5) {
+                    if (args[3] !== '--volume') return false;
+                    if (!/^\d+$/.test(args[4])) return false;
+                }
                 return true;
             }
             
@@ -409,9 +415,11 @@ wizard_data_action=keep
         systemStatus.updateMessage = '正在安装更新...';
         systemStatus.updateProgress = 80;
 
-        const volume = normalizeUpdatePath(updateDir).match(/\/vol(\d+)\//);
-        const volumeNum = volume ? volume[1] : '1';
+        // 检测 volume：ARM 路径 /volN/...，X86 路径 /data/...
+        const volumeMatch = normalizeUpdatePath(updateDir).match(/\/vol(\d+)\//);
+        const volumeNum = volumeMatch ? volumeMatch[1] : '1';
 
+        // 设置默认 volume（兼容旧版 appcenter-cli）
         const volumeArgs = ['default-volume', volumeNum];
         if (!isValidCommand('appcenter-cli', volumeArgs)) {
             throw new Error('设置默认卷命令参数验证失败');
@@ -420,6 +428,7 @@ wizard_data_action=keep
         await new Promise<void>((resolve, reject) => {
             const proc = spawn('appcenter-cli', volumeArgs, {
                 cwd: updateDir,
+                shell: true,
                 timeout: 60000
             });
 
@@ -427,14 +436,19 @@ wizard_data_action=keep
                 if (code === 0) {
                     resolve();
                 } else {
-                    reject(new Error('设置默认卷失败'));
+                    console.warn('设置默认卷非致命失败（可忽略），code:', code);
+                    resolve();
                 }
             });
 
-            proc.on('error', reject);
+            proc.on('error', (err) => {
+                console.warn('设置默认卷非致命错误（可忽略）:', err.message);
+                resolve();
+            });
         });
 
-        const installArgs = ['install-local', '--env', 'config.env'];
+        // install-local 直接传 --volume，确保目标 volume 明确（参考 fndesk 模式）
+        const installArgs = ['install-local', '--env', 'config.env', '--volume', volumeNum];
         if (!isValidCommand('appcenter-cli', installArgs)) {
             throw new Error('安装命令参数验证失败');
         }
@@ -442,7 +456,8 @@ wizard_data_action=keep
         const installProc = spawn('appcenter-cli', installArgs, {
             cwd: updateDir,
             detached: true,
-            stdio: 'ignore'
+            stdio: 'ignore',
+            shell: true
         });
 
         installProc.unref();
