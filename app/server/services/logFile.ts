@@ -570,6 +570,44 @@ export async function getDirsInfo(): Promise<DirInfo[]> {
     return results;
 }
 
+/**
+ * 清理已卸载应用的日志文件
+ * 扫描所有日志目录，使用 appcenter-cli 获取已安装应用列表，
+ * 仅删除属于已卸载应用的日志文件
+ */
+export async function cleanUninstalledLogs(): Promise<CleanLogResult> {
+    const results: CleanLogResult = { cleaned: 0, errors: [] };
+    const installedApps = await getInstalledApps();
+
+    for (const dir of config.logDirs) {
+        const normalizedDir = safePath(dir);
+        if (!normalizedDir || !fs.existsSync(normalizedDir)) continue;
+
+        try {
+            const files = await findFiles(normalizedDir, isLogFile, 50000);
+
+            for (const file of files) {
+                try {
+                    const appName = extractAppNameFromPath(file);
+                    // 跳过无法识别应用的日志文件
+                    if (!appName) continue;
+                    // 跳过已安装应用的日志
+                    if (installedApps.has(appName)) continue;
+
+                    await unlink(file);
+                    results.cleaned++;
+                } catch (e) {
+                    results.errors.push(`${file}: ${(e as Error).message}`);
+                }
+            }
+        } catch (e) {
+            results.errors.push(`${dir}: ${(e as Error).message}`);
+        }
+    }
+
+    return results;
+}
+
 export async function cleanLogFiles(options: CleanLogOptions): Promise<CleanLogResult> {
     const { thresholdBytes, days, action } = options;
     const results: CleanLogResult = { cleaned: 0, errors: [] };
@@ -580,19 +618,26 @@ export async function cleanLogFiles(options: CleanLogOptions): Promise<CleanLogR
         if (!normalizedDir || !fs.existsSync(normalizedDir)) continue;
 
         try {
+            // 删除操作：匹配所有类型的日志文件（包括归档和轮转日志）
+            // 截断操作：只匹配普通日志文件
             const files = await findFiles(normalizedDir, (name) => {
-                if (days) {
-                    return isArchiveFile(name);
-                } else {
+                if (action === 'delete' && days) {
+                    // 删除旧文件时，同时查找归档文件和轮转日志
+                    return isArchiveFile(name) || isLogFile(name);
+                }
+                if (!days) {
                     return isLogFile(name);
                 }
+                return isArchiveFile(name);
             }, 10000);
 
             for (const file of files) {
                 try {
                     const stats = await stat(file);
 
-                    if (thresholdBytes && stats.size < thresholdBytes) continue;
+                    // 截断操作才应用大小阈值；删除操作不限制大小
+                    if (action === 'truncate' && thresholdBytes && stats.size < thresholdBytes) continue;
+                    // 按天数过滤：跳过较新的文件
                     if (days && stats.mtime.getTime() > cutoffTime) continue;
 
                     if (action === 'delete') {

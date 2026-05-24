@@ -95,7 +95,7 @@ export interface ReadLogResult {
 export interface CleanLogOptions {
     thresholdBytes?: number | null;
     days?: number | null;
-    action: 'truncate' | 'delete';
+    action: 'truncate' | 'delete' | 'deleteUninstalled';
 }
 
 export interface CleanLogResult {

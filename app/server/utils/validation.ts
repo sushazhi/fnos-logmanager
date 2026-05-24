@@ -217,8 +217,8 @@ export function sanitizeFilename(filename: string): string | null {
     return sanitized;
 }
 
-export function isValidAction(action: string): action is 'truncate' | 'delete' {
-    return action === 'truncate' || action === 'delete';
+export function isValidAction(action: string): action is 'truncate' | 'delete' | 'deleteUninstalled' {
+    return action === 'truncate' || action === 'delete' || action === 'deleteUninstalled';
 }
 
 export function isValidDays(days: number): boolean {

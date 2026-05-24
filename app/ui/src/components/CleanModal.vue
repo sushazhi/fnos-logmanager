@@ -8,6 +8,7 @@
           <select v-model="cleanType">
             <option value="truncate">清空大文件内容</option>
             <option value="deleteOld">删除旧归档文件</option>
+            <option value="deleteUninstalled">删除未安装应用日志</option>
           </select>
         </div>
         
@@ -19,6 +20,10 @@
         <div class="form-group" v-if="cleanType === 'deleteOld'">
           <label>删除多少天前的文件</label>
           <input type="number" v-model="days" placeholder="例如: 7">
+        </div>
+        
+        <div class="form-group" v-if="cleanType === 'deleteUninstalled'">
+          <p class="hint-text">将扫描所有日志目录，删除已卸载应用对应的日志文件。此操作不可恢复！</p>
         </div>
       </div>
       <div class="modal-footer">
@@ -37,7 +42,7 @@ const emit = defineEmits<{
   execute: [type: string, threshold: string, days: number]
 }>()
 
-const cleanType = ref<'truncate' | 'deleteOld'>('truncate')
+const cleanType = ref<'truncate' | 'deleteOld' | 'deleteUninstalled'>('truncate')
 const threshold = ref('100M')
 const days = ref(7)
 
@@ -110,6 +115,15 @@ function execute(): void {
 
 .form-group input::placeholder {
   color: var(--text-color-3);
+}
+
+.hint-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-3);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--warning-bg);
+  border-radius: var(--radius-xs);
+  line-height: 1.5;
 }
 
 .modal-footer {

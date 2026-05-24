@@ -243,11 +243,7 @@ async function executeRule(rule: AutoCleanRule): Promise<{ cleaned: number; erro
                 break;
             }
             case 'deleteUninstalled': {
-                result = await logFileService.cleanLogFiles({
-                    thresholdBytes: null,
-                    days: null,
-                    action: 'delete'
-                });
+                result = await logFileService.cleanUninstalledLogs();
                 break;
             }
             default:

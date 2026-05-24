@@ -535,6 +535,14 @@ router.post('/logs/clean', validateToken, validateCSRF, sensitiveActionRateLimit
             return;
         }
 
+        // deleteUninstalled 不需要 threshold/days 参数
+        if (action === 'deleteUninstalled') {
+            const results = await logFileService.cleanUninstalledLogs();
+            auditService.addAuditLog('logs_clean', { action, cleaned: results.cleaned }, req);
+            res.json(results);
+            return;
+        }
+
         if (!threshold && !days) {
             res.status(400).json({ error: '请指定清理条件' });
             return;

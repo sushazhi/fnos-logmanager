@@ -202,17 +202,22 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
-  async function executeClean(type: CleanType, threshold: string, days: number | null): Promise<void> {
+  async function executeClean(type: string, threshold: string, days: number | null): Promise<void> {
     const { setStatus } = useStatusStore()
     showCleanModal.value = false
     setStatus('正在清理日志...', 'loading')
     try {
-      const data = await api.post<{ cleaned: number }>('/api/logs/clean', {
-        type,
-        threshold,
-        days: type === 'deleteOld' ? days : null,
-        action: type === 'deleteOld' ? 'delete' : type
-      })
+      const payload: Record<string, unknown> = { type }
+      if (type === 'truncate' || type === 'truncateLarge') {
+        payload.threshold = threshold
+        payload.action = 'truncate'
+      } else if (type === 'deleteOld') {
+        payload.days = days
+        payload.action = 'delete'
+      } else if (type === 'deleteUninstalled') {
+        payload.action = 'deleteUninstalled'
+      }
+      const data = await api.post<{ cleaned: number }>('/api/logs/clean', payload)
       setStatus(`清理完成，共处理 ${data.cleaned} 个文件`, 'success')
     } catch (e) {
       setStatus('清理失败: ' + safeErrorMessage(e), 'error')
