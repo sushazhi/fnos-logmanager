@@ -2,16 +2,33 @@
 <template>
   <div class="modal active non-blocking">
     <div class="modal-content large">
-      <div class="tab-bar" v-if="logsStore.logTabs.length > 0">
-        <div 
-          v-for="tab in logsStore.logTabs" 
-          :key="tab.id"
-          :class="['tab-item', { active: tab.id === logsStore.activeTabId }]"
-          @click="handleSwitchTab(tab.id)"
-        >
-          <span class="tab-title" :title="tab.filePath">{{ tab.title }}</span>
-          <span class="tab-close" @click.stop="handleCloseTab(tab.id)">×</span>
-        </div>
+      <div class="tab-bar" v-if="logsStore.logTabs.length > 0" @click.right.prevent="closeContextMenu">
+        <template v-for="(tab, idx) in logsStore.logTabs" :key="tab.id">
+          <div class="tab-group-divider" v-if="showGroupDivider(idx)" title="分组边界"></div>
+          <div 
+            :class="['tab-item', { active: tab.id === logsStore.activeTabId }]"
+            :style="tabStyle(tab)"
+            @click="handleSwitchTab(tab.id)"
+            @contextmenu.prevent.stop="openContextMenu($event, tab)"
+          >
+            <span class="tab-indicator" :style="{ background: tabColor(tab.filePath) }"></span>
+            <span class="tab-title" :title="tab.filePath">{{ tab.title }}</span>
+            <span class="tab-close" @click.stop="handleCloseTab(tab.id)">×</span>
+          </div>
+        </template>
+      </div>
+      <!-- 右键菜单 -->
+      <div 
+        class="tab-context-menu" 
+        v-if="contextMenu.visible"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click.right.prevent
+      >
+        <div class="context-item" @click="closeCurrentTab">关闭当前</div>
+        <div class="context-item" @click="closeOtherTabs">关闭其他</div>
+        <div class="context-item" @click="closeAllTabs">关闭全部</div>
+        <div class="context-divider"></div>
+        <div class="context-item" @click="closeTabsToRight">关闭右侧标签</div>
       </div>
       <div class="modal-header">
         <span class="title">{{ title }}</span>
@@ -27,6 +44,7 @@
             <span class="action-icon">{{ isTailing ? '■' : '◉' }}</span>
             <span class="action-text">{{ isTailing ? '停止' : '追踪' }}</span>
           </button>
+
           <div class="action-dropdown">
             <button class="action-btn" @click="toggleExportMenu" title="导出日志">
               <span class="action-icon">↓</span>
@@ -117,7 +135,6 @@ import { useLogSearch } from '../composables/useLogSearch'
 import { useLogStream } from '../composables/useLogStream'
 import { useDockerLogStream } from '../composables/useDockerLogStream'
 import { useLogsStore } from '../stores/useLogsStore'
-
 interface Props {
   title?: string
   content?: string
@@ -143,10 +160,12 @@ const props = withDefaults(defineProps<Props>(), {
 const logsStore = useLogsStore()
 
 function handleSwitchTab(tabId: string): void {
+  closeContextMenu()
   logsStore.switchTab(tabId)
 }
 
 function handleCloseTab(tabId: string): void {
+  closeContextMenu()
   logsStore.removeTab(tabId)
 }
 
@@ -157,6 +176,112 @@ const emit = defineEmits<{
   export: [format: string]
   addBookmark: []
 }>()
+
+/** 标签页色彩方案 */
+const TAB_COLORS = [
+  '#5b9bd5', '#70ad47', '#ed7d31', '#ffc000', '#4472c4',
+  '#a5a5a5', '#ff4081', '#00bcd4', '#8bc34a', '#ff9800',
+  '#9c27b0', '#00acc1', '#e91e63', '#4caf50', '#3f51b5'
+]
+
+/** 从文件路径生成一致的色彩索引 */
+function tabColor(filePath: string): string {
+  let hash = 0
+  for (let i = 0; i < filePath.length; i++) {
+    hash = ((hash << 5) - hash) + filePath.charCodeAt(i)
+    hash |= 0
+  }
+  return TAB_COLORS[Math.abs(hash) % TAB_COLORS.length]
+}
+
+/** 标签内联样式 */
+function tabStyle(tab: { filePath: string; id: string }): Record<string, string> {
+  const color = tabColor(tab.filePath)
+  return {
+    '--tab-color': color,
+    '--tab-color-dim': color + '33'
+  }
+}
+
+/** 提取标签分组 key（基于应用目录） */
+function tabGroupKey(tab: { filePath: string; isDocker?: boolean }): string {
+  if (tab.isDocker) return '__docker__'
+  const parts = tab.filePath.replace(/\\/g, '/').split('/')
+  // 尝试取 appName（/var/log/apps/<appName>/... 或 /vol*/@appdata/<appName>/...）
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === 'apps' && i + 1 < parts.length) return parts[i + 1]
+    if (parts[i]?.startsWith('@app') && i + 1 < parts.length) return parts[i + 1]
+  }
+  return tab.filePath
+}
+
+/** 是否在两组之间显示分隔线 */
+function showGroupDivider(idx: number): boolean {
+  if (idx === 0) return false
+  const tabs = logsStore.logTabs
+  if (idx >= tabs.length) return false
+  return tabGroupKey(tabs[idx]) !== tabGroupKey(tabs[idx - 1])
+}
+
+/** 右键菜单状态 */
+const contextMenu = ref<{ visible: boolean; x: number; y: number; tab: { id: string } | null }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  tab: null
+})
+
+function openContextMenu(event: MouseEvent, tab: { id: string }): void {
+  contextMenu.value = { visible: true, x: event.clientX, y: event.clientY, tab }
+}
+
+function closeContextMenu(): void {
+  contextMenu.value.visible = false
+}
+
+function closeCurrentTab(): void {
+  if (contextMenu.value.tab) {
+    logsStore.removeTab(contextMenu.value.tab.id)
+  }
+  closeContextMenu()
+}
+
+function closeOtherTabs(): void {
+  if (!contextMenu.value.tab) return
+  const keepId = contextMenu.value.tab.id
+  const toRemove = logsStore.logTabs.filter(t => t.id !== keepId).map(t => t.id)
+  for (const id of toRemove) {
+    logsStore.removeTab(id)
+  }
+  closeContextMenu()
+}
+
+function closeAllTabs(): void {
+  const ids = logsStore.logTabs.map(t => t.id)
+  for (const id of ids) {
+    logsStore.removeTab(id)
+  }
+  closeContextMenu()
+}
+
+function closeTabsToRight(): void {
+  if (!contextMenu.value.tab) return
+  const idx = logsStore.logTabs.findIndex(t => t.id === contextMenu.value.tab?.id)
+  if (idx < 0) return
+  const toRemove = logsStore.logTabs.slice(idx + 1).map(t => t.id)
+  for (const id of toRemove) {
+    logsStore.removeTab(id)
+  }
+  closeContextMenu()
+}
+
+/** 点击页面任意位置关闭右键菜单 */
+onMounted(() => {
+  document.addEventListener('click', closeContextMenu)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeContextMenu)
+})
 
 const searchQuery = ref('')
 const currentMatchIndex = ref(0)
@@ -528,10 +653,20 @@ onUnmounted(() => {
   background: var(--info-bg);
 }
 .tab-item.active {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
+  color: var(--tab-color, var(--primary-color));
+  border-bottom-color: var(--tab-color, var(--primary-color));
   font-weight: 500;
   background: var(--bg-color-1);
+}
+.tab-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.tab-item.active .tab-indicator {
+  opacity: 1;
 }
 .tab-title {
   overflow: hidden;
@@ -553,6 +688,41 @@ onUnmounted(() => {
 .tab-close:hover {
   color: var(--error-color);
   background: var(--error-bg);
+}
+.tab-group-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-color);
+  flex-shrink: 0;
+  margin: 0 var(--spacing-xs);
+  opacity: 0.5;
+}
+.tab-context-menu {
+  position: fixed;
+  z-index: 1300;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-xs) 0;
+  min-width: 140px;
+}
+.context-item {
+  padding: var(--spacing-xs) var(--spacing-lg);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--text-color-1);
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+.context-item:hover {
+  background: var(--primary-color);
+  color: white;
+}
+.context-divider {
+  height: 1px;
+  background: var(--divider-color);
+  margin: var(--spacing-xs) 0;
 }
 .modal {
   position: fixed;
@@ -1309,4 +1479,6 @@ onUnmounted(() => {
     font-size: var(--font-size-xs);
   }
 }
+
+
 </style>
