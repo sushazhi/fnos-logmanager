@@ -3,16 +3,27 @@
     <div class="header-content">
       <div class="title-section">
         <h1>飞牛应用日志管理</h1>
-        <div class="version">版本: {{ appVersion }}</div>
+        <div class="version" :class="{ 'has-update': !!updateInfo }" @click="handleVersionClick">
+          <span class="version-text">版本: {{ appVersion }}</span>
+          <span v-if="updateInfo" class="version-badge" title="有新版本可用"></span>
+        </div>
       </div>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { useUpdate } from '../composables/useUpdate'
 
-const appVersion = ref<string>('__APP_VERSION__')
+const emit = defineEmits<{
+  showUpdate: []
+}>()
+
+const { appVersion, updateInfo } = useUpdate()
+
+function handleVersionClick() {
+  emit('showUpdate')
+}
 </script>
 
 <style scoped>
@@ -68,9 +79,33 @@ h1 {
 }
 
 .version {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
   font-size: var(--font-size-sm);
   font-weight: 400;
   opacity: 0.8;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+  position: relative;
+}
+
+.version:hover {
+  opacity: 1;
+}
+
+.version-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning-color);
+  animation: badge-pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 @media (max-width: 768px) {

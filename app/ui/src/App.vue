@@ -4,7 +4,7 @@
   </div>
   
   <div v-else class="container">
-    <AppHeader />
+    <AppHeader @show-update="showUpdateChecker = true" />
     
     <UpdateNotification 
       v-if="updateInfo" 
@@ -116,6 +116,7 @@
       @close="showAutoClean = false"
     />
     
+    <UpdateChecker v-if="showUpdateChecker" @close="showUpdateChecker = false" />
     <ConfirmDialog ref="confirmDialog" />
   </div>
 </template>
@@ -192,6 +193,7 @@ const {
 } = useStore()
 
 const showSettings = ref(false)
+const showUpdateChecker = ref(false)
 const isCheckingAuth = ref(true)
 const confirmDialog = ref(null)
 const showAuditLog = ref(false)

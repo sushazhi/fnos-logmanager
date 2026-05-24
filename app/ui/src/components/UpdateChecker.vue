@@ -3,7 +3,7 @@
     <!-- 版本显示 -->
     <div class="version-info" @click="showUpdateDialog">
       <span class="version-text">v{{ appVersion }}</span>
-      <span v-if="updateInfo" class="update-badge">🚀 新版本</span>
+      <span v-if="updateInfo" class="update-badge">新版本</span>
     </div>
 
     <!-- 更新对话框 -->
@@ -210,7 +210,7 @@ onMounted(() => {
 }
 
 .update-dialog {
-  background: var(--text-color);
+  background: var(--card-bg);
   border-radius: var(--radius-sm);
   width: 90%;
   max-width: 500px;
@@ -224,13 +224,13 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--text-color-1);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .dialog-header h3 {
   margin: 0;
   font-size: 18px;
-  color: var(--bg-color-2);
+  color: var(--text-color-1);
 }
 
 .close-btn {
@@ -244,7 +244,7 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-  color: var(--bg-color-2);
+  color: var(--text-color-1);
 }
 
 .dialog-body {
@@ -284,20 +284,20 @@ onMounted(() => {
 }
 
 .version-compare strong {
-  color: var(--bg-color-2);
+  color: var(--text-color-1);
 }
 
 .changelog {
   margin: 20px 0;
   text-align: left;
-  background: var(--text-color);
+  background: var(--bg-color-2);
   border-radius: var(--radius-xs);
   padding: 16px;
 }
 
 .changelog h4 {
   margin: 0 0 12px 0;
-  color: var(--bg-color-2);
+  color: var(--text-color-1);
   font-size: 14px;
 }
 
@@ -346,12 +346,13 @@ onMounted(() => {
 }
 
 .btn-secondary {
-  background: var(--text-color-2);
-  color: var(--bg-color-2);
+  background: var(--bg-color-2);
+  color: var(--text-color-1);
+  border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover {
-  background: var(--text-color-2);
+  background: var(--bg-color-3);
 }
 
 .updating {
@@ -410,7 +411,7 @@ onMounted(() => {
 
 .up-to-date .version-text {
   font-size: 16px;
-  color: var(--bg-color-2);
+  color: var(--text-color-1);
   font-weight: 600;
 }
 </style>
