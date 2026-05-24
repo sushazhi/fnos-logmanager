@@ -106,7 +106,8 @@ router.get('/channels/types', validateToken, apiRateLimit(120, 60000), (_req: Re
     const types: NotificationChannel[] = [
         'bark', 'dingtalk', 'feishu', 'feishu_app', 'wecom', 'wecom_app', 'wechat_bot',
         'telegram', 'serverchan', 'pushplus',
-        'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot', 'wechat_claw'
+        'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot', 'wechat_claw',
+        'igot', 'synology-chat', 'qmsg', 'pushme', 'wxpusher', 'aibotk', 'weplusbot'
     ];
 
     const typeInfo = types.map(type => ({
@@ -136,7 +137,8 @@ router.post('/channels', validateToken, validateCSRF, sensitiveActionRateLimit(1
         const validChannels: NotificationChannel[] = [
             'bark', 'dingtalk', 'feishu', 'feishu_app', 'wecom', 'wecom_app', 'wechat_bot',
             'telegram', 'serverchan', 'pushplus',
-            'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot', 'wechat_claw'
+            'webhook', 'ntfy', 'gotify', 'pushdeer', 'qqbot', 'wechat_claw',
+            'igot', 'synology-chat', 'qmsg', 'pushme', 'wxpusher', 'aibotk', 'weplusbot'
         ];
 
         if (!validChannels.includes(channel)) {
@@ -159,6 +161,13 @@ router.post('/channels', validateToken, validateCSRF, sensitiveActionRateLimit(1
             'PUSHDEER_KEY', 'PUSHDEER_URL',
             'QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_OPENID', 'QQ_GROUP_OPENID',
             'WECHAT_CLAWBOT_BOT_TOKEN', 'WECHAT_CLAWBOT_BASE_URL', 'WECHAT_CLAWBOT_TO_USER', 'WECHAT_CLAWBOT_ACCOUNT_ID',
+            'IGOT_PUSH_KEY',
+            'CHAT_URL', 'CHAT_TOKEN',
+            'QMSG_KEY', 'QMSG_TYPE',
+            'PUSHME_KEY',
+            'WXPUSHER_APP_TOKEN',
+            'AIBOTK_KEY', 'AIBOTK_TYPE', 'AIBOTK_NAME',
+            'WE_PLUS_BOT_TOKEN',
         ]);
         const filteredConfig: Record<string, string> = {};
         for (const [key, value] of Object.entries(config)) {

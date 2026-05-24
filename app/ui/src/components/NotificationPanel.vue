@@ -679,7 +679,22 @@ function getFieldLabel(field: string): string {
     wechatClawBotToken: 'Bot Token',
     wechatClawBaseUrl: '接口地址',
     wechatClawToUser: '发送目标',
-    wechatClawAccountId: 'Account ID'
+    wechatClawAccountId: 'Account ID',
+    igotPushKey: 'iGot Push Key',
+    qmsgKey: 'Qmsg Key',
+    qmsgType: 'Qmsg 消息类型',
+    pushmeKey: 'PushMe Key',
+    wxpusherAppToken: 'WxPusher App Token',
+    wxpusherTopicIds: 'WxPusher 主题ID',
+    wxpusherUids: 'WxPusher 用户ID',
+    aibotkKey: '智能微秘书 Key',
+    aibotkType: '智能微秘书 类型',
+    aibotkName: '智能微秘书 名称',
+    wePlusBotToken: '微加机器人 Token',
+    wePlusBotReceiver: '微加机器人 接收者',
+    wePlusBotVersion: '微加机器人 版本',
+    chatUrl: 'Synology Chat Webhook URL',
+    chatToken: 'Synology Chat Token'
   }
   return labels[field] || field
 }

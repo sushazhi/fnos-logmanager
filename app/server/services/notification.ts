@@ -32,6 +32,7 @@ const channelNameMap: Record<string, string> = {
     qqbot: 'qqbot',
     igot: 'igot',
     chat: 'synology-chat',
+    'synology-chat': 'synology-chat',
     qmsg: 'qmsg',
     pushme: 'pushme',
     wxpusher: 'wxpusher',
@@ -147,6 +148,7 @@ function buildChannelConfig(channel: any): Partial<ChannelConfig> {
             if (channel.igotPushKey) config.IGOT_PUSH_KEY = channel.igotPushKey;
             break;
         case 'chat':
+        case 'synology-chat':
             if (channel.chatUrl) config.CHAT_URL = channel.chatUrl;
             if (channel.chatToken) config.CHAT_TOKEN = channel.chatToken;
             break;

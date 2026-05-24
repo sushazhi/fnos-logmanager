@@ -18,8 +18,15 @@ export type NotificationChannel =
     | 'ntfy'          // Ntfy
     | 'gotify'        // Gotify
     | 'pushdeer'      // PushDeer
-    | 'qqbot'        // QQ机器人
-    | 'wechat_claw';  // 微信 ClawBot（iLink 协议）
+    | 'qqbot'         // QQ机器人
+    | 'wechat_claw'   // 微信 ClawBot（iLink 协议）
+    | 'igot'          // iGot 聚合推送
+    | 'synology-chat' // Synology Chat
+    | 'qmsg'          // Qmsg 酱
+    | 'pushme'        // PushMe
+    | 'wxpusher'      // WxPusher
+    | 'aibotk'        // 智能微秘书
+    | 'weplusbot';    // 微加机器人
 
 // 日志级别类型
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'all';
