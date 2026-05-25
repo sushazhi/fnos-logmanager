@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
@@ -319,7 +319,7 @@ router.post('/install', validateToken, validateCSRF, sensitiveActionRateLimit(1,
             message: '开始下载更新，请稍候...'
         });
 
-        performUpdate();
+        await performUpdate();
 
     } catch (error) {
         console.error('安装更新失败:', error);
@@ -496,7 +496,6 @@ wizard_data_action=keep
         await new Promise<void>((resolve, reject) => {
             const proc = spawn('appcenter-cli', volumeArgs, {
                 cwd: updateDir,
-                shell: true,
                 timeout: 60000
             });
 
@@ -524,8 +523,7 @@ wizard_data_action=keep
         const installProc = spawn('appcenter-cli', installArgs, {
             cwd: updateDir,
             detached: true,
-            stdio: 'ignore',
-            shell: true
+            stdio: 'ignore'
         });
 
         installProc.unref();

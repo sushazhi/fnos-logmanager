@@ -103,12 +103,6 @@ export interface CleanLogResult {
     errors: string[];
 }
 
-export interface CleanEmptyDirsResult {
-    cleaned: number;
-    dirs: string[];
-    errors: string[];
-}
-
 export interface AppConfig {
     port: number;
     dataDir: string;
@@ -181,11 +175,6 @@ export interface AppConfig {
     passwordFile: string;
     auditLogFile: string;
     initTimestampFile: string;
-}
-
-export interface PasswordChangeResult {
-    success: boolean;
-    message: string;
 }
 
 export interface DockerContainer {

@@ -94,8 +94,4 @@ export function getClientIP(req: Request): string {
     return socketIP || 'unknown';
 }
 
-export function isDirectAccess(req: Request, clientIP: string): boolean {
-    const socketIP = req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || '';
-    return socketIP === clientIP ||
-           (isLocalhost(socketIP) && !req.headers['x-forwarded-for'] && !req.headers['x-real-ip']);
-}
+

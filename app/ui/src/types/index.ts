@@ -34,14 +34,6 @@ export interface Dir {
   archiveCount?: number
 }
 
-export interface DirsResponse {
-  dirs: Array<{
-    path: string
-    logCount?: number
-    totalSize?: string
-  }>
-}
-
 // ==================== 日志类型 ====================
 
 export interface LogItem {
@@ -63,10 +55,6 @@ export interface LogsResponse {
   total: number
 }
 
-export interface LogContentResponse {
-  content: string
-}
-
 // ==================== Docker 类型 ====================
 
 export interface DockerContainer {
@@ -78,10 +66,6 @@ export interface DockerContainer {
 export interface DockerContainersResponse {
   containers: DockerContainer[]
   error?: string
-}
-
-export interface DockerLogsResponse {
-  logs: string
 }
 
 // ==================== 归档类型 ====================
@@ -96,20 +80,12 @@ export interface ArchivesResponse {
   total: number
 }
 
-export interface ArchiveContentResponse {
-  content: string
-}
-
 // ==================== 备份类型 ====================
 
 export interface Backup {
   path: string
   sizeFormatted: string
   createdAt: string
-}
-
-export interface BackupsResponse {
-  backups: Backup[]
 }
 
 export interface BackupResponse {
@@ -127,14 +103,6 @@ export interface UpdateInfo {
   url: string
 }
 
-export interface UpdateCheckResponse {
-  success: boolean
-  hasUpdate: boolean
-  latestVersion?: string
-  changelog?: string
-  publishedAt?: string
-}
-
 export interface UpdateStatus {
   success?: boolean
   updating: boolean
@@ -144,80 +112,7 @@ export interface UpdateStatus {
   updateMessage?: string
 }
 
-// ==================== 设置类型 ====================
-
-export interface FilterSettings {
-  enabled: boolean
-}
-
-export interface FilterSettingsResponse {
-  enabled: boolean
-}
-
-export interface ThemeSettings {
-  theme: 'light' | 'dark' | 'auto'
-  primaryColor?: string
-  fontSize?: number
-}
-
-export interface ThemeSettingsResponse {
-  theme: 'light' | 'dark' | 'auto'
-  primaryColor?: string
-  fontSize?: number
-}
-
-// ==================== 认证类型 ====================
-
-export interface AuthStatus {
-  initialized: boolean
-  isLoggedIn: boolean
-}
-
-export interface CSRFTokenResponse {
-  csrfToken: string
-}
-
-export interface LoginRequest {
-  password: string
-}
-
-export interface LoginResponse {
-  success: boolean
-  error?: string
-}
-
-export interface SetupRequest {
-  password: string
-}
-
-export interface SetupResponse {
-  success: boolean
-  error?: string
-}
-
-// ==================== 清洁类型 ====================
-
 export type CleanType = 'truncateLarge' | 'deleteOld' | 'deleteUninstalled'
-
-export interface CleanRequest {
-  type: CleanType
-  threshold?: string
-  days?: number | null
-  action?: string
-}
-
-export interface CleanResponse {
-  cleaned: number
-  success: boolean
-}
-
-// ==================== API 错误类型 ====================
-
-export interface ApiError {
-  error: string
-  code?: string
-  message?: string
-}
 
 // ==================== 确认对话框类型 ====================
 

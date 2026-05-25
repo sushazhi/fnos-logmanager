@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { spawn } from 'child_process';
 import { query } from 'express-validator';
-import { validateToken, validate, checkValidation } from '../middleware/auth';
+import { validateToken, checkValidation } from '../middleware/auth';
 import { isValidContainerName } from '../utils/validation';
 import { filterSensitiveInfo } from '../utils/filter';
 import { isFilterEnabled } from '../utils/filter';

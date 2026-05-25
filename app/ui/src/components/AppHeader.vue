@@ -3,7 +3,7 @@
     <div class="header-content">
       <div class="title-section">
         <h1>飞牛应用日志管理</h1>
-        <div class="version" :class="{ 'has-update': !!updateInfo }" @click="handleVersionClick">
+        <div class="version">
           <span class="version-text">版本: {{ appVersion }}</span>
           <span v-if="updateInfo" class="version-badge" title="有新版本可用"></span>
         </div>
@@ -15,15 +15,7 @@
 <script setup lang="ts">
 import { useUpdate } from '../composables/useUpdate'
 
-const emit = defineEmits<{
-  showUpdate: []
-}>()
-
 const { appVersion, updateInfo } = useUpdate()
-
-function handleVersionClick() {
-  emit('showUpdate')
-}
 </script>
 
 <style scoped>
@@ -85,13 +77,7 @@ h1 {
   font-size: var(--font-size-sm);
   font-weight: 400;
   opacity: 0.8;
-  cursor: pointer;
-  transition: opacity var(--transition-fast);
   position: relative;
-}
-
-.version:hover {
-  opacity: 1;
 }
 
 .version-badge {

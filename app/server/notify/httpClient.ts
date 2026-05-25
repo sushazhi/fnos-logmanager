@@ -82,7 +82,9 @@ export const $ = {
                 let body = res.body;
                 try {
                     body = JSON.parse(body);
-                } catch { }
+                } catch {
+                    // 非 JSON 响应，使用原始字符串
+                }
                 callback(null, res, body);
             },
             (err) => {
@@ -97,7 +99,9 @@ export const $ = {
                 let body = res.body;
                 try {
                     body = JSON.parse(body);
-                } catch { }
+                } catch {
+                    // 非 JSON 响应，使用原始字符串
+                }
                 callback(null, res, body);
             },
             (err) => {

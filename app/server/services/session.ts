@@ -12,19 +12,111 @@ const csrfTokens = new Map<string, CSRFToken>();
 
 // 持久化文件路径
 const SESSION_FILE = path.join(config.dataDir, '.sessions.json');
+const KEY_FILE = path.join(config.dataDir, '.sessions.key');
+
+// AES-256-GCM 常量
+const ALGORITHM = 'aes-256-gcm';
+const KEY_LENGTH = 32; // 256 bits
+const IV_LENGTH = 16;  // GCM 标准 IV 长度
+const AUTH_TAG_LENGTH = 16;
+
+/**
+ * 获取或生成加密密钥
+ * 首次运行时随机生成 32 字节密钥，持久化到独立的 `.sessions.key` 文件（权限 0o600）
+ */
+function getEncryptionKey(): Buffer {
+    try {
+        if (fs.existsSync(KEY_FILE)) {
+            const keyHex = fs.readFileSync(KEY_FILE, 'utf8').trim();
+            return Buffer.from(keyHex, 'hex');
+        }
+    } catch {
+        // 读取失败时重新生成
+    }
+
+    // 生成新密钥
+    const key = crypto.randomBytes(KEY_LENGTH);
+    try {
+        if (!fs.existsSync(config.dataDir)) {
+            fs.mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
+        }
+        fs.writeFileSync(KEY_FILE, key.toString('hex'), { mode: 0o600 });
+        logger.info('Session encryption key generated');
+    } catch (err) {
+        logger.error({ err }, 'Failed to save encryption key');
+    }
+    return key;
+}
+
+/**
+ * 加密数据（AES-256-GCM）
+ * 返回格式: hex(iv):hex(authTag):hex(ciphertext)
+ */
+function encrypt(plaintext: string, key: Buffer): string {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+    const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+    return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+/**
+ * 解密数据
+ */
+function decrypt(encoded: string, key: Buffer): string | null {
+    try {
+        const parts = encoded.split(':');
+        if (parts.length !== 3) return null;
+        const iv = Buffer.from(parts[0], 'hex');
+        const authTag = Buffer.from(parts[1], 'hex');
+        const encrypted = Buffer.from(parts[2], 'hex');
+
+        if (iv.length !== IV_LENGTH || authTag.length !== AUTH_TAG_LENGTH) return null;
+
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+        decipher.setAuthTag(authTag);
+        const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+        return decrypted.toString('utf8');
+    } catch {
+        return null;
+    }
+}
+
+// 加密密钥（懒加载）
+let encryptionKey: Buffer | null = null;
+
+function ensureKey(): Buffer {
+    if (!encryptionKey) {
+        encryptionKey = getEncryptionKey();
+    }
+    return encryptionKey;
+}
 
 // 脏标记，用于延迟写入
 let dirty = false;
 let saveTimer: NodeJS.Timeout | null = null;
 
 /**
- * 从文件加载 session 数据
+ * 从加密文件加载 session 数据
  */
 function loadSessionsFromDisk(): void {
     try {
         if (!fs.existsSync(SESSION_FILE)) return;
-        const content = fs.readFileSync(SESSION_FILE, 'utf8');
-        const data = JSON.parse(content) as {
+
+        const stored = fs.readFileSync(SESSION_FILE, 'utf8').trim();
+        if (!stored) return;
+
+        const key = ensureKey();
+
+        // 尝试解密，若失败则回退到明文读取（兼容旧格式升级）
+        let plaintext: string | null = decrypt(stored, key);
+        if (!plaintext) {
+            // 旧格式明文兼容
+            logger.warn('Failed to decrypt session file, trying plaintext fallback');
+            plaintext = stored;
+        }
+
+        const data = JSON.parse(plaintext) as {
             sessions: Array<[string, Session]>;
             csrfTokens: Array<[string, CSRFToken]>;
         };
@@ -48,6 +140,12 @@ function loadSessionsFromDisk(): void {
             }
         }
 
+        // 如果加载的是旧格式明文，立即以加密格式重写
+        if (plaintext === stored) {
+            logger.info('Migrating session file to encrypted format');
+            scheduleSaveToDisk();
+        }
+
         logger.info({ sessionCount: sessions.size }, 'Sessions loaded from disk');
     } catch (err) {
         logger.warn({ err }, 'Failed to load sessions from disk, starting fresh');
@@ -67,7 +165,7 @@ function scheduleSaveToDisk(): void {
 }
 
 /**
- * 实际写入磁盘
+ * 实际写入磁盘（加密后原子写入）
  */
 function saveToDisk(): void {
     if (!dirty) return;
@@ -79,13 +177,19 @@ function saveToDisk(): void {
             fs.mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
         }
 
+        const key = ensureKey();
+
         const data = {
             sessions: Array.from(sessions.entries()),
             csrfTokens: Array.from(csrfTokens.entries())
         };
+
+        // AES-256-GCM 加密后再写入
+        const encrypted = encrypt(JSON.stringify(data), key);
+
         // 原子写入：先写临时文件，再重命名
         const tmpFile = SESSION_FILE + '.tmp';
-        fs.writeFileSync(tmpFile, JSON.stringify(data), { mode: 0o600 });
+        fs.writeFileSync(tmpFile, encrypted, { mode: 0o600 });
         fs.renameSync(tmpFile, SESSION_FILE);
     } catch (err) {
         logger.error({ err }, 'Failed to save sessions to disk');

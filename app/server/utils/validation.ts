@@ -70,25 +70,6 @@ export function isSymlinkPath(filePath: string): boolean {
     }
 }
 
-/**
- * 检查解析后的路径是否与原始路径一致（防止符号链接绕过）
- */
-export function resolvePath(inputPath: string): string | null {
-    const safe = safePath(inputPath);
-    if (!safe) return null;
-    
-    try {
-        const resolved = path.resolve(safe);
-        // 检查符号链接
-        if (isSymlinkPath(resolved)) {
-            return null;
-        }
-        return resolved;
-    } catch {
-        return null;
-    }
-}
-
 export function isAllowedPath(inputPath: string, allowedDirs: string[]): boolean {
     if (!inputPath) return false;
     const normalized = safePath(inputPath);
@@ -111,27 +92,15 @@ export function isAllowedPath(inputPath: string, allowedDirs: string[]): boolean
     return false;
 }
 
-export function isValidSize(size: string): boolean {
+function isValidSize(size: string): boolean {
     if (!size || typeof size !== 'string') return false;
     return /^[0-9]+[KMGT]?$/i.test(size);
-}
-
-export function isValidNumber(num: string | number, min: number, max: number): boolean {
-    const n = parseInt(String(num), 10);
-    return !isNaN(n) && n >= min && n <= max;
 }
 
 export function isValidContainerName(name: string): boolean {
     if (!name || typeof name !== 'string') return false;
     if (name.length > 128) return false;
     return /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name);
-}
-
-export function isValidRelativePath(p: string): boolean {
-    if (!p || typeof p !== 'string') return false;
-    if (p.includes('..') || p.includes('\0')) return false;
-    if (p.startsWith('/')) return false;
-    return true;
 }
 
 export function formatBytes(bytes: number): string {
@@ -142,45 +111,11 @@ export function formatBytes(bytes: number): string {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + sizes[i];
 }
 
-export function isValidPattern(pattern: string): boolean {
-    if (!pattern || typeof pattern !== 'string') return false;
-    if (pattern.length > 100) return false;
-
-    const dangerousPatterns = [
-        /[\*\+]{2,}/,
-        /\(\?\<[=!]/,
-        /\(\?\=/,
-        /\(\?\!/,
-        /\(\?\<=/,
-        /\(\?\<!/,
-        /\{[0-9]+,[0-9]*\}/
-    ];
-
-    for (const dangerous of dangerousPatterns) {
-        if (dangerous.test(pattern)) {
-            return false;
-        }
-    }
-
-    try {
-        new RegExp(pattern);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
 export function escapeRegExp(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function isValidEmail(email: string): boolean {
-    if (!email || typeof email !== 'string') return false;
-    if (email.length > 254) return false;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-export function isValidUrl(url: string): boolean {
+function isValidUrl(url: string): boolean {
     if (!url || typeof url !== 'string') return false;
     if (url.length > 2048) return false;
     try {
@@ -201,20 +136,6 @@ export function isValidGitHubUrl(url: string): boolean {
     } catch {
         return false;
     }
-}
-
-export function sanitizeFilename(filename: string): string | null {
-    if (!filename || typeof filename !== 'string') return null;
-    if (filename.length > 255) return null;
-
-    const sanitized = filename
-        .replace(/\.\./g, '')
-        .replace(/[<>:"|?*\x00-\x1f]/g, '')
-        .replace(/^\.+/, '')
-        .replace(/\.+$/, '');
-
-    if (sanitized.length === 0) return null;
-    return sanitized;
 }
 
 export function isValidAction(action: string): action is 'truncate' | 'delete' | 'deleteUninstalled' {

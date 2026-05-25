@@ -1,21 +1,18 @@
 import express, { Request, Response, NextFunction } from 'express';
 import fs from 'fs';
-import { query, body, ValidationChain } from 'express-validator';
+import { query, body } from 'express-validator';
 import * as logFileService from '../services/logFile';
 import * as auditService from '../services/audit';
 import * as backupService from '../services/backup';
 import * as autoCleanService from '../services/autoClean';
 import * as bookmarkService from '../services/bookmark';
 import * as sessionService from '../services/session';
-import { validateToken, validateCSRF, validate, checkValidation } from '../middleware/auth';
+import { validateToken, validateCSRF, checkValidation } from '../middleware/auth';
 import { sensitiveActionRateLimit } from '../middleware/rateLimit';
 import { 
     safePath, 
     isAllowedPath, 
     isSymlinkPath,
-    isValidSize, 
-    isValidNumber, 
-    isValidPattern,
     escapeRegExp,
     isValidAction,
     isValidDays,
@@ -26,7 +23,6 @@ import {
 import config from '../utils/config';
 import { filterSensitiveInfo, setFilterEnabled, isFilterEnabled } from '../utils/filter';
 import { parseSizeThreshold } from '../utils/sizeParser';
-import { ValidationError } from '../utils/errors';
 
 const router = express.Router();
 

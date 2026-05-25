@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import config from '../utils/config';
 import Logger from '../utils/logger';
 import * as logFileService from './logFile';

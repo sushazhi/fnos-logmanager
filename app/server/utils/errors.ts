@@ -37,20 +37,6 @@ export class AuthenticationError extends AppError {
     }
 }
 
-export class AuthorizationError extends AppError {
-    constructor(message: string = '权限不足') {
-        super(message, 403, 'AUTHORIZATION_ERROR');
-        this.name = 'AuthorizationError';
-    }
-}
-
-export class NotFoundError extends AppError {
-    constructor(message: string = '资源不存在') {
-        super(message, 404, 'NOT_FOUND_ERROR');
-        this.name = 'NotFoundError';
-    }
-}
-
 export class RateLimitError extends AppError {
     constructor(message: string = '请求过于频繁') {
         super(message, 429, 'RATE_LIMIT_ERROR');
