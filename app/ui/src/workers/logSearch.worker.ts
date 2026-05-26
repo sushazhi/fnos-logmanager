@@ -41,6 +41,15 @@ self.onmessage = function (e: MessageEvent<SearchMessage | CancelMessage>) {
     const positions: Array<{ lineIndex: number; charIndex: number }> = []
 
     if (mode === 'regex') {
+      if (query.length > 500) {
+        self.postMessage({ type: 'error', message: '搜索内容过长' } as ErrorResponse)
+        return
+      }
+      // ReDoS 防护：拒绝嵌套量词等危险模式
+      if (/\(.+[+*?]\{[0-9]|\([^)]+\)[+*?]+\(|[+*?]\{[0-9]{3,}/.test(query)) {
+        self.postMessage({ type: 'error', message: '正则表达式过于复杂' } as ErrorResponse)
+        return
+      }
       let regex: RegExp
       try {
         regex = new RegExp(query, 'gi')

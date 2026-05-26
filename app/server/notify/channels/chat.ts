@@ -3,7 +3,7 @@
  */
 import Logger from '../../utils/logger';
 import { NotifyChannel, NotifyResult } from '../types';
-import { $ } from '../httpClient';
+import { $, isPrivateUrl } from '../httpClient';
 import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'chat' });
@@ -22,6 +22,11 @@ export const chatChannel: NotifyChannel = {
             const CHAT_URL = getConfig('CHAT_URL');
             const CHAT_TOKEN = getConfig('CHAT_TOKEN');
             const url = `${CHAT_URL}${CHAT_TOKEN}`;
+
+            if (isPrivateUrl(url)) {
+                resolve({ success: false, message: '推送地址不合法' });
+                return;
+            }
 
             // 对消息内容进行 urlencode
             const encodedDesp = encodeURI(desp);

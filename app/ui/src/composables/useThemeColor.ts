@@ -1,4 +1,4 @@
-export interface HSL {
+interface HSL {
   h: number
   s: number
   l: number
@@ -89,4 +89,4 @@ export function applyThemeColor(color: string): void {
   root.style.setProperty('--card-color-4-light', hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
 }
 
-export { adjustColor, hexToHSL, hslToHex }
+

@@ -207,7 +207,7 @@ export function validateEnv(): { valid: boolean; errors: string[] } {
 export function checkDependencies(): { valid: boolean; missing: string[] } {
     const missing: string[] = [];
 
-    const requiredDeps = ['express', '@node-rs/argon2', 'express-validator', 'morgan', 'cookie-parser'];
+    const requiredDeps = ['express', 'express-validator', 'morgan', 'cookie-parser'];
 
     for (const dep of requiredDeps) {
         try {

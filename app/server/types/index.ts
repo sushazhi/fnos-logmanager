@@ -72,11 +72,6 @@ export interface RateLimitRecord {
     resetTime: number;
 }
 
-export interface LoginAttempt {
-    count: number;
-    lockoutUntil: number;
-}
-
 export interface ReadLogOptions {
     maxLines?: number;
     offset?: number;
@@ -115,10 +110,6 @@ export interface AppConfig {
         allowQueryToken: boolean;
         queryTokenPaths: string[];
     };
-    login: {
-        maxAttempts: number;
-        lockoutTime: number;
-    };
     audit: {
         maxLogs: number;
     };
@@ -130,10 +121,6 @@ export interface AppConfig {
     };
     update: {
         checkCacheMs: number;
-        checkRateLimit: {
-            windowMs: number;
-            maxRequests: number;
-        };
         downloadTimeoutMs: number;
         maxDownloadBytes: number;
         maxAssetBytes: number;
@@ -172,9 +159,7 @@ export interface AppConfig {
         notificationChannels: string[];
     };
     sensitivePatterns: RegExp[];
-    passwordFile: string;
     auditLogFile: string;
-    initTimestampFile: string;
 }
 
 export interface DockerContainer {

@@ -9,7 +9,7 @@ function isTrustedProxy(ip: string): boolean {
     return TRUSTED_PROXIES.includes(ip);
 }
 
-export function isPrivateIP(ip: string): boolean {
+function isPrivateIP(ip: string): boolean {
     if (!ip) return false;
     const cleanIP = ip.replace(/^::ffff:/, '').replace(/:.*$/, '');
     return cleanIP.startsWith('10.') ||
@@ -32,7 +32,7 @@ export function isPrivateIP(ip: string): boolean {
            cleanIP.startsWith('172.31.');
 }
 
-export function isLocalhost(ip: string): boolean {
+function isLocalhost(ip: string): boolean {
     if (!ip) return false;
     const cleanIP = ip.replace(/^::ffff:/, '').replace(/:.*$/, '');
     return cleanIP === '127.0.0.1' || cleanIP === '::1' || cleanIP === 'localhost';

@@ -36,8 +36,14 @@ export async function httpRequest(
             method,
             headers: finalHeaders,
             body: finalBody,
-            signal: timeout ? AbortSignal.timeout(timeout) : undefined
+            signal: timeout ? AbortSignal.timeout(timeout) : undefined,
         });
+
+        // 检查重定向状态码，防止SSRF
+        if (response.statusCode >= 300 && response.statusCode < 400) {
+            const location = response.headers?.location || response.headers?.Location || '(unknown)';
+            throw new Error(`不允许跟随重定向: ${response.statusCode} -> ${location}`);
+        }
 
         const responseBody = await response.body.text();
 
@@ -119,11 +125,18 @@ export default httpClient;
 export function isPrivateUrl(urlStr: string): boolean {
     try {
         const url = new URL(urlStr);
-        const hostname = url.hostname;
+        let hostname = url.hostname;
+
+        // 处理 IPv4-mapped IPv6 地址 (::ffff:x.x.x.x)
+        if (hostname.startsWith('::ffff:')) {
+            hostname = hostname.slice(7);
+        }
+
         if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') return true;
         if (hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('169.254.')) return true;
         if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true;
-        if (hostname.startsWith('fd') || hostname.startsWith('fe80')) return true;
+        // fc00::/7 覆盖 fc* 和 fd* 两个前缀
+        if (hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe80')) return true;
         if (url.protocol !== 'http:' && url.protocol !== 'https:') return true;
         return false;
     } catch {

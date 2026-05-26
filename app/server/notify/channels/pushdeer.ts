@@ -3,7 +3,7 @@
  */
 import Logger from '../../utils/logger';
 import { NotifyChannel, NotifyResult } from '../types';
-import { $ } from '../httpClient';
+import { $, isPrivateUrl } from '../httpClient';
 import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'pushdeer' });
@@ -21,6 +21,11 @@ export const pushdeerChannel: NotifyChannel = {
 
             const DEER_KEY = getConfig('DEER_KEY');
             const DEER_URL = getConfig('DEER_URL') || 'https://api2.pushdeer.com/message/push';
+
+            if (DEER_URL !== 'https://api2.pushdeer.com/message/push' && isPrivateUrl(DEER_URL)) {
+                resolve({ success: false, message: '推送地址不合法' });
+                return;
+            }
 
             // PushDeer 建议对消息内容进行 urlencode
             const encodedDesp = encodeURI(desp);

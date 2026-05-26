@@ -459,12 +459,7 @@ export async function triggerCheck(): Promise<void> {
 }
 
 // 检查特定应用的日志
-export async function checkAppLogs(appName: string): Promise<void> {
-    const rules = notificationStore.getEnabledRules().filter((r: any) => matchesAppName(appName, r.appName));
-    if (rules.length === 0) {
-        return;
-    }
-    
+async function checkSpecificAppLogs(appName: string, rules: any[]): Promise<void> {
     // 获取该应用的日志文件
     const logFiles = await logFileService.listLogFiles(undefined, 500);
     const appLogFiles = logFiles.filter((f: any) => f.appName && matchesAppName(f.appName, appName));

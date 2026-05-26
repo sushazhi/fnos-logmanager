@@ -149,16 +149,4 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   } as ApiResponse);
 }
 
-/**
- * 成功响应包装器
- */
-export function successResponse<T>(data: T, message?: string): ApiResponse<T> {
-  return {
-    success: true,
-    data,
-    meta: {
-      timestamp: Date.now(),
-      requestId: generateRequestId()
-    }
-  };
-}
+

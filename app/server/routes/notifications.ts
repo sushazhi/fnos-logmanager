@@ -92,11 +92,33 @@ router.post('/settings', validateToken, validateCSRF, async (req: Request, res: 
 // ==================== 渠道管理 ====================
 
 /**
- * 获取所有渠道
+ * 获取所有渠道（敏感字段脱敏）
  */
 router.get('/channels', validateToken, apiRateLimit(120, 60000), (_req: Request, res: Response) => {
     const channels = notificationStore.getChannels();
-    res.json({ channels });
+    const SENSITIVE_KEYS = new Set([
+        'BARK_PUSH', 'DINGTALK_TOKEN', 'DINGTALK_SECRET', 'FEISHU_SECRET',
+        'WECOM_KEY', 'WECOM_QYDX_SECRET', 'WECHAT_BOT_KEY',
+        'TG_BOT_TOKEN', 'TG_USER_ID',
+        'SERVERCHAN_KEY', 'PUSHPLUS_TOKEN',
+        'NTFY_TOKEN', 'NTFY_PASSWORD', 'GOTIFY_TOKEN',
+        'PUSHDEER_KEY', 'QQ_APP_SECRET', 'QQ_OPENID', 'QQ_GROUP_OPENID',
+        'WECHAT_CLAWBOT_BOT_TOKEN', 'IGOT_PUSH_KEY', 'CHAT_TOKEN',
+        'QMSG_KEY', 'PUSHME_KEY', 'WXPUSHER_APP_TOKEN',
+        'AIBOTK_KEY', 'WE_PLUS_BOT_TOKEN'
+    ]);
+    const redactedChannels = channels.map(ch => {
+        const redacted: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(ch)) {
+            if (SENSITIVE_KEYS.has(key) && value) {
+                redacted[key] = '••••••••';
+            } else {
+                redacted[key] = value;
+            }
+        }
+        return redacted;
+    });
+    res.json({ channels: redactedChannels });
 });
 
 /**
@@ -198,7 +220,41 @@ router.put('/channels/:name', validateToken, validateCSRF, sensitiveActionRateLi
 ], async (req: Request, res: Response, next: NextFunction) => {
     try {
         const channelName = req.params.name as string;
-        const updates = req.body;
+        const body = req.body;
+
+        // 字段白名单：仅允许更新 POST 创建时允许的配置键
+        const ALLOWED_CONFIG_KEYS = new Set([
+            'BARK_PUSH', 'BARK_ICON', 'BARK_SOUND', 'BARK_GROUP', 'BARK_LEVEL', 'BARK_ARCHIVE', 'BARK_URL',
+            'DINGTALK_TOKEN', 'DINGTALK_SECRET',
+            'FEISHU_WEBHOOK', 'FEISHU_SECRET',
+            'WECOM_KEY', 'WECOM_PROXY', 'WECOM_QYDX_AGENT_ID', 'WECOM_QYDX_CORP_ID', 'WECOM_QYDX_SECRET', 'WECOM_QYDX_TO_USER',
+            'WECHAT_BOT_KEY',
+            'TG_BOT_TOKEN', 'TG_USER_ID', 'TG_API_HOST',
+            'SERVERCHAN_KEY', 'SERVERCHAN_URL',
+            'PUSHPLUS_TOKEN', 'PUSHPLUS_TOPIC',
+            'WEBHOOK_URL', 'WEBHOOK_METHOD', 'WEBHOOK_CONTENT_TYPE',
+            'NTFY_URL', 'NTFY_TOPIC', 'NTFY_PRIORITY', 'NTFY_TOKEN', 'NTFY_USERNAME', 'NTFY_PASSWORD', 'NTFY_ACTIONS',
+            'GOTIFY_URL', 'GOTIFY_TOKEN', 'GOTIFY_PRIORITY',
+            'PUSHDEER_KEY', 'PUSHDEER_URL',
+            'QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_OPENID', 'QQ_GROUP_OPENID',
+            'WECHAT_CLAWBOT_BOT_TOKEN', 'WECHAT_CLAWBOT_BASE_URL', 'WECHAT_CLAWBOT_TO_USER', 'WECHAT_CLAWBOT_ACCOUNT_ID',
+            'IGOT_PUSH_KEY',
+            'CHAT_URL', 'CHAT_TOKEN',
+            'QMSG_KEY', 'QMSG_TYPE',
+            'PUSHME_KEY',
+            'WXPUSHER_APP_TOKEN',
+            'AIBOTK_KEY', 'AIBOTK_TYPE', 'AIBOTK_NAME',
+            'WE_PLUS_BOT_TOKEN',
+            'enabled', 'name'
+        ]);
+        const updates: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(body)) {
+            if (ALLOWED_CONFIG_KEYS.has(key) && typeof value === 'string') {
+                updates[key] = value;
+            } else if ((key === 'enabled' || key === 'name') && typeof value === 'string') {
+                updates[key] = value;
+            }
+        }
 
         await notificationStore.updateChannel(channelName, updates);
         const channel = notificationStore.getChannel(channelName);

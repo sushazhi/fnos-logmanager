@@ -65,9 +65,7 @@ const defaultConfig: ChannelConfig = {
     TG_BOT_TOKEN: '',
     TG_USER_ID: '',
     TG_API_HOST: 'https://api.telegram.org',
-    TG_PROXY_AUTH: '',
-    TG_PROXY_HOST: '',
-    TG_PROXY_PORT: '',
+
 
     AIBOTK_KEY: '',
     AIBOTK_TYPE: '',

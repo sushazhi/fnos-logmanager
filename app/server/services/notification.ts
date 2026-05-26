@@ -91,9 +91,7 @@ function buildChannelConfig(channel: any): Partial<ChannelConfig> {
             if (channel.tgBotToken) config.TG_BOT_TOKEN = channel.tgBotToken;
             if (channel.tgUserId) config.TG_USER_ID = channel.tgUserId;
             if (channel.tgApiHost) config.TG_API_HOST = channel.tgApiHost;
-            if (channel.tgProxyHost) config.TG_PROXY_HOST = channel.tgProxyHost;
-            if (channel.tgProxyPort) config.TG_PROXY_PORT = String(channel.tgProxyPort);
-            if (channel.tgProxyAuth) config.TG_PROXY_AUTH = channel.tgProxyAuth;
+
             break;
         case 'serverchan':
             if (channel.pushKey) config.PUSH_KEY = channel.pushKey;
@@ -186,7 +184,7 @@ function buildChannelConfig(channel: any): Partial<ChannelConfig> {
 }
 
 // 发送通知请求接口
-export interface SendNotificationRequest {
+interface SendNotificationRequest {
     title: string;
     content: string;
     appName: string;
@@ -333,29 +331,6 @@ export async function testChannel(channel: any): Promise<{ success: boolean; err
     const title = '日志管理器 - 测试通知';
     const content = `这是一条测试通知消息。\n\n发送时间: ${new Date().toLocaleString('zh-CN')}\n渠道: ${channel.channel}`;
     return await sendToChannel(channel, title, content);
-}
-
-/**
- * 批量测试通知渠道
- */
-export async function testChannels(channelNames: string[]): Promise<Record<string, any>> {
-    const results: Record<string, any> = {};
-    const channels = notificationStore.getChannels();
-
-    for (const name of channelNames) {
-        const channel = channels.find(c => c.name === name);
-        if (channel) {
-            results[name] = await testChannel(channel);
-        } else {
-            results[name] = {
-                success: false,
-                channel: 'unknown',
-                error: '渠道不存在'
-            };
-        }
-    }
-
-    return results;
 }
 
 /**

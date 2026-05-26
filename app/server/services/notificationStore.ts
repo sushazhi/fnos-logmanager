@@ -403,20 +403,6 @@ export function getHistory(limit: number = 100): NotificationHistory[] {
 }
 
 /**
- * 清理旧历史记录
- */
-export async function cleanOldHistory(): Promise<void> {
-    await ensureInitialized();
-    if (!cachedHistory) return;
-
-    const settings = getSettings();
-    const cutoffTime = Date.now() - settings.maxHistoryDays * 24 * 60 * 60 * 1000;
-
-    cachedHistory = cachedHistory.filter(h => new Date(h.timestamp).getTime() > cutoffTime);
-    await saveHistory();
-}
-
-/**
  * 清空所有历史记录
  */
 export async function clearHistory(): Promise<void> {

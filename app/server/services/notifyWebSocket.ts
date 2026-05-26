@@ -141,7 +141,7 @@ export function handleNotifyWSUpgrade(req: any, socket: any, head: any): boolean
 /**
  * 向订阅了指定频道的客户端广播消息
  */
-export function broadcast(channel: string, data: any): void {
+function broadcast(channel: string, data: any): void {
     const message = JSON.stringify({
         type: 'update',
         channel,
@@ -182,7 +182,7 @@ export function closeNotifyWebSocket(): void {
 /**
  * 获取连接统计
  */
-export function getNotifyWSStats(): { totalClients: number; subscriptions: Record<string, number> } {
+function getNotifyWSStats(): { totalClients: number; subscriptions: Record<string, number> } {
     const subscriptions: Record<string, number> = { monitor: 0, history: 0, rules: 0 };
     for (const [, client] of clients) {
         for (const ch of client.subscriptions) {

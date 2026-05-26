@@ -287,8 +287,6 @@ export const eventLoggerApi = {
   
   stop: () => api.post<EventLoggerStatus>('/api/eventlogger/stop'),
   
-  restart: () => api.post<EventLoggerStatus>('/api/eventlogger/restart'),
-  
   check: () => api.post<{ success: boolean }>('/api/eventlogger/check'),
   
   getSources: () => api.get<string[]>('/api/eventlogger/sources'),
@@ -312,9 +310,6 @@ export const autoCleanApi = {
 
   addRule: (rule: Omit<AutoCleanRule, 'id' | 'lastRun'>) =>
     api.post<{ rule: AutoCleanRule }>('/api/auto-clean/rules', rule),
-
-  updateRule: (id: string, updates: Partial<Omit<AutoCleanRule, 'id'>>) =>
-    api.put<{ rule: AutoCleanRule }>(`/api/auto-clean/rules/${id}`, updates),
 
   deleteRule: (id: string) =>
     api.delete<{ success: boolean }>(`/api/auto-clean/rules/${id}`),
@@ -341,10 +336,7 @@ export const bookmarkApi = {
     api.post<{ bookmark: Bookmark }>('/api/bookmarks', data),
 
   delete: (id: string) =>
-    api.delete<{ success: boolean }>(`/api/bookmarks/${id}`),
-
-  update: (id: string, name: string) =>
-    api.put<{ bookmark: Bookmark }>(`/api/bookmarks/${id}`, { name })
+    api.delete<{ success: boolean }>(`/api/bookmarks/${id}`)
 }
 
 export default api

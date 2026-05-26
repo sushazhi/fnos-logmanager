@@ -17,10 +17,6 @@ const config: AppConfig = {
         allowQueryToken: process.env.ALLOW_QUERY_TOKEN === 'true',
         queryTokenPaths: ['/api/auth/status', '/api/auth/csrf-token']
     },
-    login: {
-        maxAttempts: 5,
-        lockoutTime: 30 * 60 * 1000
-    },
     audit: {
         maxLogs: 1000
     },
@@ -32,10 +28,6 @@ const config: AppConfig = {
     },
     update: {
         checkCacheMs: parseInt(process.env.UPDATE_CHECK_CACHE_MS || '60000', 10),
-        checkRateLimit: {
-            windowMs: parseInt(process.env.UPDATE_CHECK_WINDOW_MS || '60000', 10),
-            maxRequests: parseInt(process.env.UPDATE_CHECK_MAX || '10', 10)
-        },
         downloadTimeoutMs: parseInt(process.env.UPDATE_DOWNLOAD_TIMEOUT_MS || '300000', 10),
         maxDownloadBytes: parseInt(process.env.UPDATE_MAX_DOWNLOAD_BYTES || String(200 * 1024 * 1024), 10),
         maxAssetBytes: parseInt(process.env.UPDATE_MAX_ASSET_BYTES || String(500 * 1024 * 1024), 10),
@@ -107,14 +99,10 @@ const config: AppConfig = {
         /-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----/g,
         /eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_.+/]*/g
     ],
-    passwordFile: '',
-    auditLogFile: '',
-    initTimestampFile: ''
+    auditLogFile: ''
 };
 
-config.passwordFile = path.join(config.dataDir, '.password');
 config.auditLogFile = path.join(config.dataDir, 'audit.log');
-config.initTimestampFile = path.join(config.dataDir, '.init-time');
 
 const configFile = path.join(config.dataDir, 'config.json');
 try {

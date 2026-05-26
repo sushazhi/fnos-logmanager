@@ -91,9 +91,6 @@ export interface ChannelConfig {
     TG_BOT_TOKEN?: string;
     TG_USER_ID?: string;
     TG_API_HOST?: string;
-    TG_PROXY_AUTH?: string;
-    TG_PROXY_HOST?: string;
-    TG_PROXY_PORT?: string;
 
     // 智能微秘书
     AIBOTK_KEY?: string;

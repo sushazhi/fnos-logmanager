@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { getClientIP } from '../utils/ip';
 import { RateLimitError } from '../utils/errors';
-import { RateLimitRecord, LoginAttempt } from '../types';
+import { RateLimitRecord } from '../types';
 import config from '../utils/config';
 
 const MAX_ENTRIES = 10000;
@@ -100,49 +100,6 @@ export function sensitiveActionRateLimit(maxRequests: number = 30, windowMs: num
     };
 }
 
-const loginAttemptsMap = new Map<string, LoginAttempt>();
-
-export function getLoginAttempts(ip: string): LoginAttempt {
-    const attempts = loginAttemptsMap.get(ip) || { count: 0, lockoutUntil: 0 };
-    if (attempts.lockoutUntil && Date.now() > attempts.lockoutUntil) {
-        loginAttemptsMap.delete(ip);
-        return { count: 0, lockoutUntil: 0 };
-    }
-    return attempts;
-}
-
-export function recordLoginAttempt(ip: string, success: boolean): void {
-    if (success) {
-        loginAttemptsMap.delete(ip);
-        return;
-    }
-
-    const attempts = getLoginAttempts(ip);
-    attempts.count++;
-    if (attempts.count >= config.login.maxAttempts) {
-        attempts.lockoutUntil = Date.now() + config.login.lockoutTime;
-    }
-    boundedSet(loginAttemptsMap, ip, attempts);
-}
-
-export function isLockedOut(ip: string): boolean {
-    const attempts = getLoginAttempts(ip);
-    return attempts.lockoutUntil > 0;
-}
-
-export function getRemainingAttempts(ip: string): number {
-    const attempts = getLoginAttempts(ip);
-    return Math.max(0, config.login.maxAttempts - attempts.count);
-}
-
-export function getLockoutRemainingTime(ip: string): number {
-    const attempts = getLoginAttempts(ip);
-    if (attempts.lockoutUntil > 0) {
-        return Math.max(0, attempts.lockoutUntil - Date.now());
-    }
-    return 0;
-}
-
 function cleanupRateLimits(): void {
     const now = Date.now();
 
@@ -164,11 +121,6 @@ function cleanupRateLimits(): void {
         }
     }
 
-    for (const [ip, attempts] of loginAttemptsMap.entries()) {
-        if (attempts.lockoutUntil && now > attempts.lockoutUntil) {
-            loginAttemptsMap.delete(ip);
-        }
-    }
 }
 
 setInterval(cleanupRateLimits, 60000);

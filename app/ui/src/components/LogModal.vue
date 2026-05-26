@@ -410,13 +410,17 @@ function formatLine(line: string, lineIndex: number): string {
   const query = searchQuery.value
 
   let highlightRegex: RegExp
+  if (!query || query.length > 500) return escaped
   if (searchOptions.mode === 'regex') {
+    // ReDoS 防护
+    if (/\(.+[+*?]\{[0-9]|\([^)]+\)[+*?]+\(|[+*?]\{[0-9]{3,}/.test(query)) return escaped
     try {
       highlightRegex = new RegExp(query, 'gi')
     } catch {
       return escaped
     }
   } else {
+    if (query.length > 200) return escaped
     highlightRegex = new RegExp(`(${escapeRegex(query)})`, 'gi')
   }
 

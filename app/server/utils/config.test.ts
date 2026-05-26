@@ -36,11 +36,6 @@ describe('Config', () => {
             expect(Array.isArray(config.auth.queryTokenPaths)).toBe(true);
         });
 
-        it('should have login settings', () => {
-            expect(config.login).toBeDefined();
-            expect(config.login.maxAttempts).toBeGreaterThan(0);
-            expect(config.login.lockoutTime).toBeGreaterThan(0);
-        });
     });
 
     describe('audit config', () => {
@@ -94,11 +89,6 @@ describe('Config', () => {
     });
 
     describe('file paths', () => {
-        it('should have passwordFile path', () => {
-            expect(config.passwordFile).toBeDefined();
-            expect(typeof config.passwordFile).toBe('string');
-        });
-
         it('should have auditLogFile path', () => {
             expect(config.auditLogFile).toBeDefined();
             expect(typeof config.auditLogFile).toBe('string');

@@ -60,6 +60,15 @@ export function useLogSearch(
     const positions: MatchPosition[] = []
 
     if (mode === 'regex') {
+      if (query.length > 500) {
+        searchError.value = '搜索内容过长'
+        return []
+      }
+      // ReDoS 防护
+      if (/\(.+[+*?]\{[0-9]|\([^)]+\)[+*?]+\(|[+*?]\{[0-9]{3,}/.test(query)) {
+        searchError.value = '正则表达式过于复杂'
+        return []
+      }
       let regex: RegExp
       try {
         regex = new RegExp(query, 'gi')

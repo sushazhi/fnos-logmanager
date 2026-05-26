@@ -27,16 +27,6 @@ function getSessionToken(req: Request): string {
     return '';
 }
 
-export function getGatewayUser(req: Request): { uid: string; isAdmin: boolean; username: string } | null {
-    const uid = req.headers['x-trim-uid'] as string;
-    if (!uid) return null;
-    return {
-        uid,
-        isAdmin: req.headers['x-trim-isadmin'] === 'true',
-        username: (req.headers['x-trim-username'] as string) || ''
-    };
-}
-
 export function validateToken(req: Request, res: Response, next: NextFunction): void {
     const clientIP = getClientIP(req);
 
@@ -117,21 +107,6 @@ export function validateCSRF(req: Request, res: Response, next: NextFunction): v
 
 type ValidatorFunction = (req: Request, res: Response, next: NextFunction) => void;
 
-export function validate(validators: ValidationChain[]): ValidatorFunction[] {
-    return [
-        ...validators,
-        (req: Request, _res: Response, next: NextFunction) => {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                const errorMessages = errors.array().map(e => e.msg);
-                next(new ValidationError(errorMessages.join(', '), errors.array()));
-                return;
-            }
-            next();
-        }
-    ];
-}
-
 export function checkValidation(req: Request, _res: Response, next: NextFunction): void {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -141,16 +116,5 @@ export function checkValidation(req: Request, _res: Response, next: NextFunction
     }
     next();
 }
-
-export const logPathValidationRules: ValidationChain[] = [
-    body('path').optional()
-        .isString().withMessage('路径必须是字符串')
-        .custom((value) => {
-            if (value && (value.includes('..') || value.includes('\0'))) {
-                throw new Error('无效的路径');
-            }
-            return true;
-        })
-];
 
 export { getSessionToken };

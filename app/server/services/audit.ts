@@ -20,13 +20,7 @@ interface ExtendedAuditDetails {
 const ACTION_NAMES: Record<string, string> = {
     'SERVER_START': '服务器启动',
     'SERVER_SHUTDOWN': '服务器关闭',
-    'login_success': '登录成功',
-    'login_failed': '登录失败',
-    'login_locked': '登录锁定',
     'logout': '登出',
-    'password_setup': '密码设置',
-    'password_changed': '密码修改',
-    'password_change_failed': '密码修改失败',
     'auth_failed': '认证失败',
     'csrf_failed': 'CSRF验证失败',
     'log_truncate': '日志清空',
@@ -42,8 +36,11 @@ const ACTION_NAMES: Record<string, string> = {
     'auto_clean_rule_delete': '删除自动清理规则',
     'auto_clean_rule_toggle': '切换自动清理规则',
     'auto_clean_manual': '手动执行自动清理',
-    'app_updated': '应用更新',
-    'update_failed': '更新失败',
+    'log_export': '日志导出',
+    'dirs_clean_empty': '清理空目录',
+    'bookmark_add': '添加书签',
+    'bookmark_delete': '删除书签',
+    'bookmark_update': '更新书签',
     'SECURITY_UNCAUGHT_EXCEPTION': '安全异常-未捕获异常',
     'SECURITY_UNHANDLED_REJECTION': '安全异常-未处理Promise',
     'SECURITY_SENSITIVE_INFO_SCAN': '安全扫描-敏感信息',
@@ -231,7 +228,7 @@ async function rotateAuditLog(): Promise<void> {
     }
 }
 
-export async function scanForSensitiveInfo(): Promise<{ path: string; matches: string[] }[]> {
+async function scanForSensitiveInfo(): Promise<{ path: string; matches: string[] }[]> {
     const results: { path: string; matches: string[] }[] = [];
 
     for (const dir of config.logDirs) {

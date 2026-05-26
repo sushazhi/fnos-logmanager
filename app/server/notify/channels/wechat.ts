@@ -4,7 +4,7 @@
 import crypto from 'crypto';
 import Logger from '../../utils/logger';
 import { NotifyChannel, NotifyResult } from '../types';
-import { $ } from '../httpClient';
+import { $, isPrivateUrl } from '../httpClient';
 import { hasConfig, getConfig } from '../config';
 
 const logger = Logger.child({ channel: 'wechat-work' });
@@ -26,6 +26,11 @@ export const wechatWorkBotChannel: NotifyChannel = {
             const QYWX_KEY = getConfig('QYWX_KEY');
             const QYWX_ORIGIN = getConfig('QYWX_ORIGIN') || 'https://qyapi.weixin.qq.com';
             const url = `${QYWX_ORIGIN}/cgi-bin/webhook/send?key=${QYWX_KEY}`;
+
+            if (QYWX_ORIGIN !== 'https://qyapi.weixin.qq.com' && isPrivateUrl(QYWX_ORIGIN)) {
+                resolve({ success: false, message: '推送地址不合法' });
+                return;
+            }
 
             const body = {
                 msgtype: 'text',
@@ -69,6 +74,11 @@ export const wechatWorkAppChannel: NotifyChannel = {
 
             const QYWX_AM = getConfig('QYWX_AM') || '';
             const QYWX_ORIGIN = getConfig('QYWX_ORIGIN') || 'https://qyapi.weixin.qq.com';
+
+            if (QYWX_ORIGIN !== 'https://qyapi.weixin.qq.com' && isPrivateUrl(QYWX_ORIGIN)) {
+                resolve({ success: false, message: '推送地址不合法' });
+                return;
+            }
 
             const QYWX_AM_AY = QYWX_AM.split(',');
             const [corpid, corpsecret, touser, agentid, msgtype] = QYWX_AM_AY;

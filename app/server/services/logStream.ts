@@ -314,7 +314,7 @@ export function closeLogStream(): void {
 /**
  * 获取当前连接统计
  */
-export function getStreamStats(): { totalClients: number; subscriptions: Array<{ filePath: string; clientIp: string }> } {
+function getStreamStats(): { totalClients: number; subscriptions: Array<{ filePath: string; clientIp: string }> } {
     const subscriptions: Array<{ filePath: string; clientIp: string }> = [];
     for (const [ws, client] of clients) {
         subscriptions.push({

@@ -113,7 +113,7 @@ export function extractAppNameFromPath(logPath: string): string | null {
     return null;
 }
 
-export function isLogFile(filename: string): boolean {
+function isLogFile(filename: string): boolean {
     const lower = filename.toLowerCase();
     if (lower.endsWith('.log')) return true;
     if (lower.includes('.log.')) return true;
@@ -121,7 +121,7 @@ export function isLogFile(filename: string): boolean {
     return false;
 }
 
-export function isArchiveFile(filename: string): boolean {
+function isArchiveFile(filename: string): boolean {
     const lower = filename.toLowerCase();
     return ARCHIVE_EXTENSIONS.some(ext => lower.endsWith(ext));
 }
@@ -451,34 +451,6 @@ async function readLargeFileStreaming(filePath: string, options: StreamingOption
 
         stream.on('error', (err) => {
             reject(new Error(`文件流错误: ${err.message}`));
-        });
-    });
-}
-
-export async function getFileLineCount(filePath: string): Promise<number> {
-    const normalizedPath = safePath(filePath);
-    if (!normalizedPath || !isAllowedPath(filePath, config.logDirs)) {
-        throw new Error('不允许访问此文件');
-    }
-
-    return new Promise((resolve, reject) => {
-        let lineCount = 0;
-        const stream = fs.createReadStream(normalizedPath);
-
-        stream.on('data', (chunk) => {
-            for (let i = 0; i < chunk.length; i++) {
-                if ((chunk as Buffer)[i] === 10) {
-                    lineCount++;
-                }
-            }
-        });
-
-        stream.on('end', () => {
-            resolve(lineCount);
-        });
-
-        stream.on('error', (err) => {
-            reject(new Error(`读取文件失败: ${err.message}`));
         });
     });
 }

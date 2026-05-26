@@ -203,7 +203,7 @@ try {
     // 忽略加载失败
 }
 
-export function generateToken(): string {
+function generateToken(): string {
     return crypto.randomBytes(32).toString('hex');
 }
 
@@ -235,7 +235,7 @@ export function validateSession(token: string | undefined): boolean {
     return true;
 }
 
-export function getSession(token: string): Session | null {
+function getSession(token: string): Session | null {
     return sessions.get(token) || null;
 }
 
@@ -245,7 +245,7 @@ export function deleteSession(token: string): void {
     scheduleSaveToDisk();
 }
 
-export function cleanExpiredSessions(): void {
+function cleanExpiredSessions(): void {
     const now = Date.now();
     let changed = false;
     for (const [token, session] of sessions.entries()) {
@@ -291,7 +291,7 @@ export function validateCSRFToken(sessionToken: string, csrfToken: string): bool
     return crypto.timingSafeEqual(a, b);
 }
 
-export function cleanExpiredCSRFTokens(): void {
+function cleanExpiredCSRFTokens(): void {
     const now = Date.now();
     let changed = false;
     for (const [sessionToken, data] of csrfTokens.entries()) {

@@ -260,7 +260,7 @@ export function closeDockerLogStream(): void {
     logger.info('Docker log stream WebSocket server closed');
 }
 
-export function getDockerStreamStats(): { totalClients: number; subscriptions: Array<{ container: string; clientIp: string }> } {
+function getDockerStreamStats(): { totalClients: number; subscriptions: Array<{ container: string; clientIp: string }> } {
     const subscriptions: Array<{ container: string; clientIp: string }> = [];
     for (const [ws, client] of clients) {
         subscriptions.push({

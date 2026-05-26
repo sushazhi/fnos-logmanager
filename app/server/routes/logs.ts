@@ -799,24 +799,33 @@ router.post('/auto-clean/rules', validateToken, validateCSRF, sensitiveActionRat
 router.put('/auto-clean/rules/:id', validateToken, validateCSRF, sensitiveActionRateLimit(10, 300000), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const id = req.params.id as string;
-        const updates = req.body;
+        const body = req.body;
 
-        if (updates.type && !['truncateLarge', 'deleteOld', 'deleteUninstalled'].includes(updates.type)) {
+        // 字段白名单：只允许更新这些字段
+        const allowedFields = ['name', 'enabled', 'type', 'threshold', 'days', 'schedule'] as const;
+        const updates: Record<string, unknown> = {};
+        for (const field of allowedFields) {
+            if (body[field] !== undefined) {
+                updates[field] = body[field];
+            }
+        }
+
+        if ('type' in updates && !['truncateLarge', 'deleteOld', 'deleteUninstalled'].includes(updates.type as string)) {
             res.status(400).json({ error: '无效的清理类型' });
             return;
         }
 
-        if (updates.schedule && !['hourly', 'daily', 'weekly'].includes(updates.schedule) && isNaN(parseInt(updates.schedule, 10))) {
+        if ('schedule' in updates && !['hourly', 'daily', 'weekly'].includes(updates.schedule as string) && isNaN(parseInt(updates.schedule as string, 10))) {
             res.status(400).json({ error: '无效的调度计划' });
             return;
         }
 
-        if (updates.threshold && !isValidThreshold(updates.threshold)) {
+        if ('threshold' in updates && !isValidThreshold(updates.threshold as string)) {
             res.status(400).json({ error: '无效的大小阈值' });
             return;
         }
 
-        if (updates.days && !isValidDays(updates.days)) {
+        if ('days' in updates && !isValidDays(Number(updates.days))) {
             res.status(400).json({ error: '天数必须在1-365之间' });
             return;
         }

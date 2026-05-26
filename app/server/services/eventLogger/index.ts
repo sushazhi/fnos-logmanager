@@ -103,11 +103,6 @@ async function saveElConfig(): Promise<void> {
     }
 }
 
-export async function testConnection(): Promise<boolean> {
-    await initSql();
-    return loadDatabase(configData.dbPath) !== null;
-}
-
 function logLevelToSeverity(level: string): EventSeverity {
     switch (level) {
         case 'error': return 'error';
@@ -297,7 +292,7 @@ export async function forceCheck(): Promise<{ newEvents: number }> {
     return { newEvents: lastEventId - beforeId };
 }
 export function getSourcesList(): string[] { return getSources(); }
-export async function dispose(): Promise<void> { await stop(); cooldownCache.clear(); }
+
 
 export {
     EventLoggerConfig, EventLoggerStatus, EventLogEntry, EventLoggerStats,

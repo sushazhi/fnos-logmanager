@@ -38,10 +38,6 @@ jest.mock('../utils/config', () => ({
             allowQueryToken: false,
             queryTokenPaths: ['/api/auth/status', '/api/auth/csrf-token']
         },
-        login: {
-            maxAttempts: 5,
-            lockoutTime: 30 * 60 * 1000
-        },
         audit: {
             maxLogs: 1000
         },
@@ -61,7 +57,6 @@ jest.mock('../utils/config', () => ({
             '/tmp/test-logmanager/logs'
         ],
         sensitivePatterns: [],
-        passwordFile: '/tmp/test-logmanager/.password',
         auditLogFile: '/tmp/test-logmanager/audit.log',
         initTimestampFile: '/tmp/test-logmanager/.init-time'
     }

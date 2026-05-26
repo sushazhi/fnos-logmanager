@@ -150,6 +150,7 @@ const filteredLogs = computed(() => {
 
 function highlightText(text, query) {
   if (!query || !text) return text
+  if (query.length > 200) return text
   // 先对文本进行HTML转义
   const escapedText = text
     .replace(/&/g, '&amp;')
