@@ -1,8 +1,9 @@
 /**
  * ChannelRegistry 测试
  */
-import { registry } from '../registry';
-import { NotifyChannel, NotifyResult } from '../types';
+import { jest } from '@jest/globals';
+import { registry } from './registry';
+import { NotifyChannel, NotifyResult } from './types';
 
 describe('ChannelRegistry', () => {
     // 每个测试前清空注册表
@@ -19,7 +20,7 @@ describe('ChannelRegistry', () => {
             const channel: NotifyChannel = {
                 name: 'test',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             registry.register(channel);
@@ -32,13 +33,13 @@ describe('ChannelRegistry', () => {
             const channel1: NotifyChannel = {
                 name: 'test',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             const channel2: NotifyChannel = {
                 name: 'test',
                 enabled: false,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             registry.register(channel1);
@@ -53,7 +54,7 @@ describe('ChannelRegistry', () => {
             const channel: NotifyChannel = {
                 name: 'test',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             registry.register(channel);
@@ -73,7 +74,7 @@ describe('ChannelRegistry', () => {
             const channel: NotifyChannel = {
                 name: 'test',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             registry.register(channel);
@@ -90,13 +91,13 @@ describe('ChannelRegistry', () => {
             const channel1: NotifyChannel = {
                 name: 'test1',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             const channel2: NotifyChannel = {
                 name: 'test2',
                 enabled: false,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             registry.register(channel1);
@@ -118,13 +119,13 @@ describe('ChannelRegistry', () => {
             const channel1: NotifyChannel = {
                 name: 'enabled',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             const channel2: NotifyChannel = {
                 name: 'disabled',
                 enabled: false,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             registry.register(channel1);
@@ -142,7 +143,7 @@ describe('ChannelRegistry', () => {
             const channel: NotifyChannel = {
                 name: 'test',
                 enabled: false,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             registry.register(channel);
@@ -155,7 +156,7 @@ describe('ChannelRegistry', () => {
             const channel: NotifyChannel = {
                 name: 'test',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             };
 
             registry.register(channel);
@@ -176,14 +177,14 @@ describe('ChannelRegistry', () => {
             registry.register({
                 name: 'test1',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             });
             expect(registry.size()).toBe(1);
 
             registry.register({
                 name: 'test2',
                 enabled: true,
-                send: jest.fn()
+                send: jest.fn<any>()
             });
             expect(registry.size()).toBe(2);
         });

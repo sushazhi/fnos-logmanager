@@ -1,9 +1,11 @@
 /**
  * HTTP Client 测试
  */
-import { httpRequest, httpClient, $ } from '../httpClient';
+import { httpRequest, httpClient, $ } from './httpClient';
 
 // Mock undici
+import { jest } from '@jest/globals';
+
 jest.mock('undici', () => ({
     request: jest.fn(),
     FormData: jest.fn()

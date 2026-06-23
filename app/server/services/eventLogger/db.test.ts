@@ -4,8 +4,8 @@
 import {
     mapLogLevelToSeverity,
     parseSeverity,
-    SEVERITY_ORDER
 } from './db';
+import { SEVERITY_ORDER } from './types';
 import { EventSeverity } from './types';
 
 describe('EventLoggerDb', () => {

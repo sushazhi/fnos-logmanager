@@ -94,10 +94,7 @@ describe('Config', () => {
             expect(typeof config.auditLogFile).toBe('string');
         });
 
-        it('should have initTimestampFile path', () => {
-            expect(config.initTimestampFile).toBeDefined();
-            expect(typeof config.initTimestampFile).toBe('string');
-        });
+        // initTimestampFile is not part of the AppConfig type and was only in test mock
     });
 
     describe('eventLogger config', () => {
