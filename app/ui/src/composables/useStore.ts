@@ -132,7 +132,7 @@ export function useStore() {
     refreshAll()
   }
 
-  async function handleTruncateLog(path: string): Promise<void> {
+  async function handleTruncateLog(path: string): Promise<boolean> {
     const success = await truncateLog(path)
     if (success) {
       loadStats()
@@ -142,6 +142,7 @@ export function useStore() {
         listLogs()
       }
     }
+    return success
   }
 
   async function handleDeleteLog(path: string): Promise<void> {

@@ -355,6 +355,26 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
+  async function reloadActiveTab(): Promise<void> {
+    const tab = activeTab.value
+    if (!tab || tab.isDocker) return
+    try {
+      const data = await api.get<{
+        content: string
+        totalLines?: number
+        truncated?: boolean
+        hasMore?: boolean
+      }>(`/api/log/content?path=${encodeURIComponent(tab.filePath)}&maxLines=5000`)
+      tab.content = data.content || '(空文件)'
+      tab.totalLines = data.totalLines || 0
+      tab.truncated = data.truncated || false
+      tab.hasMore = data.hasMore || false
+      syncFromActiveTab()
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     logList,
     listType,
@@ -386,6 +406,7 @@ export const useLogsStore = defineStore('logs', () => {
     clearList,
     addTab,
     removeTab,
-    switchTab
+    switchTab,
+    reloadActiveTab
   }
 })

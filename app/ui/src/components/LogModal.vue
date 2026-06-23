@@ -45,6 +45,11 @@
             <span class="action-text">{{ isTailing ? '停止' : '追踪' }}</span>
           </button>
 
+          <button v-if="!isDocker" class="action-btn" @click="handleClear" title="清空日志">
+            <span class="action-icon">✕</span>
+            <span class="action-text">清空</span>
+          </button>
+
           <div class="action-dropdown">
             <button class="action-btn" @click="toggleExportMenu" title="导出日志">
               <span class="action-icon">↓</span>
@@ -175,6 +180,7 @@ const emit = defineEmits<{
   loadAll: []
   export: [format: string]
   addBookmark: []
+  truncate: []
 }>()
 
 /** 标签页色彩方案 */
@@ -545,6 +551,10 @@ function toggleExportMenu(): void {
 function handleExport(format: string): void {
   showExportMenu.value = false
   emit('export', format)
+}
+
+function handleClear(): void {
+  emit('truncate')
 }
 
 function handleClickOutside(e: MouseEvent): void {

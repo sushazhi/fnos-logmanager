@@ -75,6 +75,7 @@
       @load-all="handleLoadAllLines"
       @export="handleExportLog"
       @add-bookmark="handleLogModalAddBookmark"
+      @truncate="handleLogModalTruncate"
     />
     
     <CleanModal 
@@ -253,6 +254,15 @@ async function handleLogModalAddBookmark() {
     bookmarks.value.push(result.bookmark)
   } catch (e) {
     console.error('添加书签失败:', e)
+  }
+}
+
+async function handleLogModalTruncate() {
+  if (!logCurrentPath.value) return
+  const ok = await truncateLog(logCurrentPath.value)
+  if (ok) {
+    const logsStore = useLogsStore()
+    await logsStore.reloadActiveTab()
   }
 }
 
