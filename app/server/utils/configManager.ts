@@ -43,7 +43,7 @@ class ConfigManager {
         const currentSource = this.sources.get(key);
         const priority: ConfigSource[] = ['env', 'file', 'default'];
 
-        if (currentSource && priority.indexOf(currentSource) > priority.indexOf(source)) {
+        if (currentSource && priority.indexOf(currentSource) < priority.indexOf(source)) {
             return;
         }
 
