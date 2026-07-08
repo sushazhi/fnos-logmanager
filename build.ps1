@@ -31,7 +31,7 @@ if ($Version) {
 
 $BUILD_DIR = Join-Path $PROJECT_DIR ".local-build"
 $VERSION_FILE = Join-Path $BUILD_DIR "versions.json"
-$FNPACK_URL = "https://static2.fnnas.com/fnpack/fnpack-1.2.1-windows-amd64"
+$FNPACK_URL = "https://static2.fnnas.com/fnpack/fnpack-1.2.3-windows-amd64"
 
 function Get-VersionInfo {
     if (Test-Path $VERSION_FILE) {
@@ -268,7 +268,7 @@ if (Test-Path "$serverSrcDir\server.ts") {
 }
 
 Write-Host "[5/5] Build package..." -ForegroundColor Yellow
-$FNPACK_VER = "1.2.1"
+$FNPACK_VER = "1.2.3"
 $FNPACK_FILE = $FNPACK_URL.Substring($FNPACK_URL.LastIndexOf('/') + 1)
 $fnpackPath = Join-Path $BUILD_DIR $FNPACK_FILE
 if ((-not $ForceDownload) -and (Test-Path $fnpackPath) -and (Test-VersionMatch -Component "fnpack" -ExpectedVersion $FNPACK_VER)) {

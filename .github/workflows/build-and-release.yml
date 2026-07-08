@@ -111,7 +111,7 @@ jobs:
 
       - name: Download fnpack
         run: |
-          FNPACK_URL="https://static2.fnnas.com/fnpack/fnpack-1.2.1-linux-amd64"
+          FNPACK_URL="https://static2.fnnas.com/fnpack/fnpack-1.2.3-linux-amd64"
           wget -q "$FNPACK_URL" -O fnpack
           if [ ! -s fnpack ]; then
             echo "ERROR: fnpack download failed or file is empty"
