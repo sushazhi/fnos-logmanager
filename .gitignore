@@ -2,6 +2,7 @@
 .local-build/
 dist/
 *.fpk
+*.exe
 
 # Dependencies
 node_modules/
