@@ -162,7 +162,7 @@ function formatDetails(details) {
   justify-content: center;
   align-items: center;
   z-index: 2000;
-  padding: 20px;
+  padding: var(--spacing-xl);
 }
 
 .modal {
@@ -177,19 +177,19 @@ function formatDetails(details) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: var(--spacing-lg) var(--spacing-xl);
   border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-2xl);
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: var(--font-size-4xl);
   cursor: pointer;
   color: var(--text-color-3);
   padding: 0;
@@ -202,7 +202,7 @@ function formatDetails(details) {
 
 .filter-bar {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-sm);
   padding: 10px 16px;
   background: var(--bg-color-2);
   border-bottom: 1px solid var(--border-color);
@@ -215,7 +215,7 @@ function formatDetails(details) {
   border-radius: var(--radius-lg);
   background: var(--card-bg);
   color: var(--text-color-2);
-  font-size: 13px;
+  font-size: var(--font-size-base);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
@@ -244,17 +244,17 @@ function formatDetails(details) {
 }
 
 .loading, .empty {
-  padding: 40px;
+  padding: var(--spacing-3xl);
   text-align: center;
   color: var(--text-color-3);
 }
 
 .log-list {
-  padding: 10px;
+  padding: var(--spacing-sm);
 }
 
 .log-item {
-  padding: 12px;
+  padding: var(--spacing-md);
   border-radius: var(--radius-md);
   margin-bottom: 8px;
   background: var(--bg-color-2);
@@ -285,30 +285,30 @@ function formatDetails(details) {
 
 .log-action {
   font-weight: 500;
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .log-time {
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: var(--text-color-2);
 }
 
 .log-details {
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: var(--text-color-2);
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
 .log-ip {
-  background: var(--card-bg, white);
+  background: var(--card-bg);
   padding: 2px 8px;
   border-radius: var(--radius-2xs);
 }
 
 .log-extra {
-  color: var(--text-secondary);
+  color: var(--text-color-2);
 }
 
 /* 移动端适配 */

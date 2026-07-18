@@ -61,7 +61,7 @@ export const useLogsStore = defineStore('logs', () => {
     setStatus('正在列出日志文件...', 'loading')
     try {
       const data = await api.get<LogsResponse>('/api/logs/list?limit=100')
-      logList.value = data.logs.map(log => ({
+      logList.value = (data.logs || []).map(log => ({
         ...log,
         showActions: true
       }))
@@ -80,11 +80,11 @@ export const useLogsStore = defineStore('logs', () => {
       setStatus('正在查找大日志文件...', 'loading')
       try {
         const data = await api.get<LogsResponse>(`/api/logs/search?type=size&threshold=${encodeURIComponent(threshold)}&limit=50`)
-        logList.value = data.logs.map(log => ({
+        logList.value = (data.logs || []).map(log => ({
           ...log,
           showActions: true
         }))
-        setStatus(`找到 ${data.logs.length} 个大日志文件`, 'success')
+        setStatus(`找到 ${(data.logs || []).length} 个大日志文件`, 'success')
       } catch (e) {
         setStatus('查找失败: ' + safeErrorMessage(e), 'error')
       }
@@ -92,7 +92,7 @@ export const useLogsStore = defineStore('logs', () => {
       setStatus('正在按名称查找日志文件...', 'loading')
       try {
         const data = await api.get<LogsResponse>(`/api/logs/search?type=name&pattern=${encodeURIComponent(pattern)}&limit=50`)
-        logList.value = data.logs.map(log => ({
+        logList.value = (data.logs || []).map(log => ({
           ...log,
           showActions: true
         }))

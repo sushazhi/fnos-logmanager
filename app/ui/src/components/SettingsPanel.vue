@@ -481,8 +481,8 @@ onMounted(() => {
 }
 
 .check-result.error {
-  color: var(--danger-color);
-  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  color: var(--error-color);
+  background: color-mix(in srgb, var(--error-color) 10%, transparent);
 }
 
 .check-result.info {

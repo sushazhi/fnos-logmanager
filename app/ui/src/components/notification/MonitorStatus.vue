@@ -97,19 +97,19 @@ defineEmits<{
   display: flex;
   justify-content: space-between;
   padding: 8px 12px;
-  background: var(--bg-secondary);
+  background: var(--bg-color-2);
   border-radius: var(--radius-2xs);
 }
 
 .info-item .label {
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: var(--text-color-2);
 }
 
 .info-item .value {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-color-1);
 }
 
 .btn-row {
@@ -126,7 +126,7 @@ defineEmits<{
   color: white;
   font-size: 13px;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity var(--transition-fast);
 }
 
 .control-btn:hover:not(:disabled) {
@@ -139,6 +139,6 @@ defineEmits<{
 }
 
 .control-btn.danger {
-  background: var(--danger-color);
+  background: var(--error-color);
 }
 </style>

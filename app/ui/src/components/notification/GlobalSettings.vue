@@ -65,15 +65,15 @@ const intervals = CHECK_INTERVALS;
 
 .setting-row label {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-color-2);
 }
 
 .setting-row select {
   padding: 4px 8px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-2xs);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  background: var(--bg-color-2);
+  color: var(--text-color-1);
   font-size: 13px;
 }
 
@@ -101,8 +101,8 @@ const intervals = CHECK_INTERVALS;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--bg-tertiary);
-  transition: 0.3s;
+  background-color: var(--bg-color-3);
+  transition: var(--transition-fast);
   border-radius: var(--radius-xl);
 }
 

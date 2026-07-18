@@ -43,6 +43,7 @@ export interface LogItem {
   showActions: boolean
   canDelete?: boolean
   isDocker?: boolean
+  isArchive?: boolean
 }
 
 export interface LogsResponse {

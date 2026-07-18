@@ -13,7 +13,7 @@ export function useArchive() {
     try {
       const data = await api.get<ArchivesResponse>('/api/archives/list?limit=50')
       setStatus(`找到 ${data.total} 个归档文件`, 'success')
-      return data.archives.map((a: Archive) => ({
+      return (data.archives || []).map((a: Archive) => ({
         path: a.path,
         sizeFormatted: a.sizeFormatted,
         showActions: false,

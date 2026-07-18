@@ -81,7 +81,7 @@ function getChannelTypeName(channel: string): string {
 }
 
 .add-btn:hover {
-  background: var(--primary-bg);
+  background: var(--info-bg);
 }
 
 .channel-list {
@@ -95,7 +95,7 @@ function getChannelTypeName(channel: string): string {
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  background: var(--bg-secondary);
+  background: var(--bg-color-2);
   border-radius: var(--radius-2xs);
 }
 
@@ -112,7 +112,7 @@ function getChannelTypeName(channel: string): string {
 
 .channel-type {
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: var(--text-color-2);
 }
 
 .channel-actions {
@@ -140,13 +140,13 @@ function getChannelTypeName(channel: string): string {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-2xs);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-color-2);
   font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
 .edit-btn:hover, .test-btn:hover {
-  background: var(--bg-tertiary);
+  background: var(--bg-color-3);
 }
 
 .delete-btn {
@@ -154,19 +154,19 @@ function getChannelTypeName(channel: string): string {
   border: none;
   border-radius: var(--radius-2xs);
   background: transparent;
-  color: var(--danger-color);
+  color: var(--error-color);
   font-size: 16px;
   cursor: pointer;
 }
 
 .delete-btn:hover {
-  background: var(--danger-bg);
+  background: var(--error-bg);
 }
 
 .empty-hint {
   padding: 24px;
   text-align: center;
-  color: var(--text-secondary);
+  color: var(--text-color-2);
   font-size: 13px;
 }
 
@@ -190,8 +190,8 @@ function getChannelTypeName(channel: string): string {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--bg-tertiary);
-  transition: 0.3s;
+  background-color: var(--bg-color-3);
+  transition: var(--transition-fast);
   border-radius: var(--radius-xl);
 }
 

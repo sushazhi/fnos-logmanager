@@ -123,7 +123,13 @@ export function useStore() {
   async function handleDeleteArchive(path: string): Promise<void> {
     const success = await deleteArchive(path)
     if (success) {
-      handleListArchives()
+      loadStats()
+      if (selectedDir.value) {
+        // Currently browsing a directory - refresh the directory listing
+        await handleSelectDir(selectedDir.value)
+      } else {
+        handleListArchives()
+      }
     }
   }
 

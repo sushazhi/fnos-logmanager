@@ -1,36 +1,73 @@
 <template>
   <Teleport to="body">
-    <Transition name="modal">
-      <div v-if="visible" class="modal-overlay" @click.self="cancel">
-        <div class="modal-content" :class="type">
-          <div class="modal-icon" v-if="type !== 'confirm'">
-            <span v-if="type === 'success'" class="icon success">✓</span>
-            <span v-else-if="type === 'error'" class="icon error">✕</span>
-            <span v-else-if="type === 'warning'" class="icon warning">!</span>
-            <span v-else class="icon info">i</span>
+    <Transition name="hm-overlay">
+      <div v-if="visible" class="hm-overlay" @click.self="cancel">
+        <Transition name="hm-modal" appear>
+          <div v-if="visible" class="hm-modal" :class="`hm-${type}`">
+            <!-- Icon (not for confirm type) -->
+            <div v-if="type !== 'confirm'" class="hm-icon-wrap">
+              <div class="hm-icon">
+                <!-- success -->
+                <svg v-if="type === 'success'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <!-- error -->
+                <svg v-else-if="type === 'error'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+                <!-- warning -->
+                <svg v-else-if="type === 'warning'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <!-- info -->
+                <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="16" x2="12" y2="12"/>
+                  <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Body -->
+            <div class="hm-body">
+              <h4 v-if="title" class="hm-title">{{ title }}</h4>
+              <p class="hm-message">{{ message }}</p>
+            </div>
+
+            <!-- Footer -->
+            <div class="hm-footer">
+              <button
+                v-if="copyText"
+                class="hm-btn hm-btn-copy"
+                @click="copyToClipboard"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span>{{ copied ? '已复制' : '复制' }}</span>
+              </button>
+
+              <button
+                v-if="type === 'confirm'"
+                class="hm-btn hm-btn-cancel"
+                @click="cancel"
+              >取消</button>
+
+              <button
+                class="hm-btn hm-btn-confirm"
+                :class="`hm-btn-${type}`"
+                @click="confirm"
+              >
+                <span class="hm-btn-ripple"></span>
+                {{ confirmText }}
+              </button>
+            </div>
           </div>
-          <div class="modal-body">
-            <h4 v-if="title">{{ title }}</h4>
-            <p>{{ message }}</p>
-          </div>
-          <div class="modal-footer">
-            <button 
-              v-if="copyText" 
-              class="btn copy" 
-              @click="copyToClipboard"
-            >{{ copied ? '已复制' : '复制' }}</button>
-            <button 
-              v-if="type === 'confirm'" 
-              class="btn cancel" 
-              @click="cancel"
-            >取消</button>
-            <button 
-              class="btn confirm" 
-              :class="type"
-              @click="confirm"
-            >{{ confirmText }}</button>
-          </div>
-        </div>
+        </Transition>
       </div>
     </Transition>
   </Teleport>
@@ -87,21 +124,13 @@ function cancel() {
 
 function copyToClipboard() {
   if (!props.copyText) return
-  
-  // 检查是否支持现代 Clipboard API
+
   if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
     navigator.clipboard.writeText(props.copyText).then(() => {
       copied.value = true
-      setTimeout(() => {
-        copied.value = false
-      }, 2000)
-    }).catch((err) => {
-      console.error('复制失败:', err)
-      // 尝试备用方案
-      fallbackCopy()
-    })
+      setTimeout(() => { copied.value = false }, 2000)
+    }).catch(() => fallbackCopy())
   } else {
-    // 不支持现代 API，使用备用方案
     fallbackCopy()
   }
 }
@@ -116,12 +145,9 @@ function fallbackCopy() {
   textArea.focus()
   textArea.select()
   try {
-    const success = document.execCommand('copy')
-    if (success) {
+    if (document.execCommand('copy')) {
       copied.value = true
-      setTimeout(() => {
-        copied.value = false
-      }, 2000)
+      setTimeout(() => { copied.value = false }, 2000)
     }
   } catch (err) {
     console.error('复制失败:', err)
@@ -131,154 +157,211 @@ function fallbackCopy() {
 </script>
 
 <style scoped>
-.modal-overlay {
+/* ===== Overlay ===== */
+.hm-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--overlay);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 2000;
+  padding: var(--spacing-xl);
 }
 
-.modal-content {
+/* ===== Modal ===== */
+.hm-modal {
   background: var(--card-bg);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-xl);
-  max-width: 400px;
-  width: 90%;
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-3xl) var(--spacing-2xl) var(--spacing-2xl);
+  max-width: 360px;
+  width: 100%;
   text-align: center;
   box-shadow: var(--shadow-xl);
+  overflow: hidden;
 }
 
-.modal-icon {
-  margin-bottom: var(--spacing-md);
+/* ===== Icon ===== */
+.hm-icon-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-lg);
 }
 
-.icon {
-  display: inline-flex;
+.hm-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  font-size: var(--font-size-5xl);
-  font-weight: bold;
 }
 
-.icon.success {
-  background: var(--success-color);
-  color: white;
+.hm-success .hm-icon {
+  background: var(--success-bg);
+  color: var(--success-color);
+}
+.hm-error .hm-icon {
+  background: var(--error-bg);
+  color: var(--error-color);
+}
+.hm-warning .hm-icon {
+  background: var(--warning-bg);
+  color: var(--warning-color);
+}
+.hm-info .hm-icon {
+  background: var(--info-bg);
+  color: var(--info-color);
 }
 
-.icon.error {
-  background: var(--error-color);
-  color: white;
+/* ===== Body ===== */
+.hm-body {
+  margin-bottom: var(--spacing-xl);
 }
 
-.icon.warning {
-  background: var(--warning-color);
-  color: white;
-}
-
-.icon.info {
-  background: var(--primary-color);
-  color: white;
-}
-
-.modal-body h4 {
+.hm-title {
   margin: 0 0 var(--spacing-sm) 0;
   font-size: var(--font-size-2xl);
+  font-weight: 600;
   color: var(--text-color-1);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
-.modal-body p {
+.hm-message {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
   color: var(--text-color-2);
-  line-height: 1.5;
+  line-height: 1.6;
   white-space: pre-wrap;
 }
 
-.modal-footer {
-  margin-top: var(--spacing-xl);
+/* ===== Footer ===== */
+.hm-footer {
   display: flex;
   justify-content: center;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
-.btn {
-  padding: var(--spacing-sm) var(--spacing-xl);
+/* ===== Buttons ===== */
+.hm-btn {
+  height: 40px;
+  padding: 0 var(--spacing-xl);
   border: none;
   border-radius: var(--radius-sm);
   font-size: var(--font-size-md);
+  font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
-  min-width: 80px;
+  position: relative;
+  overflow: hidden;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  white-space: nowrap;
 }
 
-.btn.copy {
+/* Copy / secondary */
+.hm-btn-copy {
   background: var(--bg-color-2);
+  color: var(--text-color-2);
+  border: 1px solid var(--border-color);
+}
+.hm-btn-copy:hover {
+  background: var(--bg-color-3);
+  color: var(--text-color-1);
+}
+
+/* Cancel - outline */
+.hm-btn-cancel {
+  background: transparent;
   color: var(--text-color-1);
   border: 1px solid var(--border-color);
 }
-
-.btn.copy:hover {
-  background: var(--bg-color-3);
-}
-
-.btn.cancel {
+.hm-btn-cancel:hover {
   background: var(--bg-color-2);
-  color: var(--text-color-1);
-  border: 1px solid var(--border-color);
+  border-color: var(--text-color-3);
 }
 
-.btn.cancel:hover {
-  background: var(--bg-color-3);
+/* Confirm */
+.hm-btn-confirm {
+  color: #fff;
 }
-
-.btn.confirm {
+.hm-btn-info {
   background: var(--primary-color);
-  color: white;
 }
-
-.btn.confirm:hover {
+.hm-btn-info:hover {
   background: var(--primary-hover);
 }
-
-.btn.confirm.success {
+.hm-btn-success {
   background: var(--success-color);
 }
-
-.btn.confirm.error {
+.hm-btn-success:hover {
+  background: var(--success-color);
+}
+.hm-btn-error {
   background: var(--error-color);
 }
-
-.btn.confirm.warning {
+.hm-btn-error:hover {
+  background: var(--log-critical-color);
+}
+.hm-btn-warning {
+  background: var(--warning-color);
+  color: #fff;
+}
+.hm-btn-warning:hover {
   background: var(--warning-color);
 }
 
-/* Transition */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.2s ease;
+.hm-btn:active {
+  transform: scale(0.97);
 }
 
-.modal-enter-from,
-.modal-leave-to {
+/* ===== Ripple ===== */
+.hm-btn .hm-btn-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.hm-btn:active .hm-btn-ripple {
+  background: rgba(255, 255, 255, 0.2);
+  animation: hm-ripple 0.4s ease-out;
+}
+
+@keyframes hm-ripple {
+  0% { opacity: 1; transform: scale(0); }
+  100% { opacity: 0; transform: scale(2); }
+}
+
+/* ===== Transitions ===== */
+.hm-overlay-enter-active {
+  transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+.hm-overlay-leave-active {
+  transition: opacity 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+.hm-overlay-enter-from,
+.hm-overlay-leave-to {
   opacity: 0;
 }
 
-.modal-enter-active .modal-content,
-.modal-leave-active .modal-content {
-  transition: transform 0.2s ease;
+.hm-modal-enter-active {
+  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
 }
-
-.modal-enter-from .modal-content,
-.modal-leave-to .modal-content {
-  transform: scale(0.9);
+.hm-modal-leave-active {
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+.hm-modal-enter-from {
+  opacity: 0;
+  transform: translateY(24px) scale(0.96);
+}
+.hm-modal-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
 }
 </style>

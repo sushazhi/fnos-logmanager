@@ -130,39 +130,10 @@
         <div class="divider"></div>
 
         <!-- 通知历史 -->
-        <div class="section">
-          <div class="section-header">
-            <h4>通知历史</h4>
-            <button class="clear-btn" @click="confirmClearHistory">清空</button>
-          </div>
-          <div class="history-list" v-if="history.length > 0">
-            <div class="history-item" v-for="item in history" :key="item.id">
-              <div class="history-header">
-                <span :class="['history-status', item.success ? 'success' : 'failed']">
-                  {{ item.success ? '成功' : '失败' }}
-                </span>
-                <span class="history-time">{{ formatTime(item.timestamp) }}</span>
-              </div>
-              <div class="history-content">
-                <div class="history-row">
-                  <span class="label">规则:</span>
-                  <span class="value">{{ item.ruleName }}</span>
-                </div>
-                <div class="history-row">
-                  <span class="label">应用:</span>
-                  <span class="value">{{ item.appName }}</span>
-                </div>
-                <div class="history-row">
-                  <span class="label">渠道:</span>
-                  <span class="value">{{ getChannelTypeName(item.channel) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="empty-hint" v-else>
-            暂无通知历史
-          </div>
-        </div>
+        <HistorySection
+          :history="history"
+          @clear="confirmClearHistory"
+        />
       </div>
     </div>
 
@@ -192,7 +163,7 @@
               <a v-if="getFieldHelpUrl(field)" :href="getFieldHelpUrl(field)" target="_blank" rel="noopener noreferrer" class="help-link">?</a>
             </label>
             <input 
-              :type="field.includes('password') || field.includes('secret') ? 'password' : 'text'" 
+              :type="shouldHideField(field) ? 'password' : 'text'"
               v-model="newChannel.config[field]"
               :placeholder="getFieldPlaceholder(field)"
             >
@@ -361,6 +332,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import api, { eventLoggerApi } from '../services/api'
 import AlertDialog from './AlertDialog.vue'
+import HistorySection from './notification/HistorySection.vue'
 import { useNotifyWebSocket } from '../composables/useNotifyWebSocket'
 
 interface NotificationSettings {
@@ -397,10 +369,12 @@ interface NotificationRule {
 
 interface HistoryItem {
   id: string
-  ruleName: string
+  ruleId?: string
   channel: string
-  appName: string
+  title?: string
+  message?: string
   success: boolean
+  error?: string
   timestamp: string
 }
 
@@ -567,7 +541,7 @@ const newRule = ref<{
   appName: '*',
   sources: [],
   excludeSources: [],
-  logLevel: 'error',
+  logLevel: 'all',
   channels: [],
   cooldown: 60,
   maxNotifications: 10,
@@ -694,7 +668,72 @@ function getFieldLabel(field: string): string {
     wePlusBotReceiver: '微加机器人 接收者',
     wePlusBotVersion: '微加机器人 版本',
     chatUrl: 'Synology Chat Webhook URL',
-    chatToken: 'Synology Chat Token'
+    chatToken: 'Synology Chat Token',
+
+    // UPPER_CASE aliases (Go backend field names)
+    QQ_APP_ID: 'QQ机器人AppID',
+    QQ_APP_SECRET: 'QQ机器人Secret',
+    QQ_OPENID: 'QQ用户OpenID',
+    QQ_GROUP_OPENID: 'QQ群OpenID',
+    BARK_PUSH: 'Bark推送地址',
+    BARK_SOUND: '提示音',
+    BARK_GROUP: '分组',
+    BARK_LEVEL: '推送级别',
+    BARK_ICON: '图标',
+    BARK_ARCHIVE: '归档',
+    BARK_URL: '点击跳转',
+    DINGTALK_TOKEN: '钉钉机器人Token',
+    DINGTALK_SECRET: '钉钉机器人Secret',
+    FEISHU_WEBHOOK: '飞书Webhook地址',
+    FEISHU_SECRET: '签名密钥(可选)',
+    WECOM_KEY: '企业微信机器人Key',
+    WECOM_PROXY: '代理地址',
+    WECOM_QYDX_AGENT_ID: '企业微信应用AgentID',
+    WECOM_QYDX_CORP_ID: '企业微信应用CorpID',
+    WECOM_QYDX_SECRET: '企业微信应用Secret',
+    WECOM_QYDX_TO_USER: '企业微信应用发送目标',
+    WECHAT_BOT_KEY: '企业微信智能机器人Key',
+    TG_BOT_TOKEN: 'Telegram Bot Token',
+    TG_USER_ID: 'Telegram User ID',
+    TG_API_HOST: 'Telegram API代理',
+    SERVERCHAN_KEY: 'Server酱SendKey',
+    SERVERCHAN_URL: 'Server酱推送地址',
+    PUSHPLUS_TOKEN: 'PushPlus Token',
+    PUSHPLUS_TOPIC: 'PushPlus 用户/群组',
+    WEBHOOK_URL: 'Webhook URL',
+    WEBHOOK_METHOD: '请求方法',
+    WEBHOOK_CONTENT_TYPE: 'Content-Type',
+    NTFY_URL: 'Ntfy服务器地址',
+    NTFY_TOPIC: 'Ntfy Topic',
+    NTFY_PRIORITY: 'Ntfy 优先级',
+    NTFY_TOKEN: 'Ntfy Token',
+    NTFY_USERNAME: 'Ntfy 用户名',
+    NTFY_PASSWORD: 'Ntfy 密码',
+    NTFY_ACTIONS: 'Ntfy 操作按钮',
+    GOTIFY_URL: 'Gotify服务器地址',
+    GOTIFY_TOKEN: 'Gotify Token',
+    GOTIFY_PRIORITY: 'Gotify 优先级',
+    PUSHDEER_KEY: 'PushDeer Key',
+    PUSHDEER_URL: 'PushDeer 服务器',
+    WECHAT_CLAWBOT_BOT_TOKEN: 'Bot Token',
+    WECHAT_CLAWBOT_BASE_URL: '接口地址',
+    WECHAT_CLAWBOT_TO_USER: '发送目标',
+    WECHAT_CLAWBOT_ACCOUNT_ID: 'Account ID',
+    IGOT_PUSH_KEY: 'iGot Push Key',
+    CHAT_URL: 'Synology Chat Webhook URL',
+    CHAT_TOKEN: 'Synology Chat Token',
+    QMSG_KEY: 'Qmsg Key',
+    QMSG_TYPE: 'Qmsg 消息类型',
+    PUSHME_KEY: 'PushMe Key',
+    WXPUSHER_APP_TOKEN: 'WxPusher App Token',
+    WXPUSHER_TOPIC_IDS: 'WxPusher 主题ID',
+    WXPUSHER_UIDS: 'WxPusher 用户ID',
+    AIBOTK_KEY: '智能微秘书 Key',
+    AIBOTK_TYPE: '智能微秘书 类型',
+    AIBOTK_NAME: '智能微秘书 名称',
+    WE_PLUS_BOT_TOKEN: '微加机器人 Token',
+    WE_PLUS_BOT_RECEIVER: '微加机器人 接收者',
+    WE_PLUS_BOT_VERSION: '微加机器人 版本'
   }
   return labels[field] || field
 }
@@ -723,9 +762,37 @@ function getFieldPlaceholder(field: string): string {
     wechatClawBotToken: '扫码登录后自动填充',
     wechatClawBaseUrl: '默认: https://ilinkai.weixin.qq.com',
     wechatClawToUser: '扫码后输入微信号',
-    wechatClawAccountId: '扫码登录后自动填充'
+    wechatClawAccountId: '扫码登录后自动填充',
+
+    // UPPER_CASE aliases (Go backend field names)
+    QQ_APP_ID: 'QQ开放平台机器人的AppID',
+    QQ_APP_SECRET: 'QQ开放平台机器人的AppSecret',
+    QQ_OPENID: '给机器人发消息后自动捕获',
+    QQ_GROUP_OPENID: '群聊中@机器人后自动捕获',
+    BARK_PUSH: '如: https://api.day.app/xxx',
+    DINGTALK_TOKEN: '钉钉机器人的access_token',
+    FEISHU_WEBHOOK: '飞书群机器人的Webhook地址',
+    FEISHU_SECRET: '签名密钥，用于验证消息来源',
+    WECOM_KEY: '企业微信机器人的key',
+    TG_BOT_TOKEN: '如: 123456:ABC-DEF',
+    TG_API_HOST: '默认: https://api.telegram.org',
+    SERVERCHAN_KEY: 'Server酱的SendKey',
+    WEBHOOK_URL: 'https://example.com/webhook',
+    NTFY_TOPIC: '订阅主题名称',
+    NTFY_URL: '如: https://ntfy.sh',
+    GOTIFY_URL: '如: https://gotify.example.com'
   }
   return placeholders[field] || ''
+}
+
+/**
+ * Determine if a config field should be hidden (password input) or shown as plain text.
+ * APP_SECRET and OPENID variants are always shown as text for easy verification.
+ */
+function shouldHideField(field: string): boolean {
+  const upper = field.toUpperCase().replace(/_/g, '')
+  if (upper.includes('APPSECRET') || upper.includes('OPENID')) return false
+  return upper.includes('PASSWORD') || upper.includes('SECRET')
 }
 
 function getFieldHelpUrl(field: string): string | undefined {
@@ -871,15 +938,22 @@ function closeChannelModal(): void {
 
 function editChannel(channel: ChannelConfig): void {
   editingChannel.value = channel
+  // Go 后端: config 在 channel.config 嵌套对象里
+  // Node.js 后端: 配置字段扁平在 channel 上
+  // 优先使用嵌套的 config，再补充扁平字段回退兼容
+  const base: Record<string, string> = channel.config && typeof channel.config === 'object'
+    ? { ...channel.config as Record<string, string> }
+    : {}
+  for (const key of Object.keys(channel)) {
+    if (!['id', 'name', 'channel', 'enabled', 'config'].includes(key)) {
+      base[key] = (channel as any)[key]
+    }
+  }
   newChannel.value = {
     channel: channel.channel,
     name: channel.name,
-    config: { ...channel } as Record<string, string>
+    config: base
   }
-  // 移除非配置字段
-  delete newChannel.value.config.channel
-  delete newChannel.value.config.name
-  delete newChannel.value.config.enabled
   showAddChannel.value = true
 }
 
@@ -964,14 +1038,14 @@ async function testChannel(name: string): Promise<void> {
         message += `\n\n获取到用户 OpenID: ${data.result.openid}`
         copyText = data.result.openid
         if (editingChannel.value && editingChannel.value.name === name) {
-          newChannel.value.config.qqOpenId = data.result.openid
+          newChannel.value.config.QQ_OPENID = data.result.openid
         }
       }
       if (data.result.groupOpenid) {
         message += `\n获取到群 OpenID: ${data.result.groupOpenid}`
         copyText = data.result.groupOpenid
         if (editingChannel.value && editingChannel.value.name === name) {
-          newChannel.value.config.qqGroupOpenId = data.result.groupOpenid
+          newChannel.value.config.QQ_GROUP_OPENID = data.result.groupOpenid
         }
       }
 
@@ -983,19 +1057,19 @@ async function testChannel(name: string): Promise<void> {
         message += `\n用户 OpenID: ${data.result.openid}`
         copyText = data.result.openid
         if (editingChannel.value && editingChannel.value.name === name) {
-          newChannel.value.config.qqOpenId = data.result.openid
+          newChannel.value.config.QQ_OPENID = data.result.openid
         }
         const ch = channels.value.find(c => c.name === name)
-        if (ch) ch.qqOpenId = data.result.openid
+        if (ch) ch.QQ_OPENID = data.result.openid
       }
       if (data.result.groupOpenid) {
         message += `\n群 OpenID: ${data.result.groupOpenid}`
         copyText = data.result.groupOpenid
         if (editingChannel.value && editingChannel.value.name === name) {
-          newChannel.value.config.qqGroupOpenId = data.result.groupOpenid
+          newChannel.value.config.QQ_GROUP_OPENID = data.result.groupOpenid
         }
         const ch = channels.value.find(c => c.name === name)
-        if (ch) ch.qqGroupOpenId = data.result.groupOpenid
+        if (ch) ch.QQ_GROUP_OPENID = data.result.groupOpenid
       }
       message += '\n\n已自动填入，请保存后再测试发送'
       showAlert('获取成功', message, 'success', copyText)
@@ -1031,19 +1105,19 @@ function pollCapturedOpenId(name: string): void {
           message += `\n用户 OpenID: ${captured.openId}`
           copyText = captured.openId
           if (editingChannel.value && editingChannel.value.name === name) {
-            newChannel.value.config.qqOpenId = captured.openId
+            newChannel.value.config.QQ_OPENID = captured.openId
           }
           const ch = channels.value.find(c => c.name === name)
-          if (ch) ch.qqOpenId = captured.openId
+          if (ch) ch.QQ_OPENID = captured.openId
         }
         if (captured.groupOpenId) {
           message += `\n群 OpenID: ${captured.groupOpenId}`
           copyText = captured.groupOpenId
           if (editingChannel.value && editingChannel.value.name === name) {
-            newChannel.value.config.qqGroupOpenId = captured.groupOpenId
+            newChannel.value.config.QQ_GROUP_OPENID = captured.groupOpenId
           }
           const ch = channels.value.find(c => c.name === name)
-          if (ch) ch.qqGroupOpenId = captured.groupOpenId
+          if (ch) ch.QQ_GROUP_OPENID = captured.groupOpenId
         }
         const ch = channels.value.find(c => c.name === name)
         if (ch) {
@@ -1288,7 +1362,7 @@ function closeRuleModal(): void {
     appName: '*',
     sources: [],
     excludeSources: [],
-    logLevel: 'error',
+    logLevel: 'all',
     channels: [],
     cooldown: 60,
     maxNotifications: 10,
@@ -1723,13 +1797,13 @@ input:checked + .slider:before {
   color: white;
 }
 
-.channel-list, .rule-list, .history-list {
+.channel-list, .rule-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: 8px;
 }
 
-.channel-item, .rule-item, .history-item {
+.channel-item, .rule-item {
   padding: var(--spacing-md);
   background: var(--bg-color-2);
   border-radius: var(--radius-sm);
@@ -1817,52 +1891,6 @@ input:checked + .slider:before {
   border-radius: var(--radius-2xs);
   font-size: var(--font-size-xs);
   color: var(--text-color-2);
-}
-
-.history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-xs);
-}
-
-.history-status {
-  padding: 2px 6px;
-  border-radius: var(--radius-2xs);
-  font-size: var(--font-size-xs);
-}
-
-.history-status.success {
-  background: var(--success-color);
-  color: white;
-}
-
-.history-status.failed {
-  background: var(--error-color);
-  color: white;
-}
-
-.history-time {
-  font-size: var(--font-size-sm);
-  color: var(--text-color-3);
-}
-
-.history-content {
-  font-size: var(--font-size-base);
-}
-
-.history-row {
-  display: flex;
-  gap: var(--spacing-sm);
-}
-
-.history-row .label {
-  color: var(--text-color-3);
-  min-width: 40px;
-}
-
-.history-row .value {
-  color: var(--text-color-1);
 }
 
 .empty-hint {
@@ -2159,7 +2187,7 @@ input:checked + .slider:before {
   padding: 12px;
   border: 2px dashed var(--primary-color);
   border-radius: var(--radius-sm);
-  background: var(--primary-bg);
+  background: var(--info-bg);
   color: var(--primary-color);
   font-size: var(--font-size-xl);
   font-weight: 500;

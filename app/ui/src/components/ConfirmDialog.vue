@@ -1,22 +1,61 @@
 <template>
   <Teleport to="body">
-    <div class="confirm-overlay" v-if="visible" @click.self="cancel">
-      <div class="confirm-modal">
-        <div class="confirm-icon">{{ currentType === 'danger' ? '!' : '?' }}</div>
-        <div class="confirm-title">{{ currentTitle }}</div>
-        <div class="confirm-message">
-          <div v-for="(line, index) in messageLines" :key="index" :class="['message-line', { 'message-dir': isDirLine(line) }]">
-            {{ line }}
+    <Transition name="hm-overlay">
+      <div v-if="visible" class="hm-overlay" @click.self="cancel">
+        <Transition name="hm-modal" appear>
+          <div v-if="visible" class="hm-modal" :class="[`hm-${currentType}`]">
+            <!-- Icon -->
+            <div class="hm-icon-wrap">
+              <div class="hm-icon">
+                <!-- danger / destructive -->
+                <svg v-if="currentType === 'danger'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <!-- warning -->
+                <svg v-else-if="currentType === 'warning'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <!-- info / default -->
+                <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="16" x2="12" y2="12"/>
+                  <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Title -->
+            <div class="hm-title">{{ currentTitle }}</div>
+
+            <!-- Message -->
+            <div class="hm-message">
+              <div v-for="(line, index) in messageLines" :key="index" :class="['hm-msg-line', { 'hm-msg-dir': isDirLine(line) }]">
+                {{ line }}
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="hm-actions">
+              <button class="hm-btn hm-btn-cancel" @click="cancel">
+                取消
+              </button>
+              <button
+                class="hm-btn hm-btn-confirm"
+                :class="`hm-btn-${currentType}`"
+                @click="confirm"
+              >
+                <span class="hm-btn-ripple"></span>
+                {{ currentConfirmText }}
+              </button>
+            </div>
           </div>
-        </div>
-        <div class="confirm-actions">
-          <button class="btn-cancel" @click="cancel">取消</button>
-          <button class="btn-confirm" :class="{ danger: currentType === 'danger', warning: currentType === 'warning' }" @click="confirm">
-            {{ currentConfirmText }}
-          </button>
-        </div>
+        </Transition>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -73,79 +112,94 @@ defineExpose({ show })
 </script>
 
 <style scoped>
-.confirm-overlay {
+/* ===== Overlay ===== */
+.hm-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 3000;
-  animation: fadeIn var(--transition-base) ease;
+  padding: var(--spacing-xl);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.confirm-modal {
+/* ===== Modal ===== */
+.hm-modal {
   background: var(--card-bg);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-2xl);
-  max-width: 360px;
-  width: 90%;
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-3xl) var(--spacing-2xl) var(--spacing-2xl);
+  max-width: 340px;
+  width: 100%;
   text-align: center;
   box-shadow: var(--shadow-xl);
-  animation: slideUp var(--transition-base) ease;
+  position: relative;
+  overflow: hidden;
 }
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.confirm-icon {
-  font-size: 3rem;
+/* ===== Icon ===== */
+.hm-icon-wrap {
+  display: flex;
+  justify-content: center;
   margin-bottom: var(--spacing-lg);
 }
 
-.confirm-title {
+.hm-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.hm-danger .hm-icon {
+  background: var(--error-bg);
+  color: var(--error-color);
+}
+
+.hm-warning .hm-icon {
+  background: var(--warning-bg);
+  color: var(--warning-color);
+}
+
+.hm-info .hm-icon {
+  background: var(--info-bg);
+  color: var(--info-color);
+}
+
+/* ===== Typography ===== */
+.hm-title {
   font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--text-color-1);
   margin-bottom: var(--spacing-sm);
   letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
-.confirm-message {
+.hm-message {
   font-size: var(--font-size-md);
   color: var(--text-color-2);
   margin-bottom: var(--spacing-2xl);
-  line-height: 1.5;
+  line-height: 1.6;
   text-align: left;
   max-height: 300px;
   overflow-y: auto;
 }
 
-.message-line {
-  padding: var(--spacing-xs) 0;
+.hm-msg-line {
+  padding: 2px 0;
 }
 
-.message-line:first-child {
+.hm-msg-line:first-child {
   padding-top: 0;
 }
 
-.message-dir {
+.hm-msg-dir {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: var(--font-size-base);
   color: var(--primary-color);
@@ -154,64 +208,120 @@ defineExpose({ show })
   border-radius: var(--radius-xs);
   margin: var(--spacing-xs) 0;
   word-break: break-all;
+  display: inline-block;
+  max-width: 100%;
 }
 
-.confirm-actions {
+/* ===== Actions ===== */
+.hm-actions {
   display: flex;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
 }
 
-.confirm-actions button {
+.hm-btn {
   flex: 1;
-  padding: var(--spacing-md);
+  height: 44px;
   border: none;
   border-radius: var(--radius-sm);
   font-size: var(--font-size-md);
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+  outline: none;
 }
 
-.btn-cancel {
-  background: var(--bg-color-2);
+/* Cancel button - outline style */
+.hm-btn-cancel {
+  background: transparent;
   color: var(--text-color-1);
+  border: 1px solid var(--border-color);
 }
 
-.btn-cancel:hover {
-  background: var(--bg-color-3);
+.hm-btn-cancel:hover {
+  background: var(--bg-color-2);
+  border-color: var(--text-color-3);
 }
 
-.btn-cancel:active {
-  transform: scale(0.98);
+.hm-btn-cancel:active {
+  transform: scale(0.97);
 }
 
-.btn-confirm {
+/* Confirm buttons */
+.hm-btn-confirm {
+  color: #fff;
+}
+
+.hm-btn-info,
+.hm-btn-info:active {
   background: var(--primary-color);
-  color: white;
+}
+.hm-btn-info:hover {
+  background: var(--primary-hover);
 }
 
-.btn-confirm:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.btn-confirm:active {
-  transform: scale(0.98);
-}
-
-.btn-confirm.danger {
+.hm-btn-danger {
   background: var(--error-color);
 }
-
-.btn-confirm.danger:hover {
-  opacity: 0.9;
+.hm-btn-danger:hover {
+  background: var(--log-critical-color);
 }
 
-.btn-confirm.warning {
+.hm-btn-warning {
+  background: var(--warning-color);
+  color: #fff;
+}
+.hm-btn-warning:hover {
   background: var(--warning-color);
 }
 
-.btn-confirm.warning:hover {
-  opacity: 0.9;
+.hm-btn:active {
+  transform: scale(0.97);
+}
+
+/* ===== Ripple effect ===== */
+.hm-btn .hm-btn-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.hm-btn:active .hm-btn-ripple {
+  background: rgba(255, 255, 255, 0.2);
+  animation: hm-ripple 0.4s ease-out;
+}
+
+@keyframes hm-ripple {
+  0% { opacity: 1; transform: scale(0); }
+  100% { opacity: 0; transform: scale(2); }
+}
+
+/* ===== Animations - HMOS6 spring curves ===== */
+.hm-overlay-enter-active {
+  transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+.hm-overlay-leave-active {
+  transition: opacity 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+.hm-overlay-enter-from,
+.hm-overlay-leave-to {
+  opacity: 0;
+}
+
+.hm-modal-enter-active {
+  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+.hm-modal-leave-active {
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+.hm-modal-enter-from {
+  opacity: 0;
+  transform: translateY(24px) scale(0.96);
+}
+.hm-modal-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
 }
 </style>

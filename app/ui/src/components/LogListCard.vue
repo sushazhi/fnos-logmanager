@@ -42,7 +42,7 @@
                 <button 
                   class="secondary small" 
                   @click="$emit('view', log.path)"
-                  v-if="!log.isDocker && type !== 'archives'"
+                  v-if="!log.isDocker && type !== 'archives' && !log.isArchive"
                 >
                   查看
                 </button>
@@ -56,28 +56,28 @@
                 <button 
                   class="secondary small" 
                   @click="$emit('viewArchive', log.path)"
-                  v-if="type === 'archives'"
+                  v-if="type === 'archives' || log.isArchive"
                 >
                   查看
                 </button>
                 <button 
                   class="danger small" 
                   @click="$emit('truncate', log.path)"
-                  v-if="!log.isDocker && type !== 'archives'"
+                  v-if="!log.isDocker && type !== 'archives' && !log.isArchive"
                 >
                   清空
                 </button>
                 <button 
                   class="danger small" 
                   @click="$emit('delete', log.path)"
-                  v-if="type === 'archives'"
+                  v-if="type === 'archives' || log.isArchive"
                 >
                   删除
                 </button>
                 <button 
                   class="danger small" 
                   @click="handleDeleteLog(log.path)"
-                  v-if="!log.isDocker && type !== 'archives' && log.canDelete"
+                  v-if="!log.isDocker && type !== 'archives' && !log.isArchive && log.canDelete"
                   title="应用已卸载，可删除日志文件"
                 >
                   删除

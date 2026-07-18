@@ -259,12 +259,13 @@ async function startMonitor() {
   errorMessage.value = null
   try {
     await eventLoggerApi.start()
-    await loadData()
   } catch (e: any) {
     const msg = e?.response?.data?.error || e?.message || '启动监控失败'
     errorMessage.value = msg
     console.error('Failed to start:', e)
   } finally {
+    // Always refresh data after attempting start, so the status card reflects the actual server state
+    await refreshData()
     loading.value = false
   }
 }
@@ -389,8 +390,8 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--error-bg, #fef2f2);
-  border: 1px solid var(--error-color, #ef4444);
+  background: var(--error-bg);
+  border: 1px solid var(--error-color);
   border-radius: var(--radius-xs);
   margin-bottom: var(--spacing-md);
 }

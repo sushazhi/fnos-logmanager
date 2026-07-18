@@ -1153,8 +1153,16 @@ onUnmounted(() => {
 }
 
 .log-viewer {
+  /* Terminal-specific variables — always dark, regardless of theme */
+  --log-bg: #1a1a2e;
+  --log-text: #d4d4d4;
+  --log-line-number: #5a6a7a;
+  --log-border: #2a2a3e;
+  --log-highlight-text: #1a1a2e;
+  --log-current-match: rgba(10, 89, 247, 0.3);
+
   margin: 0;
-  background: #1a1a2e;
+  background: var(--log-bg);
   min-height: 100%;
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 12px;
@@ -1178,35 +1186,37 @@ onUnmounted(() => {
 }
 
 .log-line.current-match {
-  background: rgba(10, 89, 247, 0.3);
+  background: var(--log-current-match);
 }
 
 .line-number {
-  color: #5a6a7a;
+  color: var(--log-line-number);
   min-width: 50px;
   text-align: right;
   padding-right: var(--spacing-md);
   user-select: none;
-  border-right: 1px solid #2a2a3e;
+  border-right: 1px solid var(--log-border);
   margin-right: var(--spacing-md);
   flex-shrink: 0;
 }
 
 .line-content {
-  color: #d4d4d4;
+  color: var(--log-text);
   white-space: pre;
   flex: none;
 }
 
 :deep(.highlight) {
-  background: #e8b339;
-  color: #1a1a2e;
+  /* warning-color (#E8B339) is identical in both themes */
+  background: var(--warning-color);
+  color: var(--log-highlight-text);
   padding: 0 2px;
   border-radius: var(--radius-3xs);
 }
 
 :deep(.highlight.current) {
-  background: #0a59f7;
+  /* primary-color (#0A59F7) is identical in both themes */
+  background: var(--primary-color);
   color: white;
   padding: 0 2px;
   border-radius: var(--radius-3xs);

@@ -20,7 +20,7 @@ export const useDirsStore = defineStore('dirs', () => {
   async function loadDirs(): Promise<void> {
     try {
       const data = await api.get<{ dirs: Array<{ path: string; logCount?: number; totalSize?: string }> }>('/api/dirs')
-      dirs.value = data.dirs.map(dir => ({
+      dirs.value = (data.dirs || []).map(dir => ({
         ...dir,
         displayName: DIR_NAMES[dir.path] || dir.path
       }))
@@ -29,13 +29,13 @@ export const useDirsStore = defineStore('dirs', () => {
     }
   }
 
-  async function selectDir(dirPath: string): Promise<Array<{ path: string; size: number; sizeFormatted: string; showActions: boolean }>> {
+  async function selectDir(dirPath: string): Promise<Array<{ path: string; size: number; sizeFormatted: string; showActions: boolean; isArchive?: boolean }>> {
     const { setStatus } = useStatusStore()
     selectedDir.value = dirPath
     setStatus(`正在加载 ${dirPath} 下的日志...`, 'loading')
     try {
       const data = await api.get<LogsResponse>(`/api/logs/list?dir=${encodeURIComponent(dirPath)}&limit=200`)
-      const logs = data.logs.map(log => ({
+      const logs = (data.logs || []).map(log => ({
         ...log,
         showActions: true
       }))
