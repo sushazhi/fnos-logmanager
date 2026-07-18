@@ -210,59 +210,41 @@ if (Test-Path $UI_DIST) {
     Write-Host "  Static UI files copied" -ForegroundColor Green
 }
 
-Write-Host "[4/5] Prepare server files..." -ForegroundColor Yellow
+Write-Host "[4/5] Build Go server binaries..." -ForegroundColor Yellow
 
 $serverDir = Join-Path $BUILD_DIR "app\server"
 $serverSrcDir = Join-Path $PROJECT_DIR "app\server"
 New-Item -ItemType Directory -Force -Path $serverDir | Out-Null
 
-if (Test-Path "$serverSrcDir\server.ts") {
-    Write-Host "  Compiling TypeScript..." -ForegroundColor Yellow
-    
+$architectures = @(
+    @{ Arch = "amd64"; Label = "x86_64" },
+    @{ Arch = "arm64"; Label = "ARM64" }
+)
+
+foreach ($arch in $architectures) {
+    $binaryName = "logmanager-server-$($arch.Arch)"
+    Write-Host "  Cross-compiling for linux/$($arch.Arch) ($($arch.Label))..." -ForegroundColor Yellow
+
+    $env:GOOS = "linux"
+    $env:GOARCH = $arch.Arch
+    $env:CGO_ENABLED = "0"
     Push-Location $serverSrcDir
-    
-    if (-not (Test-Path "node_modules")) {
-        Write-Host "  Installing server dependencies..." -ForegroundColor Yellow
-        $npmInstall = npm install 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  Error: npm install failed" -ForegroundColor Red
-            Write-Host $npmInstall
-            Pop-Location
-            exit 1
-        }
-    }
-    
-    $tscOutput = npx tsc 2>&1
-    $tscExitCode = $LASTEXITCODE
+    $goBuildOutput = go build -o "$serverDir\$binaryName" -ldflags="-s -w" ./cmd/server 2>&1
+    $goBuildExitCode = $LASTEXITCODE
     Pop-Location
-    
-    if ($tscExitCode -ne 0) {
-        Write-Host "  Error: TypeScript compilation failed" -ForegroundColor Red
-        Write-Host $tscOutput
+    Remove-Item Env:\GOOS, Env:\GOARCH, Env:\CGO_ENABLED -ErrorAction SilentlyContinue
+
+    if ($goBuildExitCode -ne 0) {
+        Write-Host "  Error: Go build for $($arch.Label) failed" -ForegroundColor Red
+        Write-Host $goBuildOutput
         exit 1
     }
-    
-    Write-Host "  TypeScript compiled" -ForegroundColor Green
-    
-    $distDir = Join-Path $serverSrcDir "dist"
-    if (Test-Path "$distDir\server.js") {
-        Copy-Item "$distDir\server.js" "$serverDir\server.js" -Force
-        Copy-Item "$serverSrcDir\package.json" "$serverDir\package.json" -Force
-        
-        $subdirs = @("utils", "middleware", "services", "routes", "types", "notify", "errors")
-        foreach ($subdir in $subdirs) {
-            $srcPath = Join-Path $distDir $subdir
-            $dstPath = Join-Path $serverDir $subdir
-            if (Test-Path $srcPath) {
-                New-Item -ItemType Directory -Force -Path $dstPath | Out-Null
-                Copy-Item "$srcPath\*" $dstPath -Recurse -Force
-                Write-Host "  Copied $subdir/" -ForegroundColor Green
-            }
-        }
 
-        Write-Host "  Server files copied" -ForegroundColor Green
+    if (Test-Path "$serverDir\$binaryName") {
+        $fileSize = (Get-Item "$serverDir\$binaryName").Length / 1MB
+        Write-Host "  $($arch.Label) binary: $([math]::Round($fileSize, 2)) MB" -ForegroundColor Green
     } else {
-        Write-Host "  Error: Compiled server.js not found" -ForegroundColor Red
+        Write-Host "  Error: $($arch.Label) binary not found after build" -ForegroundColor Red
         exit 1
     }
 }

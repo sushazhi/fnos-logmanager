@@ -5,8 +5,6 @@ LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 SERVER_DIR="${TRIM_APPDEST}/server"
 
-export PATH=/var/apps/nodejs_v24/target/bin:$PATH
-
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
 }
@@ -63,30 +61,37 @@ start_process() {
         error_exit "服务器目录不存在: $SERVER_DIR"
     fi
     
-    cd "$SERVER_DIR" || error_exit "无法进入服务器目录: $SERVER_DIR"
-    
-    if [ ! -d "$SERVER_DIR/node_modules" ]; then
-        log_msg "Installing dependencies..."
-        npm config set registry https://registry.npmmirror.com --location=project 2>/dev/null || true
-        if ! npm install --production >> ${LOG_FILE} 2>&1; then
-            error_exit "依赖安装失败，请检查网络连接"
-        fi
-    else
-        log_msg "Dependencies already installed"
-    fi
-    
-    if [ ! -f "$SERVER_DIR/server.js" ]; then
-        error_exit "服务器文件不存在: $SERVER_DIR/server.js"
-    fi
-    
-    # 所有架构统一通过 fnOS 统一网关通信（Unix Socket）
-    GATEWAY_SOCKET=""
-    if [ -n "${TRIM_APPDEST}" ]; then
-        GATEWAY_SOCKET="${TRIM_APPDEST}/logmanager.sock"
-        rm -f "$GATEWAY_SOCKET" 2>/dev/null
-    fi
-    
-    LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" GATEWAY_SOCKET="$GATEWAY_SOCKET" PORT=8090 node "$SERVER_DIR/server.js" >> ${LOG_FILE} 2>&1 &
+	cd "$SERVER_DIR" || error_exit "无法进入服务器目录: $SERVER_DIR"
+	
+	# Detect architecture and select correct binary
+	ARCH=$(uname -m)
+	case "$ARCH" in
+	    x86_64|amd64)
+	        SERVER_BIN="$SERVER_DIR/logmanager-server-amd64"
+	        ;;
+	    aarch64|arm64)
+	        SERVER_BIN="$SERVER_DIR/logmanager-server-arm64"
+	        ;;
+	    *)
+	        error_exit "不支持的硬件架构: $ARCH"
+	        ;;
+	esac
+	
+	if [ ! -f "$SERVER_BIN" ]; then
+	    error_exit "服务器程序不存在: $SERVER_BIN"
+	fi
+	if [ ! -x "$SERVER_BIN" ]; then
+	    chmod +x "$SERVER_BIN"
+	fi
+	
+	# 所有架构统一通过 fnOS 统一网关通信（Unix Socket）
+	GATEWAY_SOCKET=""
+	if [ -n "${TRIM_APPDEST}" ]; then
+	    GATEWAY_SOCKET="${TRIM_APPDEST}/logmanager.sock"
+	    rm -f "$GATEWAY_SOCKET" 2>/dev/null
+	fi
+	
+	LOGMANAGER_DATA_DIR="${TRIM_PKGVAR}" BACKUP_BASE_DIR="$BACKUP_DIR" FILTER_SENSITIVE="$FILTER_SENSITIVE" GATEWAY_SOCKET="$GATEWAY_SOCKET" PORT=8090 "$SERVER_BIN" >> ${LOG_FILE} 2>&1 &
     local pid=$!
     printf "%s" "$pid" > "$PID_FILE"
     

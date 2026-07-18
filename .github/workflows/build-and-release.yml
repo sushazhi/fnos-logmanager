@@ -34,6 +34,11 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
       - name: Inject version into source files
         run: |
           APP_HEADER="app/ui/src/components/AppHeader.vue"
@@ -56,23 +61,6 @@ jobs:
             exit 1
           fi
 
-          # Generate version.json with current build version
-          echo "{\"version\":\"${APP_VERSION}\"}" > version.json
-          echo "version.json generated: $(cat version.json)"
-
-      - name: Commit version.json to repository
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add version.json
-          if git diff --cached --quiet; then
-            echo "version.json unchanged, skipping commit"
-          else
-            git commit -m "chore: update version.json to ${APP_VERSION} [skip ci]"
-            git push origin HEAD:main
-            echo "version.json committed and pushed to main"
-          fi
-
       - name: Build Vue frontend
         run: |
           cd app/ui
@@ -88,26 +76,31 @@ jobs:
           echo "Vue build complete"
           ls -la app/ui/dist/
 
-      - name: Install server dependencies
+      - name: Build Go server binaries
         run: |
           cd app/server
-          npm install
-          echo "Server dependencies installed"
-
-      - name: Compile TypeScript
-        run: |
-          cd app/server
-          npx tsc
-          echo "TypeScript compiled"
-
-      - name: Verify TypeScript build
-        run: |
-          if [ ! -f "app/server/dist/server.js" ]; then
-            echo "ERROR: TypeScript build output not found"
+          
+          # Build for x86_64
+          echo "Building for linux/amd64..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o logmanager-server-amd64 -ldflags="-s -w" ./cmd/server
+          if [ ! -f "logmanager-server-amd64" ]; then
+            echo "ERROR: amd64 build output not found"
             exit 1
           fi
-          echo "TypeScript build complete"
-          ls -la app/server/dist/
+          file_size=$(stat -c%s logmanager-server-amd64)
+          echo "  amd64: $(echo "scale=2; $file_size / 1048576" | bc) MB"
+          
+          # Build for ARM64
+          echo "Building for linux/arm64..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o logmanager-server-arm64 -ldflags="-s -w" ./cmd/server
+          if [ ! -f "logmanager-server-arm64" ]; then
+            echo "ERROR: arm64 build output not found"
+            exit 1
+          fi
+          file_size=$(stat -c%s logmanager-server-arm64)
+          echo "  arm64: $(echo "scale=2; $file_size / 1048576" | bc) MB"
+          
+          ls -lh logmanager-server-*
 
       - name: Download fnpack
         run: |
@@ -142,6 +135,9 @@ jobs:
           # Inject version into build manifest (mirror build.ps1 manifest update)
           sed "s/^version[[:space:]]*=.*/version = ${APP_VERSION}/" manifest > build/manifest
 
+          # Generate version.json in build directory (packaged but does not pollute repo)
+          echo "{\"version\":\"${APP_VERSION}\"}" > build/version.json
+
           for file in LICENSE ICON.PNG ICON_256.PNG; do
             if [ -f "$file" ]; then cp "$file" build/; fi
           done
@@ -153,20 +149,18 @@ jobs:
 
           echo "Project files copied"
 
-      - name: Copy compiled server files
+      - name: Copy compiled server binaries
         run: |
-          # Mirror build.ps1 [4/5]: copy compiled TypeScript output
-          cp app/server/dist/server.js build/app/server/
-          cp app/server/package.json build/app/server/
-
-          for subdir in utils middleware services routes types notify errors; do
-            if [ -d "app/server/dist/$subdir" ]; then
-              cp -r "app/server/dist/$subdir" "build/app/server/$subdir"
-              echo "  Copied $subdir/"
+          # Copy Go binaries (both architectures)
+          for bin in logmanager-server-amd64 logmanager-server-arm64; do
+            if [ -f "app/server/$bin" ]; then
+              cp "app/server/$bin" "build/app/server/$bin"
+              chmod +x "build/app/server/$bin"
+              file_size=$(stat -c%s "build/app/server/$bin")
+              echo "  $bin: $(echo "scale=2; $file_size / 1048576" | bc) MB"
             fi
           done
-
-          echo "Server files copied"
+          echo "Server binaries copied"
 
       - name: Create .fpk package
         run: |

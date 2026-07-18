@@ -33,5 +33,8 @@ npm-debug.log*
 .cache/
 .parcel-cache/
 
+# Other package managers
+pnpm-lock.yaml
+
 # CodeArts
 .codeartsdoer/

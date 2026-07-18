@@ -153,7 +153,7 @@
 2. 在飞牛 NAS 应用中心安装
 3. 通过 fnOS 桌面图标访问，网关自动校验登录态
 
-> **系统要求**：fnOS V1.1.31 及以上版本（统一网关支持）
+> **系统要求**：fnOS V1.1.3104 及以上版本（统一网关支持）
 
 ## 使用方法
 
@@ -212,6 +212,7 @@
 
 ### 前置要求
 
+- Go 1.22+
 - Node.js 24+
 - PowerShell (Windows) 或 Bash (Linux)
 
@@ -219,10 +220,10 @@
 
 ```bash
 # Windows
-.\build.ps1 -Version 0.6.2
+.\build.ps1 -Version 0.8.0
 
 # 或使用 GitHub Actions
-git tag v0.6.2
+git tag v0.8.0
 git push --tags
 ```
 
@@ -233,57 +234,33 @@ git push --tags
 │   └── workflows/
 │       └── build-and-release.yml   # GitHub Actions
 ├── app/
-│   ├── server/                     # 后端服务
-│   │   ├── server.ts               # 入口（统一网关前缀剥离+Unix Socket/TCP双模式）
-│   │   ├── errors/                 # 错误类型定义
-│   │   ├── middleware/             # 中间件
-│   │   │   ├── auth.ts             # 认证/CSRF（网关模式X-Trim-* Header自动登录）
-│   │   │   ├── security.ts         # CSP/安全头/输入净化
-│   │   │   ├── rateLimit.ts        # 速率限制
-│   │   │   └── errorHandler.ts     # 统一错误处理
-│   │   ├── routes/                 # 路由
-│   │   │   ├── logs.ts             # 日志 API（查看/导出/追踪/书签/自动清理）
-│   │   │   ├── docker.ts           # Docker API（查看/导出/追踪）
-│   │   │   ├── auth.ts             # 认证 API（登录/设置）
-│   │   │   ├── notifications.ts    # 通知 API（含 QQ openID 捕获）
-│   │   │   ├── eventLogger.ts      # 事件日志 API
-│   │   │   └── update.ts           # 更新 API
-│   │   ├── services/               # 服务
-│   │   │   ├── logStream.ts        # 日志 WebSocket 流（Origin验证+连接限制）
-│   │   │   ├── dockerLogStream.ts  # Docker 日志 WebSocket 流
-│   │   │   ├── notifyWebSocket.ts  # 通知 WebSocket
-│   │   │   ├── autoClean.ts        # 自动清理服务（cron/秒级间隔）
-│   │   │   ├── logMonitor.ts       # 日志监控与规则匹配
-│   │   │   ├── bookmark.ts         # 书签服务
-│   │   │   ├── session.ts          # 会话服务（timingSafeEqual）
-│   │   │   └── ...
-│   │   ├── utils/                  # 工具
-│   │   │   ├── configManager.ts    # 配置管理器（分层覆盖：env > file > default）
-│   │   │   ├── validation.ts       # 输入验证/路径安全/容器名验证
-│   │   │   ├── filter.ts           # 敏感信息过滤
-│   │   │   ├── streamReader.ts     # 流式读取
-│   │   │   ├── cache.ts            # 缓存层
-│   │   │   └── ...
-│   │   ├── types/                  # 类型定义
-│   │   ├── notify/                 # 通知模块（22种渠道）
-│   │   │   ├── httpClient.ts       # HTTP客户端 + SSRF防护（isPrivateUrl）
-│   │   │   └── channels/
-│   │   │       ├── qqbot.ts        # QQ机器人（WebSocket监听+openID捕获）
-│   │   │       ├── webhook.ts      # Webhook
-│   │   │       └── ...
-│   │   └── package.json
-│   └── ui/                         # 前端界面
+│   ├── server/                     # 后端服务 (Go)
+│   │   ├── cmd/server/             # 入口
+│   │   ├── internal/
+│   │   │   ├── config/             # 配置管理
+│   │   │   ├── errors/             # 错误类型定义
+│   │   │   ├── middleware/         # 中间件（认证/CSRF/CSP/速率限制/错误处理）
+│   │   │   ├── notify/            # 通知模块（23种渠道 + SSRF防护）
+│   │   │   ├── routes/            # 路由（日志/Docker/通知/事件/更新）
+│   │   │   ├── services/          # 服务（日志流/WebSocket/自动清理/监控/书签）
+│   │   │   ├── types/             # 类型定义
+│   │   │   └── utils/             # 工具（路径安全/SSRF/IP/验证/过滤）
+│   │   ├── go.mod
+│   │   └── go.sum
+│   └── ui/                         # 前端界面 (Vue 3 + Vite)
 │       ├── src/
 │       │   ├── components/
 │       │   │   ├── LogModal.vue     # 日志查看（多标签+深色终端+追踪+导出+搜索）
 │       │   │   ├── BookmarkBar.vue  # 书签栏
 │       │   │   ├── AutoCleanPanel.vue # 自动清理面板
 │       │   │   ├── NotificationPanel.vue # 通知面板（QQ轮询openID）
+│       │   │   ├── ConfirmDialog.vue # 鸿蒙6风格确认对话框
+│       │   │   ├── AlertDialog.vue  # 鸿蒙6风格提示对话框
 │       │   │   └── ...
 │       │   ├── composables/
 │       │   │   ├── useLogSearch.ts  # 搜索逻辑（Web Worker）
 │       │   │   ├── useLogStream.ts  # 日志流 WebSocket（网关路径适配）
-│       │   │   ├── useNotifyWebSocket.ts # 通知 WebSocket（网关路径适配）
+│       │   │   ├── useNotifyWebSocket.ts # 通知 WebSocket
 │       │   │   └── useStore.ts      # 统一 Store
 │       │   ├── workers/
 │       │   │   └── logSearch.worker.ts # 搜索 Web Worker
@@ -301,6 +278,8 @@ git push --tags
 ├── config/                         # 配置文件
 ├── wizard/                         # 安装向导
 ├── manifest                        # 应用清单
+├── version.json                    # 版本信息
+├── build.ps1                       # 本地构建脚本
 ├── ICON.PNG
 └── ICON_256.PNG
 ```
@@ -308,28 +287,26 @@ git push --tags
 ## 技术栈
 
 ### 后端
-- **运行时**: Node.js 24+
-- **框架**: Express 5.2.1
-- **语言**: TypeScript 6.0.3
-- **日志**: Pino 10.3.1
-- **数据库**: sql.js 1.10.3 (SQLite WASM)
-- **HTTP客户端**: undici 8.3.0
-- **WebSocket**: ws 8.20.1
+- **语言**: Go 1.22+
+- **框架**: Gin 1.10+
+- **数据库**: modernc.org/sqlite (纯 Go SQLite)
+- **WebSocket**: gorilla/websocket
+- **HTTP客户端**: net/http (含 SSRF 防护)
 
 ### 前端
-- **框架**: Vue 3.5.31 (Composition API)
-- **状态管理**: Pinia 3.0.4
-- **构建工具**: Vite 8.0.13
-- **语言**: TypeScript 6.0.3
-- **安全**: DOMPurify 3.3.3
+- **框架**: Vue 3.5+ (Composition API)
+- **状态管理**: Pinia 3+
+- **构建工具**: Vite 8+
+- **语言**: TypeScript 6+
+- **安全**: DOMPurify 3+
 
 ### 架构特点
 - **统一网关**: Unix Socket + 前缀剥离，无需独立端口
 - **认证体系**: 网关 X-Trim-* Header 自动登录
 - **状态管理**: Pinia 统一管理应用状态（含多标签页管理）
-- **错误处理**: 统一的错误类型和响应格式（isOperational + statusCode 双重检查）
+- **错误处理**: 统一的错误类型和响应格式
 - **性能优化**: 流式读取、缓存机制、请求去重、Web Worker 搜索
-- **类型安全**: 完整的 TypeScript 类型定义
+- **类型安全**: 完整的 Go 和 TypeScript 类型定义
 - **UI 体系**: 鸿蒙 NEXT 6.0 CSS 变量色彩体系
 
 ## 安全说明
