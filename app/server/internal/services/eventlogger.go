@@ -679,9 +679,29 @@ func parseEventRow(row map[string]interface{}) types.EnhancedEventLogEntry {
 	typeKey := findColumn(row, "type", "category", "event_type", "eventtype")
 	userKey := findColumn(row, "uid", "uname", "user", "username")
 
+	// Debug: dump all raw column names, types and values from the DB row
+	cols := make([]string, 0, len(row))
+	for k, v := range row {
+		typeStr := "nil"
+		if v != nil {
+			typeStr = fmt.Sprintf("%T", v)
+		}
+		cols = append(cols, fmt.Sprintf("%s(%s)=%v", k, typeStr, v))
+	}
+	slog.Info("[tsdbg] rawRow",
+		"tsKey", tsKey,
+		"srcKey", srcKey,
+		"msgKey", msgKey,
+		"sevKey", sevKey,
+		"typeKey", typeKey,
+		"userKey", userKey,
+		"columns", strings.Join(cols, ", "),
+	)
+
 	// Process timestamp
 	if tsKey != "" {
-		entry.Timestamp = processTimestamp(row[tsKey])
+		rawTS := row[tsKey]
+		entry.Timestamp = processTimestamp(rawTS)
 	}
 
 	// Process source
@@ -761,39 +781,77 @@ func findColumn(row map[string]interface{}, keys ...string) string {
 // processTimestamp converts a timestamp value to ISO 8601 string.
 func processTimestamp(val interface{}) string {
 	if val == nil {
-		return time.Now().Format(time.RFC3339)
+		now := time.Now().Format(time.RFC3339)
+		slog.Info("[tsdbg] processTimestamp", "type", "nil", "value", nil, "result", now)
+		return now
 	}
+
+	var result string
+	typeStr := fmt.Sprintf("%T", val)
 
 	switch v := val.(type) {
 	case int64:
 		if v > 1000000000000 {
 			// milliseconds
-			return time.UnixMilli(v).Format(time.RFC3339)
+			result = time.UnixMilli(v).Format(time.RFC3339)
+			slog.Info("[tsdbg] processTimestamp", "type", typeStr, "value", v, "unit", "ms", "unix_ms", v, "result", result)
 		} else if v > 1000000000 {
-			// seconds
-			return time.Unix(v, 0).Format(time.RFC3339)
+			// seconds — DB stores CST-local Unix timestamps
+			_, offset := time.Now().Zone()
+			v += int64(offset) // compensate for CST epoch storage
+			utcTime := time.Unix(v, 0)
+			result = utcTime.Format(time.RFC3339)
+			slog.Info("[tsdbg] processTimestamp",
+				"type", typeStr, "value", v-int64(offset), "unit", "sec",
+				"offset", offset,
+				"adjusted_unix_sec", v,
+				"result", result,
+			)
+		} else {
+			result = time.Unix(v, 0).Format(time.RFC3339)
+			slog.Info("[tsdbg] processTimestamp", "type", typeStr, "value", v, "unit", "sec(small)", "result", result)
 		}
-		return time.Unix(v, 0).Format(time.RFC3339)
 	case float64:
 		i := int64(v)
 		if i > 1000000000000 {
-			return time.UnixMilli(i).Format(time.RFC3339)
+			result = time.UnixMilli(i).Format(time.RFC3339)
+			slog.Info("[tsdbg] processTimestamp", "type", typeStr, "value", v, "unit", "ms", "unix_ms", i, "result", result)
 		} else if i > 1000000000 {
-			return time.Unix(i, 0).Format(time.RFC3339)
+			// seconds — DB stores CST-local Unix timestamps
+			_, offset := time.Now().Zone()
+			i += int64(offset) // compensate for CST epoch storage
+			utcTime := time.Unix(i, 0)
+			result = utcTime.Format(time.RFC3339)
+			slog.Info("[tsdbg] processTimestamp",
+				"type", typeStr, "value", v, "unit", "sec",
+				"offset", offset,
+				"adjusted_unix_sec", i,
+				"result", result,
+			)
+		} else {
+			result = time.Unix(i, 0).Format(time.RFC3339)
+			slog.Info("[tsdbg] processTimestamp", "type", typeStr, "value", v, "unit", "sec(small)", "result", result)
 		}
-		return time.Unix(i, 0).Format(time.RFC3339)
 	case string:
 		t, err := time.Parse(time.RFC3339, v)
 		if err == nil {
-			return t.Format(time.RFC3339)
+			result = t.Format(time.RFC3339)
+			slog.Info("[tsdbg] processTimestamp", "type", typeStr, "value", v, "parsedAs", "RFC3339", "result", result)
+			return result
 		}
-		t, err = time.Parse("2006-01-02 15:04:05", v)
+		// Try parsing as local time (CST/Asia/Shanghai) — fnOS event logger
+		// stores timestamps in local time without timezone info in some tables.
+		t, err = time.ParseInLocation("2006-01-02 15:04:05", v, time.Local)
 		if err == nil {
-			return t.Format(time.RFC3339)
+			result = t.Format(time.RFC3339)
+			slog.Info("[tsdbg] processTimestamp", "type", typeStr, "value", v, "parsedAs", "local(CST)", "result", result)
+			return result
 		}
+		slog.Info("[tsdbg] processTimestamp", "type", typeStr, "value", v, "parsedAs", "fallback(raw)", "result", v)
 		return v
 	}
-	return time.Now().Format(time.RFC3339)
+
+	return result
 }
 
 // parseSeverity converts a severity value from DB to EventSeverity.
@@ -1292,7 +1350,9 @@ func convertToDBTime(s string) string {
 		"2006-01-02",
 	}
 	for _, f := range formats {
-		t, err := time.Parse(f, s)
+		// Try parsing as local time (CST/Asia/Shanghai) first, since filter times
+		// from the frontend are in local timezone.
+		t, err := time.ParseInLocation(f, s, time.Local)
 		if err == nil {
 			return t.Format("2006-01-02 15:04:05")
 		}
