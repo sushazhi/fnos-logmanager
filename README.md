@@ -212,7 +212,7 @@
 
 ### 前置要求
 
-- Go 1.22+
+- Go 1.26+
 - Node.js 24+
 - PowerShell (Windows) 或 Bash (Linux)
 
@@ -287,7 +287,7 @@ git push --tags
 ## 技术栈
 
 ### 后端
-- **语言**: Go 1.22+
+- **语言**: Go 1.26+
 - **框架**: Gin 1.10+
 - **数据库**: modernc.org/sqlite (纯 Go SQLite)
 - **WebSocket**: gorilla/websocket
