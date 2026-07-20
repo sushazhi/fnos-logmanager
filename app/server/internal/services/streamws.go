@@ -132,11 +132,13 @@ func wsUpgrader() websocket.Upgrader {
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
 		CheckOrigin: func(r *http.Request) bool {
+			// Gateway terminates TLS/WS and handles origin validation — proxy is trusted
 			if config.IsGatewayMode() {
 				return true
 			}
 			origin := r.Header.Get("Origin")
 			if origin == "" {
+				// Allow empty origin (native clients / same-origin fetches may omit it)
 				return true
 			}
 			return utils.IsValidOrigin(origin, r.Host)

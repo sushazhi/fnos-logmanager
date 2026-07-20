@@ -59,15 +59,34 @@ func IsValidOrigin(origin, host string) bool {
 	}
 	// Remove port from host
 	h := strings.Split(host, ":")[0]
-	// Simple check: origin hostname should match host
-	if strings.Contains(origin, h) {
-		return true
+	// Parse origin URL and compare hostname exactly (prevents substring match bypass)
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
 	}
-	return false
+	return parsed.Hostname() == h
 }
 
 func isLocalhost(ip string) bool {
 	cleanIP := strings.TrimPrefix(ip, "::ffff:")
+	cleanIP = strings.Split(cleanIP, ":")[0]
+	return cleanIP == "127.0.0.1" || cleanIP == "::1" || cleanIP == "localhost"
+}
+
+// IsLoopbackAddr reports whether the given "host:port" or "ip:port" remote
+// address belongs to the loopback interface (127.0.0.1 / ::1). Used to decide
+// whether a request genuinely originated from a trusted local proxy (e.g. the
+// fnOS gateway unix-socket proxy) rather than a direct client connection.
+func IsLoopbackAddr(remoteAddr string) bool {
+	if remoteAddr == "" {
+		return false
+	}
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		// No port present — treat the whole string as host.
+		host = remoteAddr
+	}
+	cleanIP := strings.TrimPrefix(host, "::ffff:")
 	cleanIP = strings.Split(cleanIP, ":")[0]
 	return cleanIP == "127.0.0.1" || cleanIP == "::1" || cleanIP == "localhost"
 }
