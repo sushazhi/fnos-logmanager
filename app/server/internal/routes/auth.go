@@ -20,7 +20,10 @@ func logoutHandler(c *gin.Context) {
 	if sessionToken != "" {
 		services.DeleteSession(sessionToken)
 	}
-	c.SetCookie("session_token", "", -1, "/", "", false, true)
+	// Match the secure flag used by statusHandler cookie-setting
+	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("session_token", "", -1, "/", "", secure, true)
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
@@ -28,9 +31,20 @@ func statusHandler(c *gin.Context) {
 	cfg := config.Get()
 	isGatewayMode := cfg.GatewaySocket != ""
 
+	// Determine if the original client connection is secure (HTTPS).
+	// When behind the fnOS gateway (nginx) which terminates TLS, the app receives
+	// plain HTTP locally — check X-Forwarded-Proto to detect the original scheme.
+	isSecure := false
+	if c.Request.TLS != nil {
+		isSecure = true
+	} else if proto := c.GetHeader("X-Forwarded-Proto"); proto == "https" {
+		isSecure = true
+	}
+
 	if isGatewayMode {
 		sessionToken := services.CreateSession("local")
-		c.SetCookie("session_token", sessionToken, 86400, "/", "", false, true)
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie("session_token", sessionToken, 86400, "/", "", isSecure, true)
 		c.JSON(http.StatusOK, gin.H{
 			"initialized":   true,
 			"isLoggedIn":    true,
@@ -47,7 +61,8 @@ func statusHandler(c *gin.Context) {
 
 	if !isLoggedIn {
 		sessionToken = services.CreateSession("local")
-		c.SetCookie("session_token", sessionToken, 86400, "/", "", false, true)
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie("session_token", sessionToken, 86400, "/", "", isSecure, true)
 		isLoggedIn = true
 	}
 
