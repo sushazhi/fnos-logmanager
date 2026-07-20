@@ -240,9 +240,12 @@ onMounted(() => {
 
 <style>
 .settings-panel {
-  background: var(--card-bg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--glass-shadow);
   max-width: 400px;
   width: 100%;
 }
@@ -325,7 +328,7 @@ onMounted(() => {
 
 .font-size-controls button:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--primary-color);
 }
 
@@ -361,7 +364,7 @@ onMounted(() => {
 .theme-buttons button.active {
   border-color: var(--primary-color);
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .theme-buttons button:hover {
@@ -399,7 +402,7 @@ onMounted(() => {
 
 .color-btn.active {
   border-color: var(--text-color-1);
-  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-color);
 }
 
 .divider {
@@ -437,7 +440,7 @@ onMounted(() => {
 
 .action-btn:hover:not(:disabled) {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--primary-color);
 }
 
@@ -517,7 +520,7 @@ onMounted(() => {
 
 .notification-btn:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--primary-color);
 }
 

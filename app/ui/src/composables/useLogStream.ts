@@ -31,7 +31,7 @@ export function useLogStream() {
   const RECONNECT_BASE_DELAY = 1000
 
   function getWsUrl(): string {
-    return buildWsUrl('/api/logs/stream', api.getSessionToken())
+    return buildWsUrl('/api/logs/stream')
   }
 
   function connect(): void {

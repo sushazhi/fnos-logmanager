@@ -1,5 +1,5 @@
 <template>
-  <footer class="footer">
+  <footer class="footer glass-surface">
     <p>飞牛应用日志管理 © 2026</p>
     <p>
       <a href="https://github.com/sushazhi/fnos-logmanager/issues" target="_blank" rel="noopener noreferrer">
@@ -16,7 +16,6 @@
   text-align: center;
   color: var(--text-color-3);
   font-size: var(--font-size-md);
-  border-top: 1px solid var(--border-color);
 }
 
 .footer a {

@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
+  <div class="hm-overlay-base" @click.self="$emit('close')">
     <div class="event-logger-panel">
       <div class="panel-header">
         <h3>系统日志监控</h3>
@@ -324,24 +324,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--overlay);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1200;
-  padding: var(--spacing-xl);
-}
-
 .event-logger-panel {
-  background: var(--card-bg);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xl);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   max-width: 900px;
   width: 95%;
   max-height: 90vh;
@@ -545,7 +533,7 @@ onUnmounted(() => {
   width: 100%;
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border: none;
   border-radius: var(--radius-xs);
   cursor: pointer;
@@ -555,6 +543,11 @@ onUnmounted(() => {
 
 .save-btn:hover:not(:disabled) {
   background: var(--primary-hover);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.save-btn:active:not(:disabled) {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .save-btn:disabled {
@@ -592,22 +585,32 @@ onUnmounted(() => {
 
 .action-btn.start {
   background: var(--success-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--success-color);
 }
 
 .action-btn.start:hover:not(:disabled) {
   background: var(--success-color);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.action-btn.start:active:not(:disabled) {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .action-btn.stop {
   background: var(--error-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--error-color);
 }
 
 .action-btn.stop:hover:not(:disabled) {
   background: var(--log-critical-color);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.action-btn.stop:active:not(:disabled) {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .stats-grid {

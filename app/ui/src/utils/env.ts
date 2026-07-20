@@ -40,16 +40,16 @@ export function getApiBase(): string {
  * - gateway: 通过统一网关（同域名端口 + 前缀）
  * - direct: 同域名端口直连
  *
+ * 认证通过 httpOnly cookie (session_token) 或 Authorization 头完成，
+ * 无需在 URL 中传递 token。
+ *
  * @param apiPath - WebSocket API 路径，如 '/api/logs/stream'
- * @param token - 会话 token，用于直连模式认证
  */
-export function buildWsUrl(apiPath: string, token: string): string {
+export function buildWsUrl(apiPath: string): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
   const mode = getMode()
-
   if (mode === 'gateway') {
-    return `${protocol}//${window.location.host}${GATEWAY_PREFIX}${apiPath}${tokenParam}`
+    return `${protocol}//${window.location.host}${GATEWAY_PREFIX}${apiPath}`
   }
-  return `${protocol}//${window.location.host}${apiPath}${tokenParam}`
+  return `${protocol}//${window.location.host}${apiPath}`
 }

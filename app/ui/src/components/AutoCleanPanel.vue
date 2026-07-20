@@ -1,6 +1,6 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="auto-clean-panel">
+  <div class="hm-overlay-base" @click.self="$emit('close')">
+    <div class="auto-clean-panel hm-modal-base">
       <div class="panel-header">
         <h3>自动清理策略</h3>
         <button class="close-btn" @click="$emit('close')">×</button>
@@ -282,9 +282,9 @@ onMounted(() => {
 
 <style scoped>
 .status-msg {
-  padding: 8px 12px;
+  padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-2xs);
-  margin-bottom: 12px;
+  margin-bottom: var(--spacing-md);
   cursor: pointer;
   font-size: var(--font-size-base);
 }
@@ -298,22 +298,7 @@ onMounted(() => {
   color: var(--error-color);
   border: 1px solid var(--error-color);
 }
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--overlay);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
 .auto-clean-panel {
-  background: var(--card-bg);
-  border-radius: var(--radius-md);
   width: 90%;
   max-width: 700px;
   max-height: 85vh;
@@ -373,18 +358,23 @@ onMounted(() => {
 
 .add-btn {
   width: 100%;
-  padding: 8px 16px;
+  padding: var(--spacing-sm) var(--spacing-lg);
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border: none;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-base);
   font-weight: 500;
 }
 
 .add-btn:hover {
-  opacity: 0.9;
+  background: var(--primary-hover);
+}
+
+.add-btn:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 
 .add-btn:disabled {
@@ -460,7 +450,7 @@ onMounted(() => {
 
 .hint {
   display: block;
-  margin-top: 4px;
+  margin-top: var(--spacing-xs);
   font-size: var(--font-size-xs);
   color: var(--text-color-3);
 }
@@ -475,20 +465,36 @@ onMounted(() => {
 .form-actions button {
   padding: var(--spacing-sm) var(--spacing-lg);
   border: none;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-base);
   font-weight: 500;
 }
 
 .form-actions button.secondary {
-  background: var(--bg-color-3);
+  background: var(--bg-color-2);
   color: var(--text-color-1);
+}
+
+.form-actions button.secondary:hover {
+  background: var(--bg-color-3);
 }
 
 .form-actions button.primary {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
+}
+
+.form-actions button.primary:hover {
+  background: var(--primary-hover);
+}
+
+.form-actions button:active {
+  transform: scale(0.97);
+}
+
+.form-actions button.primary:active {
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 
 .form-actions button.primary:disabled {
@@ -543,7 +549,7 @@ onMounted(() => {
 .rule-condition,
 .rule-schedule {
   font-size: var(--font-size-sm);
-  padding: 2px 6px;
+  padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-3xs);
   background: var(--bg-color-3);
   color: var(--text-color-2);
@@ -593,7 +599,7 @@ onMounted(() => {
   width: 14px;
   left: 2px;
   bottom: 2px;
-  background-color: white;
+  background-color: var(--text-color-on-primary);
   transition: var(--transition-base);
   border-radius: 50%;
 }
@@ -611,7 +617,7 @@ input:checked + .slider::before {
   border: none;
   cursor: pointer;
   font-size: var(--font-size-md);
-  padding: 2px 6px;
+  padding: var(--spacing-xs) var(--spacing-sm);
   color: var(--text-color-2);
   border-radius: var(--radius-3xs);
 }
@@ -619,10 +625,12 @@ input:checked + .slider::before {
 .action-btn:hover {
   background: var(--bg-color-3);
   color: var(--text-color-1);
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 
 .action-btn.danger:hover {
   color: var(--error-color);
+  box-shadow: 0 0 20px var(--glow-primary-strong);
 }
 
 @media (max-width: 600px) {

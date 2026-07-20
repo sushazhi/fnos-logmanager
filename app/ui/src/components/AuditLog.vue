@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
+  <div class="hm-overlay-base" @click.self="$emit('close')">
     <div class="modal audit-modal">
       <div class="modal-header">
         <h3>审计日志</h3>
@@ -151,24 +151,13 @@ function formatDetails(details) {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--overlay);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-  padding: var(--spacing-xl);
-}
-
 .modal {
-  background: var(--card-bg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--glass-shadow);
   width: 100%;
   overflow: hidden;
 }
@@ -229,7 +218,12 @@ function formatDetails(details) {
 .filter-btn.active {
   background: var(--primary-color);
   border-color: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.filter-btn.active:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .audit-modal {
@@ -374,7 +368,7 @@ function formatDetails(details) {
   .filter-btn.active {
     background: var(--primary-color);
     border-color: var(--primary-color);
-    color: white;
+    color: var(--text-color-on-primary);
   }
 
   .modal-body {

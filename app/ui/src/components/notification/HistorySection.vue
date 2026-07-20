@@ -262,7 +262,7 @@ function pad(n: number): string {
   display: flex;
   background: var(--bg-color-2);
   border-radius: var(--radius-full, 9999px);
-  padding: 2px;
+  padding: var(--spacing-xs);
   gap: 1px;
 }
 
@@ -272,13 +272,13 @@ function pad(n: number): string {
   background: transparent;
   color: var(--text-color-3);
   font-size: var(--font-size-xs, 11px);
-  padding: 4px 10px;
+  padding: var(--spacing-xs) var(--spacing-md);
   border-radius: var(--radius-full, 9999px);
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all var(--transition-base);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--spacing-xs);
   white-space: nowrap;
 }
 
@@ -303,15 +303,15 @@ function pad(n: number): string {
 .clear-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--spacing-xs);
   border: 1px solid var(--border-color);
   background: var(--bg-color-1);
   color: var(--text-color-3);
   font-size: var(--font-size-xs, 11px);
-  padding: 4px 10px;
+  padding: var(--spacing-xs) var(--spacing-md);
   border-radius: var(--radius-full, 9999px);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -398,14 +398,14 @@ function pad(n: number): string {
   gap: 3px;
   font-size: var(--font-size-2xs, 10px);
   font-weight: 500;
-  padding: 1px 7px;
+  padding: 1px var(--spacing-sm);
   border-radius: var(--radius-full, 9999px);
   white-space: nowrap;
   line-height: 1.6;
 }
 
 .channel-icon {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   line-height: 1;
 }
 
@@ -432,7 +432,7 @@ function pad(n: number): string {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: all var(--transition-base);
   word-break: break-all;
 }
 
@@ -444,13 +444,13 @@ function pad(n: number): string {
 .card-error {
   display: flex;
   align-items: flex-start;
-  gap: 4px;
+  gap: var(--spacing-xs);
   margin-top: 4px;
   font-size: var(--font-size-2xs, 10px);
   color: var(--error-color);
   background: var(--error-bg);
-  padding: 4px 8px;
-  border-radius: var(--radius-2xs, 4px);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm, 12px);
   line-height: 1.4;
   word-break: break-all;
 }
@@ -464,11 +464,11 @@ function pad(n: number): string {
   flex-shrink: 0;
   color: var(--text-color-4);
   padding-top: 4px;
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-fast);
 }
 
 .card-chevron svg {
-  transition: transform 0.25s ease;
+  transition: transform var(--transition-base);
 }
 
 .card-chevron svg.rotated {
@@ -481,7 +481,7 @@ function pad(n: number): string {
 }
 
 .history-item-leave-active {
-  transition: all 0.25s ease;
+  transition: all var(--transition-base);
 }
 
 .history-item-enter-from {
@@ -495,7 +495,7 @@ function pad(n: number): string {
 }
 
 .history-item-move {
-  transition: transform 0.3s ease;
+  transition: transform var(--transition-base);
 }
 
 .empty-state {
@@ -509,7 +509,7 @@ function pad(n: number): string {
 
 .empty-icon {
   opacity: 0.4;
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-sm);
 }
 
 .empty-state p {

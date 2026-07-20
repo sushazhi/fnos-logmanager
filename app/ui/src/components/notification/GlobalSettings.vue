@@ -40,19 +40,19 @@ const intervals = CHECK_INTERVALS;
 
 <style scoped>
 .section {
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--spacing-md);
 }
 
 .section-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 
@@ -60,21 +60,21 @@ const intervals = CHECK_INTERVALS;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: var(--spacing-sm) 0;
 }
 
 .setting-row label {
-  font-size: 13px;
+  font-size: var(--font-size-base);
   color: var(--text-color-2);
 }
 
 .setting-row select {
-  padding: 4px 8px;
+  padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-2xs);
+  border-radius: var(--radius-sm);
   background: var(--bg-color-2);
   color: var(--text-color-1);
-  font-size: 13px;
+  font-size: var(--font-size-base);
 }
 
 .setting-row select:disabled {
@@ -113,8 +113,8 @@ const intervals = CHECK_INTERVALS;
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
+  background-color: var(--text-color-on-primary);
+  transition: var(--transition-base);
   border-radius: 50%;
 }
 

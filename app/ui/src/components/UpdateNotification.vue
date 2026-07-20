@@ -167,9 +167,9 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-md);
-  background: var(--card-bg);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-xl);
   padding: var(--spacing-xl) var(--spacing-2xl);
@@ -241,7 +241,7 @@ onMounted(() => {
 
 .update-notification-btn-primary {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   box-shadow: var(--shadow-md);
 }
 

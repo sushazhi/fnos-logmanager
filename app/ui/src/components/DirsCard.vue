@@ -1,8 +1,8 @@
 <template>
-  <div class="card">
+  <div class="card glass-card">
     <div class="header-row">
       <h2>日志目录</h2>
-      <button class="config-btn" @click="showConfig = !showConfig" title="配置">
+      <button class="config-btn btn-primary" @click="showConfig = !showConfig" title="配置">
         设置
       </button>
     </div>
@@ -174,7 +174,7 @@ loadVisibleDirs()
 
 .config-btn:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .config-btn:active {
@@ -182,7 +182,10 @@ loadVisibleDirs()
 }
 
 .config-panel {
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   padding: var(--spacing-md);
   border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-lg);
@@ -331,6 +334,19 @@ loadVisibleDirs()
     flex-direction: column;
     gap: var(--spacing-xs);
   }
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 28px var(--glow-primary-strong);
+}
+
+.glass-card {
+  border: 1px solid var(--glass-border);
 }
 
 @media (max-width: 480px) {

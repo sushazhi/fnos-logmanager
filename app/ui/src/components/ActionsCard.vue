@@ -1,18 +1,18 @@
 <template>
-  <div class="card">
+  <div class="card glass-card">
     <h2>操作功能</h2>
     
     <div class="actions-row">
-      <button @click="$emit('listLogs')" title="列出所有日志文件">
+      <button class="btn-primary" @click="$emit('listLogs')" title="列出所有日志文件">
         列出日志
       </button>
-      <button @click="$emit('showSearch')" title="按大小或名称查找日志文件">
+      <button class="btn-primary" @click="$emit('showSearch')" title="按大小或名称查找日志文件">
         查找日志
       </button>
-      <button @click="$emit('listArchives')" title="查看压缩归档的日志文件">
+      <button class="btn-primary" @click="$emit('listArchives')" title="查看压缩归档的日志文件">
         归档日志
       </button>
-      <button @click="$emit('listDocker')" title="查看Docker容器日志">
+      <button class="btn-primary" @click="$emit('listDocker')" title="查看Docker容器日志">
         Docker日志
       </button>
     </div>
@@ -27,19 +27,19 @@
       <button class="warning" @click="$emit('cleanEmptyDirs')" title="删除已卸载应用的空文件夹">
         清理空文件夹
       </button>
-      <button @click="$emit('backup')" title="备份日志到指定目录">
+      <button class="btn-primary" @click="$emit('backup')" title="备份日志到指定目录">
         备份
       </button>
     </div>
 
     <div class="actions-row">
-      <button @click="$emit('showNotification')" title="配置日志通知规则">
+      <button class="btn-primary" @click="$emit('showNotification')" title="配置日志通知规则">
         通知设置
       </button>
-      <button @click="$emit('showEventLogger')" title="配置系统日志监控">
+      <button class="btn-primary" @click="$emit('showEventLogger')" title="配置系统日志监控">
         系统日志
       </button>
-      <button @click="$emit('openSettings')" title="显示设置">
+      <button class="btn-primary" @click="$emit('openSettings')" title="显示设置">
         设置
       </button>
     </div>
@@ -278,6 +278,19 @@ input:checked + .slider::before {
 
 .status-icon {
   font-size: var(--font-size-md);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 28px var(--glow-primary-strong);
+}
+
+.glass-card {
+  border: 1px solid var(--glass-border);
 }
 
 @media (max-width: 768px) {

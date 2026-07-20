@@ -161,7 +161,7 @@ function fallbackCopy() {
 .hm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--overlay);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
@@ -289,32 +289,52 @@ function fallbackCopy() {
 
 /* Confirm */
 .hm-btn-confirm {
-  color: #fff;
+  color: var(--text-color-on-primary);
 }
 .hm-btn-info {
   background: var(--primary-color);
 }
 .hm-btn-info:hover {
   background: var(--primary-hover);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.hm-btn-info:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 .hm-btn-success {
   background: var(--success-color);
 }
 .hm-btn-success:hover {
   background: var(--success-color);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.hm-btn-success:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 .hm-btn-error {
   background: var(--error-color);
 }
 .hm-btn-error:hover {
   background: var(--log-critical-color);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.hm-btn-error:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 .hm-btn-warning {
   background: var(--warning-color);
-  color: #fff;
+  color: var(--text-color-on-primary);
 }
 .hm-btn-warning:hover {
   background: var(--warning-color);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.hm-btn-warning:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .hm-btn:active {
@@ -340,10 +360,10 @@ function fallbackCopy() {
 
 /* ===== Transitions ===== */
 .hm-overlay-enter-active {
-  transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1);
+  transition: opacity 0.25s var(--ease-harmony);
 }
 .hm-overlay-leave-active {
-  transition: opacity 0.15s cubic-bezier(0.2, 0, 0, 1);
+  transition: opacity 0.15s var(--ease-harmony);
 }
 .hm-overlay-enter-from,
 .hm-overlay-leave-to {
@@ -351,10 +371,10 @@ function fallbackCopy() {
 }
 
 .hm-modal-enter-active {
-  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transition: all 0.3s var(--ease-harmony);
 }
 .hm-modal-leave-active {
-  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  transition: all 0.2s var(--ease-harmony);
 }
 .hm-modal-enter-from {
   opacity: 0;

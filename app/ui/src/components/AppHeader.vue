@@ -1,5 +1,5 @@
 ﻿<template>
-  <header>
+  <header class="glass-surface">
     <div class="header-content">
       <div class="title-section">
         <h1>飞牛应用日志管理</h1>
@@ -20,12 +20,10 @@ const { appVersion, updateInfo } = useUpdate()
 
 <style scoped>
 header {
-  background: var(--primary-gradient);
-  color: #fff;
+  color: var(--text-color-1);
   padding: var(--spacing-2xl);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-xl);
-  box-shadow: var(--shadow-lg);
   position: relative;
   overflow: hidden;
 }

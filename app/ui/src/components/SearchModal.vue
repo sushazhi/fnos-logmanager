@@ -1,6 +1,6 @@
 <template>
-  <div class="modal active" @click.self="$emit('close')">
-    <div class="modal-content">
+  <div class="hm-overlay-base" @click.self="$emit('close')">
+    <div class="modal-content hm-modal-base">
       <div class="modal-header">查找日志</div>
       <div class="modal-body">
         <div class="form-group">
@@ -49,26 +49,10 @@ function execute(): void {
 </script>
 
 <style scoped>
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--overlay);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
 .modal-content {
-  background: var(--card-bg);
   padding: var(--spacing-2xl);
-  border-radius: var(--radius-md);
   max-width: 400px;
   width: 90%;
-  box-shadow: var(--shadow-xl);
 }
 
 .modal-header {
@@ -130,7 +114,7 @@ function execute(): void {
 .modal-footer button {
   padding: var(--spacing-sm) var(--spacing-lg);
   border: none;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-md);
   font-weight: 500;
@@ -148,7 +132,7 @@ function execute(): void {
 
 .modal-footer button:not(.secondary) {
   background: var(--primary-gradient);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .modal-footer button:not(.secondary):hover {
@@ -157,6 +141,10 @@ function execute(): void {
 }
 
 .modal-footer button:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+}
+
+.modal-footer button:not(.secondary):active {
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 </style>

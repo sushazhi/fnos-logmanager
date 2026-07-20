@@ -30,7 +30,7 @@ export function useDockerLogStream() {
   let intentionalClose = false
 
   function getWsUrl(): string {
-    return buildWsUrl('/api/docker/stream', api.getSessionToken())
+    return buildWsUrl('/api/docker/stream')
   }
 
   function connect(): void {

@@ -53,25 +53,25 @@ defineEmits<{
 
 <style scoped>
 .section {
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--spacing-md);
 }
 
 .section-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 
 .status-badge {
-  padding: 2px 8px;
-  border-radius: var(--radius-2xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
   font-weight: 500;
 }
@@ -89,16 +89,16 @@ defineEmits<{
 .status-info {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
 
 .info-item {
   display: flex;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--bg-color-2);
-  border-radius: var(--radius-2xs);
+  border-radius: var(--radius-sm);
 }
 
 .info-item .label {
@@ -107,24 +107,24 @@ defineEmits<{
 }
 
 .info-item .value {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--text-color-1);
 }
 
 .btn-row {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 .control-btn {
   flex: 1;
-  padding: 8px 16px;
+  padding: var(--spacing-sm) var(--spacing-lg);
   border: none;
-  border-radius: var(--radius-2xs);
+  border-radius: var(--radius-sm);
   background: var(--primary-color);
-  color: white;
-  font-size: 13px;
+  color: var(--text-color-on-primary);
+  font-size: var(--font-size-base);
   cursor: pointer;
   transition: opacity var(--transition-fast);
 }

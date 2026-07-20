@@ -87,6 +87,20 @@ export function applyThemeColor(color: string): void {
   root.style.setProperty('--card-color-3-light', hslToHex((hue + 120) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
   root.style.setProperty('--card-color-4', card4Color)
   root.style.setProperty('--card-color-4-light', hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+
+  // 鸿蒙 7.0 动态光效：主色辉光跟随用户主题色
+  const glow = hexToRgba(color, 0.35)
+  const glowStrong = hexToRgba(color, 0.55)
+  root.style.setProperty('--glow-primary', glow)
+  root.style.setProperty('--glow-primary-strong', glowStrong)
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const color = hex.replace('#', '')
+  const r = parseInt(color.substring(0, 2), 16)
+  const g = parseInt(color.substring(2, 4), 16)
+  const b = parseInt(color.substring(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 

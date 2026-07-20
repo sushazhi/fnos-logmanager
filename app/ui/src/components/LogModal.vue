@@ -642,6 +642,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   background: var(--bg-color-2);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-bottom: 1px solid var(--bg-color-4);
   padding: 0 var(--spacing-sm);
   overflow-x: auto;
@@ -731,7 +733,7 @@ onUnmounted(() => {
 }
 .context-item:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 .context-divider {
   height: 1px;
@@ -767,7 +769,10 @@ onUnmounted(() => {
   max-width: 1200px;
   height: 85vh;
   max-height: 85vh;
-  background: var(--card-bg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   overflow: hidden;
   display: flex;
@@ -779,7 +784,9 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-md) var(--spacing-xl);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -842,10 +849,12 @@ onUnmounted(() => {
   border-color: var(--primary-color);
   color: var(--primary-color);
   background: var(--info-bg);
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 
 .action-btn:active {
   transform: scale(0.96);
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .action-icon {
@@ -859,15 +868,18 @@ onUnmounted(() => {
 
 .action-btn.tail-active {
   border-color: var(--error-color);
-  color: white;
+  color: var(--text-color-on-primary);
   background: var(--error-color);
-  animation: tail-pulse 2s ease-in-out infinite;
+  animation-name: tail-pulse;
+  animation-duration: 2s;
+  animation-timing-function: var(--ease-harmony);
+  animation-iteration-count: infinite;
 }
 
 .action-btn.tail-active:hover {
   background: var(--log-critical-color);
   border-color: var(--log-critical-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 @keyframes tail-pulse {
@@ -957,7 +969,7 @@ onUnmounted(() => {
   background: var(--warning-color);
   border: none;
   border-radius: var(--radius-xs);
-  color: white;
+  color: var(--text-color-on-primary);
   font-size: var(--font-size-sm);
   cursor: pointer;
   font-weight: 500;
@@ -1032,8 +1044,8 @@ onUnmounted(() => {
 
 .segment-btn.active {
   background: var(--primary-color);
-  color: white;
-  box-shadow: var(--shadow-sm);
+  color: var(--text-color-on-primary);
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 
 .segment-btn:hover:not(.active) {
@@ -1063,7 +1075,7 @@ onUnmounted(() => {
 
 .clear-btn:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .search-nav {
@@ -1093,8 +1105,9 @@ onUnmounted(() => {
 
 .nav-btn:hover:not(:disabled) {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--primary-color);
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 
 .nav-btn:disabled {
@@ -1127,8 +1140,9 @@ onUnmounted(() => {
 
 .jump-btn:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--primary-color);
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 
 .modal-body {
@@ -1165,8 +1179,8 @@ onUnmounted(() => {
   background: var(--log-bg);
   min-height: 100%;
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  font-size: 12px;
-  line-height: 24px;
+  font-size: var(--font-size-sm);
+  line-height: calc(1.6 * var(--font-size-sm));
   min-width: max-content;
 }
 
@@ -1217,7 +1231,7 @@ onUnmounted(() => {
 :deep(.highlight.current) {
   /* primary-color (#0A59F7) is identical in both themes */
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   padding: 0 2px;
   border-radius: var(--radius-3xs);
   font-weight: bold;
@@ -1350,7 +1364,7 @@ onUnmounted(() => {
 
   .clear-btn:hover {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-color-on-primary);
   }
 
   .search-nav {
@@ -1378,8 +1392,9 @@ onUnmounted(() => {
 
   .nav-btn:hover:not(:disabled) {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-color-on-primary);
     border-color: var(--primary-color);
+    box-shadow: 0 0 20px var(--glow-primary);
   }
 
   .match-count {
@@ -1405,8 +1420,9 @@ onUnmounted(() => {
 
   .jump-btn:hover {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-color-on-primary);
     border-color: var(--primary-color);
+    box-shadow: 0 0 20px var(--glow-primary);
   }
 
   .modal-body {

@@ -37,7 +37,7 @@
         <input type="checkbox" v-model="newIsDocker">
         Docker
       </label>
-      <button class="add-confirm" @click="handleAdd" :disabled="!newPath">添加</button>
+      <button class="add-confirm btn-primary" @click="handleAdd" :disabled="!newPath">添加</button>
       <button class="add-cancel" @click="cancelAdd">取消</button>
     </div>
   </div>
@@ -97,9 +97,12 @@ defineExpose({
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   margin-top: var(--spacing-sm);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-xs);
+  border: 1px solid var(--glass-border);
 }
 
 .bookmark-list {
@@ -258,7 +261,7 @@ defineExpose({
 
 .add-confirm {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--primary-color);
 }
 
@@ -278,6 +281,15 @@ defineExpose({
 
 .add-cancel:hover {
   background: var(--bg-color-2);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 @media (max-width: 768px) {

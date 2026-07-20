@@ -192,7 +192,7 @@ function escapeRegex(string) {
   max-width: 95%;
   height: 100%;
   background: var(--card-bg);
-  box-shadow: -4px 0 20px var(--bg-color-3);
+  box-shadow: var(--shadow-xl);
   display: flex;
   flex-direction: column;
   animation: slideIn var(--transition-slow) ease;
@@ -209,7 +209,7 @@ function escapeRegex(string) {
   align-items: center;
   padding: var(--spacing-md) var(--spacing-xl);
   background: var(--primary-gradient);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .drawer-header h3 {
@@ -222,7 +222,7 @@ function escapeRegex(string) {
 .close-btn {
   background: none;
   border: none;
-  color: white;
+  color: var(--text-color-on-primary);
   font-size: var(--font-size-5xl);
   cursor: pointer;
   padding: 0;
@@ -277,7 +277,7 @@ function escapeRegex(string) {
 
 .clear-btn:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .search-count {
@@ -357,6 +357,10 @@ function escapeRegex(string) {
 .log-item button {
   padding: 4px var(--spacing-sm);
   font-size: var(--font-size-sm);
+}
+
+.log-item .actions button:hover {
+  box-shadow: 0 0 20px var(--glow-primary);
 }
 
 .no-results {

@@ -105,10 +105,26 @@
   --spacing-2xl: 24px;
   --spacing-3xl: 32px;
 
-  /* 过渡 - 鸿蒙弹簧曲线 */
-  --transition-fast: 0.1s cubic-bezier(0.2, 0, 0, 1);
-  --transition-base: 0.2s cubic-bezier(0.2, 0, 0, 1);
-  --transition-slow: 0.35s cubic-bezier(0.2, 0, 0, 1);
+  /* 过渡 - 鸿蒙标准曲线 (FastOutSlowIn) */
+  --ease-harmony: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 0.1s var(--ease-harmony);
+  --transition-base: 0.2s var(--ease-harmony);
+  --transition-slow: 0.35s var(--ease-harmony);
+  --motion-duration: 280ms;
+
+  /* 文字在实色/渐变底色上的颜色（替代散落的 #fff） */
+  --text-color-on-primary: #FFFFFF;
+
+  /* 鸿蒙 7.0 液态玻璃 (Liquid Glass) 表面令牌 */
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-bg-strong: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-blur: 20px;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+
+  /* 鸿蒙 7.0 动态光效（主色辉光，由 useThemeColor 注入实际色值） */
+  --glow-primary: rgba(10, 89, 247, 0.35);
+  --glow-primary-strong: rgba(10, 89, 247, 0.55);
 }
 
 /* 深色模式 - 鸿蒙6.1 */
@@ -143,6 +159,12 @@
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  /* 鸿蒙 7.0 玻璃令牌 - 夜间模式 */
+  --glass-bg: rgba(40, 40, 44, 0.78);
+  --glass-bg-strong: rgba(40, 40, 44, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -226,7 +248,50 @@ button:active {
 }
 
 .danger:hover {
-  background: #C8301E !important;
+  background: var(--log-critical-color) !important;
+}
+
+/* 鸿蒙 7.0 液态玻璃表面工具类 */
+.glass-surface {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 统一弹窗基座：所有弹窗复用相同的圆角/遮罩，避免多套风格并存 */
+.hm-overlay-base {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: hm-fade-in var(--transition-base);
+}
+
+.hm-modal-base {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glass-shadow);
+  animation: hm-pop-in var(--transition-slow);
+}
+
+@keyframes hm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes hm-pop-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .small {

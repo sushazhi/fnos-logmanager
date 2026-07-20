@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
+  <div class="hm-overlay-base" @click.self="$emit('close')">
     <div class="notification-panel">
       <div class="panel-header">
         <h3>通知设置</h3>
@@ -138,7 +138,7 @@
     </div>
 
     <!-- 添加/编辑渠道弹窗 -->
-    <div class="modal-overlay sub-modal" v-if="showAddChannel" @click.self="closeChannelModal">
+    <div class="hm-overlay-base sub-modal" v-if="showAddChannel" @click.self="closeChannelModal">
       <div class="modal-content">
         <div class="modal-header">
           <h4>{{ editingChannel ? '编辑通知渠道' : '添加通知渠道' }}</h4>
@@ -207,7 +207,7 @@
     </div>
 
     <!-- 添加规则弹窗 -->
-    <div class="modal-overlay sub-modal" v-if="showAddRule" @click.self="closeRuleModal">
+    <div class="hm-overlay-base sub-modal" v-if="showAddRule" @click.self="closeRuleModal">
       <div class="modal-content">
         <div class="modal-header">
           <h4>{{ editingRule ? '编辑规则' : '添加通知规则' }}</h4>
@@ -1540,28 +1540,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--overlay);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1200;
-  padding: var(--spacing-xl);
-}
-
 .sub-modal {
   z-index: 1300;
 }
 
 .notification-panel {
-  background: var(--card-bg);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xl);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   max-width: 600px;
   width: 100%;
   max-height: 90vh;
@@ -1655,7 +1643,7 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   background-color: var(--bg-color-3);
-  transition: 0.3s;
+  transition: var(--transition-base);
   border-radius: var(--radius-xl);
 }
 
@@ -1666,8 +1654,8 @@ onUnmounted(() => {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
+  background-color: var(--card-bg);
+  transition: var(--transition-base);
   border-radius: 50%;
 }
 
@@ -1718,7 +1706,7 @@ input:checked + .slider:before {
 
 .status-badge.running {
   background: var(--success-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .status-badge.stopped {
@@ -1767,13 +1755,23 @@ input:checked + .slider:before {
 
 .control-btn:hover:not(:disabled) {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--primary-color);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.control-btn:active:not(:disabled) {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .control-btn.danger:hover:not(:disabled) {
   background: var(--error-color);
   border-color: var(--error-color);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.control-btn.danger:active:not(:disabled) {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .control-btn:disabled {
@@ -1794,7 +1792,12 @@ input:checked + .slider:before {
 
 .add-btn:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.add-btn:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .channel-list, .rule-list {
@@ -1844,8 +1847,13 @@ input:checked + .slider:before {
 
 .test-btn:hover, .edit-btn:hover, .toggle-btn:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--primary-color);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.test-btn:active, .edit-btn:active, .toggle-btn:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .delete-btn {
@@ -1870,7 +1878,7 @@ input:checked + .slider:before {
 
 .rule-status.enabled {
   background: var(--success-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .rule-status.disabled {
@@ -1912,13 +1920,16 @@ input:checked + .slider:before {
 
 .clear-btn:hover {
   background: var(--error-color);
-  color: white;
+  color: var(--text-color-on-primary);
   border-color: var(--error-color);
 }
 
 /* Modal styles */
 .modal-content {
-  background: var(--card-bg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   width: 90%;
   max-width: 500px;
@@ -2058,7 +2069,7 @@ input:checked + .slider:before {
   font-size: var(--font-size-sm);
   color: var(--text-color-3);
   margin-left: var(--spacing-sm);
-  transition: transform 0.2s;
+  transition: transform var(--transition-fast);
 }
 
 .dropdown-select.open .dropdown-arrow {
@@ -2087,7 +2098,7 @@ input:checked + .slider:before {
   cursor: pointer;
   font-size: var(--font-size-md);
   color: var(--text-color-1);
-  transition: background 0.2s;
+  transition: background var(--transition-fast);
 }
 
 .dropdown-item:hover {
@@ -2143,12 +2154,12 @@ input:checked + .slider:before {
   border-radius: 50%;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .help-link:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .cancel-btn {
@@ -2166,13 +2177,18 @@ input:checked + .slider:before {
   border: none;
   border-radius: var(--radius-sm);
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
   font-size: var(--font-size-md);
   cursor: pointer;
 }
 
 .submit-btn:hover {
   background: var(--primary-hover);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.submit-btn:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 /* 微信 ClawBot 扫码登录 */
@@ -2197,7 +2213,7 @@ input:checked + .slider:before {
 
 .qr-login-btn:hover:not(:disabled) {
   background: var(--primary-color);
-  color: white;
+  color: var(--text-color-on-primary);
 }
 
 .qr-login-btn:disabled {
@@ -2215,7 +2231,7 @@ input:checked + .slider:before {
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-lg);
-  background: white;
+  background: var(--card-bg);
   border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-sm);
 }

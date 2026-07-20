@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div class="card glass-card">
     <h2>统计概览</h2>
     <div class="stats-grid">
       <div class="stat-card stat-card-blue">
@@ -117,7 +117,7 @@ defineProps<{
     var(--card-color-1-light) 50%,
     var(--card-color-1) 100%
   );
-  color: var(--text-color);
+  color: var(--text-color-on-primary);
 }
 
 .stat-card-green {
@@ -126,7 +126,7 @@ defineProps<{
     var(--card-color-2-light) 50%,
     var(--card-color-2) 100%
   );
-  color: var(--text-color);
+  color: var(--text-color-on-primary);
 }
 
 .stat-card-orange {
@@ -135,7 +135,7 @@ defineProps<{
     var(--card-color-3-light) 50%,
     var(--card-color-3) 100%
   );
-  color: var(--text-color);
+  color: var(--text-color-on-primary);
 }
 
 .stat-card-red {
@@ -144,7 +144,7 @@ defineProps<{
     var(--card-color-4-light) 50%,
     var(--card-color-4) 100%
   );
-  color: var(--text-color);
+  color: var(--text-color-on-primary);
 }
 
 .stat-card-blue::before,
@@ -164,7 +164,7 @@ defineProps<{
   background: var(--bg-color-3);
   border-radius: var(--radius-sm);
   backdrop-filter: blur(10px);
-  box-shadow: 0 2px 8px var(--bg-color-3);
+  box-shadow: var(--shadow-sm);
 }
 
 .stat-icon svg {
@@ -191,6 +191,10 @@ defineProps<{
   font-weight: 400;
   opacity: 0.9;
   white-space: nowrap;
+}
+
+.glass-card {
+  border: 1px solid var(--glass-border);
 }
 
 @media (max-width: 768px) {

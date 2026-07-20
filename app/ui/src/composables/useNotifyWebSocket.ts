@@ -25,7 +25,7 @@ export function useNotifyWebSocket() {
   const RECONNECT_DELAY = 3000
 
   function getWsUrl(): string {
-    return buildWsUrl('/api/notifications/ws', api.getSessionToken())
+    return buildWsUrl('/api/notifications/ws')
   }
 
   function connect(): void {
