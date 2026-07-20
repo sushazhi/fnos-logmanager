@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,27 +39,7 @@ func SecurityHeaders(c *gin.Context) {
 }
 
 func getClientHost(r *http.Request) string {
-	// 1. X-Forwarded-Host
-	fwdHost := r.Header.Get("X-Forwarded-Host")
-	if fwdHost != "" {
-		fh := strings.Split(fwdHost, ":")[0]
-		if fh != "" && fh != "127.0.0.1" && fh != "localhost" {
-			return fh
-		}
-	}
-
-	// 2. Origin header
-	origin := r.Header.Get("Origin")
-	if origin != "" {
-		if parsed, err := url.Parse(origin); err == nil {
-			oh := parsed.Hostname()
-			if oh != "" && oh != "127.0.0.1" && oh != "localhost" {
-				return oh
-			}
-		}
-	}
-
-	// 3. Host header
+	// 1. Host header (only trusted source — no proxy headers to prevent spoofing)
 	host := r.Host
 	if host != "" {
 		hostBase := strings.Split(host, ":")[0]
@@ -69,7 +48,7 @@ func getClientHost(r *http.Request) string {
 		}
 	}
 
-	// 4. Try to get LAN IP
+	// 2. Try to get LAN IP
 	interfaces, err := net.Interfaces()
 	if err == nil {
 		for _, iface := range interfaces {

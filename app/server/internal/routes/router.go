@@ -48,6 +48,7 @@ func SetupRouter(uiDir string) *gin.Engine {
 	{
 		// Auth routes (no auth needed for login)
 		auth := api.Group("/auth")
+		auth.Use(middleware.APIRateLimit(30, 60000)) // 30 req/min per IP for auth endpoints
 		RegisterAuthRoutes(auth)
 
 		// Log routes

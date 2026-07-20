@@ -218,7 +218,13 @@ func (ns *NotificationStore) load() {
 	// Load config
 	cfg := defaultNotificationConfig()
 	if data, err := os.ReadFile(ns.configFilePath); err == nil {
-		if err := json.Unmarshal(data, &cfg); err != nil {
+		// Notification secrets are encrypted at rest. Try decrypt first; fall back
+		// to plaintext so existing (unencrypted) deployments keep working.
+		plaintext := data
+		if dec, derr := decrypt(string(data)); derr == nil && dec != "" {
+			plaintext = []byte(dec)
+		}
+		if err := json.Unmarshal(plaintext, &cfg); err != nil {
 			slog.Warn("notification config parse error, using defaults", "error", err)
 			cfg = defaultNotificationConfig()
 		} else {
@@ -309,7 +315,14 @@ func (ns *NotificationStore) saveConfig() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(ns.configFilePath, data, 0644)
+	// Encrypt notification secrets at rest (AES-GCM via the shared session key).
+	// If encryption is unavailable, fall back to plaintext rather than failing.
+	if enc, eerr := encrypt(string(data)); eerr == nil && enc != "" {
+		data = []byte(enc)
+	} else if enc != "" {
+		data = []byte(enc)
+	}
+	return os.WriteFile(ns.configFilePath, data, 0600)
 }
 
 // saveHistory writes the current history to disk.

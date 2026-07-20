@@ -339,11 +339,10 @@ func getSessionToken(r *http.Request) string {
 		return cookie.Value
 	}
 
-	// Check query parameter
-	token := r.URL.Query().Get("token")
-	if token != "" {
-		return token
-	}
+	// NOTE: query-parameter token (?token=) is intentionally NOT accepted here.
+	// The frontend no longer sends it (it relied on the session cookie / Bearer header),
+	// and accepting it would leak the session token into access logs, Referer headers,
+	// and browser history.
 
 	// Check Authorization header
 	auth := r.Header.Get("Authorization")

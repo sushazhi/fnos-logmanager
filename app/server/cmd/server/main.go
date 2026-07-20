@@ -226,6 +226,10 @@ func startGatewayProxy(socketPath string, targetPort int) {
 		slog.Error("无法创建网关socket目录", "dir", socketDir, "error", err)
 		return
 	}
+	// Restrict socket directory to owner+group: the Unix socket is a trusted
+	// local tunnel for the fnOS gateway proxy.  Tightening dir permissions
+	// prevents other local processes from reaching the socket.
+	os.Chmod(socketDir, 0750)
 
 	ln, err := net.Listen("unix", socketPath)
 	if err != nil {

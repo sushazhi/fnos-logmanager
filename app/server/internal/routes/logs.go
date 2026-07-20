@@ -844,6 +844,17 @@ func deleteBackupHandler(c *gin.Context) {
 		return
 	}
 
+	safePath := utils.SafePath(body.Path)
+	if safePath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的备份路径"})
+		return
+	}
+	cfg := config.Get()
+	if !strings.HasPrefix(safePath, cfg.Backup.BaseDir) || !strings.HasSuffix(safePath, ".tar.gz") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "只能删除备份目录下的 .tar.gz 文件"})
+		return
+	}
+
 	if err := services.DeleteBackup(body.Path); err != nil {
 		slog.Error("failed to delete backup", "path", body.Path, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
