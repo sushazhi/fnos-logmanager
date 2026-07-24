@@ -39,6 +39,9 @@
       <button class="btn-primary" @click="$emit('showEventLogger')" title="配置系统日志监控">
         系统日志
       </button>
+      <button class="btn-primary" @click="$emit('showKernelModules')" title="查看已安装的 Linux 内核版本">
+        内核版本
+      </button>
       <button class="btn-primary" @click="$emit('openSettings')" title="显示设置">
         设置
       </button>
@@ -88,6 +91,7 @@ defineEmits<{
   openSettings: []
   showNotification: []
   showEventLogger: []
+  showKernelModules: []
 }>()
 
 const statusIcons: Record<StatusType, string> = {

@@ -68,6 +68,9 @@ func SetupRouter(uiDir string) *gin.Engine {
 		// Event logger routes
 		eventLogger := api.Group("/eventlogger")
 		RegisterEventLoggerRoutes(eventLogger)
+
+		// Kernel module routes
+		RegisterKernelRoutes(api)
 	}
 
 	// Health endpoint (no auth)

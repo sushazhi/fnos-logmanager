@@ -339,4 +339,53 @@ export const bookmarkApi = {
     api.delete<{ success: boolean }>(`/api/bookmarks/${id}`)
 }
 
+// ==================== 内核版本 API ====================
+
+export interface KernelVersion {
+  version: string
+  isCurrent: boolean
+  bootSize: number
+  bootSizeFormatted: string
+  modulesSize: number
+  modulesSizeFormatted: string
+  totalSize: number
+  totalSizeFormatted: string
+  hasModules: boolean
+}
+
+export interface KernelVersionsResponse {
+  versions: KernelVersion[]
+  total: number
+  current: string
+  unusedCount: number
+  unusedSize: number
+  unusedSizeFormatted: string
+  totalSize: number
+  totalSizeFormatted: string
+  error?: string
+}
+
+export interface KernelCleanupResponse {
+  removed: number
+  total: number
+  freedSize: number
+  freedSizeFormatted: string
+  errors: string[]
+}
+
+export interface KernelRemoveResponse {
+  success: boolean
+  message: string
+  versions?: KernelVersion[]
+}
+
+export const kernelApi = {
+  getVersions: () => api.get<KernelVersionsResponse>('/api/kernel/versions'),
+
+  cleanupUnused: () => api.post<KernelCleanupResponse>('/api/kernel/versions/cleanup'),
+
+  removeVersion: (version: string) =>
+    api.post<KernelRemoveResponse>(`/api/kernel/versions/${encodeURIComponent(version)}/remove`)
+}
+
 export default api

@@ -44,6 +44,7 @@
       @show-notification="showNotification = true"
       @show-event-logger="showEventLogger = true"
       @show-auto-clean="showAutoClean = true"
+      @show-kernel-modules="showKernelModules = true"
     />
     
     <AppFooter />
@@ -117,6 +118,11 @@
       @close="showAutoClean = false"
     />
     
+    <KernelModulePanel
+      v-if="showKernelModules"
+      @close="showKernelModules = false"
+    />
+    
     <ConfirmDialog ref="confirmDialog" />
   </div>
 </template>
@@ -145,6 +151,7 @@ import AuditLog from './components/AuditLog.vue'
 import NotificationPanel from './components/NotificationPanel.vue'
 import EventLoggerPanel from './components/EventLoggerPanel.vue'
 import AutoCleanPanel from './components/AutoCleanPanel.vue'
+import KernelModulePanel from './components/KernelModulePanel.vue'
 
 const {
   stats,
@@ -199,6 +206,7 @@ const showAuditLog = ref(false)
 const showNotification = ref(false)
 const showEventLogger = ref(false)
 const showAutoClean = ref(false)
+const showKernelModules = ref(false)
 const loadingAllLines = ref(false)
 const bookmarks = ref([])
 
