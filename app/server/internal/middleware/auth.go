@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -51,13 +52,13 @@ func GetSessionToken(c *gin.Context) string {
 // ValidateToken middleware validates the session token.
 func ValidateToken(c *gin.Context) {
 	clientIP := utils.GetClientIP(c.Request)
-	token := GetSessionToken(c)
-
 	isGatewayMode := config.IsGatewayMode()
+
 	if isGatewayMode {
 		uid := c.GetHeader("X-Trim-Uid")
 		if uid != "" {
-			// Gateway mode: gateway handles auth, set local session for WS
+			slog.Debug("auth gateway ok: X-Trim-Uid present",
+				"uid", uid, "path", c.Request.URL.Path, "clientIP", clientIP)
 			sessionToken := services.CreateSession(uid)
 			c.Set("sessionToken", sessionToken)
 			c.Set("clientIP", clientIP)
@@ -65,24 +66,69 @@ func ValidateToken(c *gin.Context) {
 			c.Next()
 			return
 		}
+		slog.Info("auth gateway: X-Trim-Uid MISSING, falling to token",
+			"path", c.Request.URL.Path, "clientIP", clientIP)
 	}
 
-	// Direct mode: validate session
-	if token == "" || !services.ValidateSession(token) {
-		// Log audit
-		services.AddAuditLog("auth_failed", map[string]interface{}{
-			"path":     c.Request.URL.Path,
-			"clientIP": clientIP,
-		}, c)
-
-		c.Error(apperrors.NewAuthenticationError("需要认证"))
-		c.Abort()
+	// Try multiple token sources: cookie → Bearer → query
+	// resolveToken only returns a token if its session validates,
+	// or "" if no token source produced a valid session.
+	token := resolveToken(c)
+	if token != "" {
+		c.Set("sessionToken", token)
+		c.Set("clientIP", clientIP)
+		c.Next()
 		return
 	}
 
-	c.Set("sessionToken", token)
-	c.Set("clientIP", clientIP)
-	c.Next()
+	slog.Warn("auth FAILED",
+		"path", c.Request.URL.Path, "clientIP", clientIP,
+		"isGatewayMode", isGatewayMode)
+
+	services.AddAuditLog("auth_failed", map[string]interface{}{
+		"path":     c.Request.URL.Path,
+		"clientIP": clientIP,
+	}, c)
+
+	c.Error(apperrors.NewAuthenticationError("需要认证"))
+	c.Abort()
+}
+
+// resolveToken tries multiple token sources in order: cookie → Bearer → query.
+// It validates each source's token and returns the first valid one.
+// Returns "" if no valid token is found from any source.
+func resolveToken(c *gin.Context) string {
+	// 1) Cookie
+	token, err := c.Cookie("session_token")
+	if err == nil && token != "" {
+		if services.ValidateSession(token) {
+			return token
+		}
+	}
+
+	// 2) Bearer header
+	auth := c.GetHeader("Authorization")
+	if strings.HasPrefix(auth, "Bearer ") {
+		bearerToken := auth[7:]
+		if bearerToken != "" && services.ValidateSession(bearerToken) {
+			return bearerToken
+		}
+	}
+
+	// 3) Query param (whitelisted paths only)
+	queryToken := c.Query("token")
+	if queryToken != "" {
+		cfg := config.Get()
+		if cfg.Auth.AllowQueryToken {
+			for _, path := range cfg.Auth.QueryTokenPaths {
+				if c.Request.URL.Path == path && services.ValidateSession(queryToken) {
+					return queryToken
+				}
+			}
+		}
+	}
+
+	return ""
 }
 
 // ValidateCSRF middleware validates the CSRF token.

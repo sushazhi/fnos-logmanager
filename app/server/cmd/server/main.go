@@ -115,8 +115,12 @@ func main() {
 		slog.Warn("自动清理调度启动失败", "error", err)
 	}
 
-	// Create HTTP server
-	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Port)
+	// Create HTTP server (bind to 127.0.0.1 in gateway mode to prevent bypassing the gateway)
+	bindAddr := "0.0.0.0"
+	if cfg.GatewaySocket != "" {
+		bindAddr = "127.0.0.1"
+	}
+	addr := fmt.Sprintf("%s:%d", bindAddr, cfg.Port)
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      handler,

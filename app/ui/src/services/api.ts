@@ -123,6 +123,12 @@ async function request<T = unknown>(endpoint: string, options: RequestOptions = 
       headers['X-CSRF-Token'] = CSRF_TOKEN
     }
 
+    // 添加 session token 作为 Bearer token（cookie 的兜底方案，解决部分网络环境下 cookie 被阻断的问题）
+    const sessionToken = getSessionToken()
+    if (sessionToken && !headers['Authorization']) {
+      headers['Authorization'] = `Bearer ${sessionToken}`
+    }
+
     // 创建 AbortController
     const controller = cancelKey ? canceller.createController(cancelKey) : new AbortController()
 
