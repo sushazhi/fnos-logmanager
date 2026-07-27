@@ -298,6 +298,24 @@
               <input type="time" v-model="newRule.quietHoursEnd">
             </div>
           </div>
+          <div class="form-group">
+            <label>IP 白名单（可选，登录事件来源IP匹配时跳过通知）</label>
+            <div class="tags-input">
+              <span class="tag" v-for="(cidr, idx) in newRule.ipWhitelist" :key="idx">
+                <span class="tag-text">{{ cidr }}</span>
+                <button class="tag-remove" @click="removeIPWhitelist(idx)" type="button">×</button>
+              </span>
+              <input
+                type="text"
+                v-model="newIPWhitelistInput"
+                placeholder="输入 CIDR 或 IP，按回车添加"
+                class="tag-input"
+                @keydown.enter.prevent="addIPWhitelist"
+                @keydown.,.prevent="addIPWhitelist"
+              >
+            </div>
+            <div class="hint">支持 CIDR 格式（如 192.168.1.0/24）或精确 IP（如 10.0.0.1），多个可用逗号或回车分隔</div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="cancel-btn" @click="closeRuleModal">取消</button>
@@ -364,6 +382,7 @@ interface NotificationRule {
   maxNotifications: number
   quietHoursStart?: string
   quietHoursEnd?: string
+  ipWhitelist?: string[]
   triggerCount: number
 }
 
@@ -536,6 +555,7 @@ const newRule = ref<{
   maxNotifications: number
   quietHoursStart: string
   quietHoursEnd: string
+  ipWhitelist: string[]
 }>({
   name: '',
   appName: '*',
@@ -546,7 +566,8 @@ const newRule = ref<{
   cooldown: 60,
   maxNotifications: 10,
   quietHoursStart: '',
-  quietHoursEnd: ''
+  quietHoursEnd: '',
+  ipWhitelist: []
 })
 
 const eventSources = ref<string[]>([])
@@ -603,6 +624,24 @@ async function loadAppNames(): Promise<void> {
 
 const keywordsInput = ref('')
 const excludeKeywordsInput = ref('')
+const newIPWhitelistInput = ref('')
+
+function addIPWhitelist(): void {
+  const input = newIPWhitelistInput.value.trim()
+  if (!input) return
+  // Support comma-separated values
+  const items = input.split(',').map(s => s.trim()).filter(Boolean)
+  for (const item of items) {
+    if (!newRule.value.ipWhitelist.includes(item)) {
+      newRule.value.ipWhitelist.push(item)
+    }
+  }
+  newIPWhitelistInput.value = ''
+}
+
+function removeIPWhitelist(index: number): void {
+  newRule.value.ipWhitelist.splice(index, 1)
+}
 
 const currentChannelFields = computed(() => {
   const type = channelTypes.value.find(t => t.type === newChannel.value.channel)
@@ -1367,11 +1406,13 @@ function closeRuleModal(): void {
     cooldown: 60,
     maxNotifications: 10,
     quietHoursStart: '',
-    quietHoursEnd: ''
+    quietHoursEnd: '',
+    ipWhitelist: []
   }
   selectedApps.value = []
   keywordsInput.value = ''
   excludeKeywordsInput.value = ''
+  newIPWhitelistInput.value = ''
 }
 
 function editRule(rule: NotificationRule): void {
@@ -1388,7 +1429,8 @@ function editRule(rule: NotificationRule): void {
     cooldown: rule.cooldown,
     maxNotifications: rule.maxNotifications,
     quietHoursStart: rule.quietHoursStart || '',
-    quietHoursEnd: rule.quietHoursEnd || ''
+    quietHoursEnd: rule.quietHoursEnd || '',
+    ipWhitelist: rule.ipWhitelist ? [...rule.ipWhitelist] : []
   }
   // 解析 appName 到 selectedApps
   if (rule.appName === '*') {
@@ -1404,6 +1446,9 @@ function editRule(rule: NotificationRule): void {
 }
 
 async function saveRule(): Promise<void> {
+  // 先处理输入框中未提交的 IP（用户可能直接输入后点击保存，没按回车）
+  addIPWhitelist()
+
   if (!newRule.value.name) {
     showAlert('提示', '请输入规则名称', 'warning')
     return
@@ -1436,7 +1481,8 @@ async function saveRule(): Promise<void> {
     selectedApps: selectedApps.value,
     channels: selectedChannels,
     keywords: keywordsInput.value.split(',').map(k => k.trim()).filter(Boolean),
-    excludeKeywords: excludeKeywordsInput.value.split(',').map(k => k.trim()).filter(Boolean)
+    excludeKeywords: excludeKeywordsInput.value.split(',').map(k => k.trim()).filter(Boolean),
+    ipWhitelist: newRule.value.ipWhitelist
   }
 
   try {
@@ -2281,6 +2327,73 @@ input:checked + .slider:before {
 .qr-cancel-btn:hover,
 .qr-refresh-btn:hover {
   background: var(--bg-color-3);
+}
+
+/* Tag input for IP whitelist and keyword lists */
+.tags-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: var(--bg-color-2);
+  min-height: 36px;
+  cursor: text;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--primary-color);
+  color: var(--text-color-on-primary);
+  border-radius: var(--radius-2xs);
+  font-size: var(--font-size-sm);
+}
+
+.tag-text {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-color-on-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 0;
+  line-height: 1;
+}
+
+.tag-remove:hover {
+  opacity: 1;
+}
+
+.tag-input {
+  flex: 1;
+  min-width: 120px;
+  border: none !important;
+  background: transparent !important;
+  outline: none;
+  font-size: var(--font-size-md);
+  color: var(--text-color-1);
+  padding: 0 !important;
+  margin: 0;
+}
+
+.tag-input::placeholder {
+  color: var(--text-color-3);
 }
 
 @media (max-width: 768px) {

@@ -574,6 +574,13 @@ func ruleToStore(rule map[string]interface{}) services.NotificationRule {
 	if v, ok := rule["quietHoursEnd"].(string); ok {
 		r.QuietHoursEnd = v
 	}
+	if iws, ok := rule["ipWhitelist"].([]interface{}); ok {
+		for _, iw := range iws {
+			if s, ok := iw.(string); ok {
+				r.IPWhitelist = append(r.IPWhitelist, s)
+			}
+		}
+	}
 
 	return r
 }
@@ -656,6 +663,13 @@ func addRule(c *gin.Context) {
 	if v, ok := body["quietHoursEnd"].(string); ok {
 		rule.QuietHoursEnd = v
 	}
+	if iws, ok := body["ipWhitelist"].([]interface{}); ok {
+		for _, iw := range iws {
+			if s, ok := iw.(string); ok {
+				rule.IPWhitelist = append(rule.IPWhitelist, s)
+			}
+		}
+	}
 
 	if err := notifStore.AddRule(rule); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
@@ -686,6 +700,7 @@ func updateRule(c *gin.Context) {
 		"keywords": true, "excludeKeywords": true, "pattern": true,
 		"channels": true, "cooldown": true, "maxNotifications": true,
 		"quietHoursStart": true, "quietHoursEnd": true, "status": true,
+		"ipWhitelist": true,
 	}
 
 	updated := *existing
@@ -767,6 +782,16 @@ func updateRule(c *gin.Context) {
 						}
 					}
 					updated.LogPaths = strs
+				}
+			case "ipWhitelist":
+				if arr, ok := v.([]interface{}); ok {
+					var strs []string
+					for _, item := range arr {
+						if s, ok := item.(string); ok {
+							strs = append(strs, s)
+						}
+					}
+					updated.IPWhitelist = strs
 				}
 			}
 		}

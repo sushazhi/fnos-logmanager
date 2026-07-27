@@ -3,6 +3,7 @@ package utils
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
@@ -219,4 +220,62 @@ func IsPrivateURL(rawURL string) bool {
 	}
 
 	return false
+}
+
+// cleanIPStr strips the "::ffff:" IPv4-mapped IPv6 prefix and removes any port
+// suffix, returning a clean IP address string suitable for parsing.
+func cleanIPStr(ip string) string {
+	s := strings.TrimPrefix(ip, "::ffff:")
+	// Remove port if present (e.g. "192.168.1.1:8080" → "192.168.1.1")
+	if h, _, err := net.SplitHostPort(s); err == nil {
+		s = h
+	}
+	return s
+}
+
+// IsIPInCIDR checks whether the given IP address falls within the specified
+// CIDR range. Supports both IPv4 and IPv6.
+//
+// The cidr parameter accepts:
+//   - CIDR notation: "192.168.1.0/24", "10.0.0.0/8", "::1/128"
+//   - Exact IP: "192.168.1.100" (treated as /32 or /128)
+//
+// Returns false if either the IP or the CIDR string is malformed.
+func IsIPInCIDR(ip, cidr string) bool {
+	addr, err := netip.ParseAddr(cleanIPStr(ip))
+	if err != nil {
+		return false
+	}
+
+	// If no '/' in cidr, treat as an exact IP match
+	if !strings.Contains(cidr, "/") {
+		other, err := netip.ParseAddr(cleanIPStr(cidr))
+		if err != nil {
+			return false
+		}
+		return addr.Compare(other) == 0
+	}
+
+	prefix, err := netip.ParsePrefix(cidr)
+	if err != nil {
+		return false
+	}
+	return prefix.Contains(addr)
+}
+
+// IsIPInAnyCIDR checks whether the given IP address falls within any of the
+// specified CIDR ranges. Returns false for an empty or nil slice.
+func IsIPInAnyCIDR(ip string, cidrs []string) bool {
+	for _, cidr := range cidrs {
+		if IsIPInCIDR(ip, cidr) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsPrivateIP exported wrapper for isPrivateIP, used by the notification IP
+// whitelist feature to determine if an IP belongs to a private range.
+func IsPrivateIP(ip string) bool {
+	return isPrivateIP(ip)
 }

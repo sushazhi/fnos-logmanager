@@ -15,6 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 	"github.com/sushazhi/fnos-logmanager/internal/config"
 	"github.com/sushazhi/fnos-logmanager/internal/types"
+	"github.com/sushazhi/fnos-logmanager/internal/utils"
 )
 
 // EventLogEntry represents a system event log entry (backward compatible).
@@ -1029,6 +1030,37 @@ func matchKeywords(keywords []string, text string) bool {
 	return false
 }
 
+// extractEventIP extracts the source IP address from an event's parameter JSON.
+// Login events (LoginSucc/LoginFail) store the source IP under the "IP" key
+// in the parameter JSON blob. Returns empty string if no IP is found.
+func extractEventIP(event types.EnhancedEventLogEntry) string {
+	if event.Param == "" {
+		return ""
+	}
+	var params map[string]interface{}
+	if err := json.Unmarshal([]byte(event.Param), &params); err != nil {
+		return ""
+	}
+	if ip, ok := params["IP"].(string); ok && ip != "" {
+		return ip
+	}
+	return ""
+}
+
+// isEventIPWhitelisted checks whether the event's source IP falls within
+// the rule's IPWhitelist. Returns false if the rule has no whitelist
+// configured or if no IP can be extracted from the event.
+func isEventIPWhitelisted(event types.EnhancedEventLogEntry, rule NotificationRule) bool {
+	if len(rule.IPWhitelist) == 0 {
+		return false
+	}
+	ip := extractEventIP(event)
+	if ip == "" {
+		return false
+	}
+	return utils.IsIPInAnyCIDR(ip, rule.IPWhitelist)
+}
+
 // matchEventNotificationRules finds notification rules that match this event.
 func matchEventNotificationRules(event types.EnhancedEventLogEntry) []string {
 	ns := getNotifStore()
@@ -1079,6 +1111,13 @@ func matchEventNotificationRules(event types.EnhancedEventLogEntry) []string {
 			if err != nil || !re.MatchString(message) {
 				continue
 			}
+		}
+
+		// Check IP whitelist: if the event has a source IP that matches the
+		// rule's IPWhitelist CIDR list, skip notification for this event.
+		// This is useful for login events from trusted/internal networks.
+		if isEventIPWhitelisted(event, rule) {
+			continue
 		}
 
 		matched = append(matched, rule.ID)

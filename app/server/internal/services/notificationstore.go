@@ -42,6 +42,7 @@ type NotificationRule struct {
 	MaxNotifications int       `json:"maxNotifications"` // per hour
 	QuietHoursStart  string    `json:"quietHoursStart,omitempty"`
 	QuietHoursEnd    string    `json:"quietHoursEnd,omitempty"`
+	IPWhitelist      []string  `json:"ipWhitelist,omitempty"`      // CIDR/IP whitelist: login events from these IPs skip notification
 	TriggerCount     int       `json:"triggerCount"`
 	LastTriggeredAt  *time.Time `json:"lastTriggeredAt,omitempty"`
 	CreatedAt        time.Time `json:"createdAt"`

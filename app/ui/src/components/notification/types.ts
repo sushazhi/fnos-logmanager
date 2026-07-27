@@ -34,6 +34,7 @@ export interface RuleItem {
   quietHoursStart: string;
   quietHoursEnd: string;
   channels: string[];
+  ipWhitelist?: string[];
 }
 
 export const CHANNEL_TYPES: Record<string, string> = {
