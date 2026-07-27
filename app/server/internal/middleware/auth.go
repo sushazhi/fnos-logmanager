@@ -55,9 +55,9 @@ func ValidateToken(c *gin.Context) {
 	isGatewayMode := config.IsGatewayMode()
 
 	if isGatewayMode {
-		uid := c.GetHeader("X-Trim-Uid")
+		uid := c.GetHeader("X-Trim-Userid")
 		if uid != "" {
-			slog.Debug("auth gateway ok: X-Trim-Uid present",
+			slog.Debug("auth gateway ok: X-Trim-Userid present",
 				"uid", uid, "path", c.Request.URL.Path, "clientIP", clientIP)
 			sessionToken := services.CreateSession(uid)
 			c.Set("sessionToken", sessionToken)
@@ -66,7 +66,7 @@ func ValidateToken(c *gin.Context) {
 			c.Next()
 			return
 		}
-		slog.Info("auth gateway: X-Trim-Uid MISSING, falling to token",
+		slog.Debug("auth gateway: X-Trim-Userid missing, falling to token",
 			"path", c.Request.URL.Path, "clientIP", clientIP)
 	}
 

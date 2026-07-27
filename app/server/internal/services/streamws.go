@@ -641,7 +641,7 @@ func CloseDockerStreamWS() {
 
 func authenticateWS(r *http.Request, clientIP string, path string) bool {
 	if config.IsGatewayMode() {
-		uid := r.Header.Get("X-Trim-Uid")
+		uid := r.Header.Get("X-Trim-Userid")
 		if uid != "" {
 			// Gateway handles auth, create local session
 			CreateSession(uid)
