@@ -310,6 +310,10 @@ func SetConfig(key, value string) {
 		cfg.BARK_PUSH = value
 	case "DD_BOT_TOKEN":
 		cfg.DD_BOT_TOKEN = value
+	case "DINGTALK_TOKEN":
+		cfg.DD_BOT_TOKEN = value
+	case "DINGTALK_SECRET":
+		cfg.DD_BOT_SECRET = value
 	case "FSKEY":
 		cfg.FSKEY = value
 	case "FEISHU_APP_ID":
@@ -347,7 +351,7 @@ func SetConfigs(configs map[string]string) {
 
 	for key, value := range configs {
 		if value == "" {
-			slog.Info("SetConfigs skipping empty value", "key", key)
+			slog.Debug("SetConfigs skipping empty value", "key", key)
 			continue
 		}
 		found := false
@@ -364,13 +368,13 @@ func SetConfigs(configs map[string]string) {
 				if f.CanSet() && f.Kind() == reflect.String {
 					f.SetString(value)
 					found = true
-					slog.Info("SetConfigs set via reflection", "key", key)
+					slog.Debug("SetConfigs set via reflection", "key", key)
 				}
 				break
 			}
 		}
 		if !found {
-			slog.Info("SetConfigs fallback to SetConfig", "key", key)
+			slog.Debug("SetConfigs fallback to SetConfig", "key", key)
 			// Fallback to per-key SetConfig for backward compatibility
 			SetConfig(key, value)
 		}
