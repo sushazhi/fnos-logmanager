@@ -61,6 +61,10 @@
               <button class="dropdown-option" @click="handleExport('csv')">CSV 表格</button>
             </div>
           </div>
+          <button class="action-btn" @click="handleCopyVisible" title="复制可见区域">
+            <span class="action-icon">⧉</span>
+            <span class="action-text">复制</span>
+          </button>
           <button class="action-btn" @click="$emit('addBookmark')" title="添加书签">
             <span class="action-icon">☆</span>
             <span class="action-text">书签</span>
@@ -129,6 +133,9 @@
           </div>
         </div>
       </div>
+      <transition name="copy-toast">
+        <div class="copy-toast" v-if="copyFeedback">{{ copyFeedback }}</div>
+      </transition>
     </div>
   </div>
 </template>
@@ -294,6 +301,61 @@ const currentMatchIndex = ref(0)
 const logBody = ref<HTMLElement | null>(null)
 const currentLineIndex = ref(-1)
 const showExportMenu = ref(false)
+const copyFeedback = ref('')
+let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
+
+function copyToClipboard(text: string, lineCount: number): void {
+  // 同步 textarea 方式，确保在用户手势内执行
+  let success = false
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.left = '0'
+    textarea.style.top = '0'
+    textarea.style.width = '0'
+    textarea.style.height = '0'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    success = document.execCommand('copy')
+    document.body.removeChild(textarea)
+  } catch {
+    success = false
+  }
+  // 降级：异步 clipboard API
+  if (!success) {
+    navigator.clipboard?.writeText(text).catch(() => {})
+  }
+  copyFeedback.value = success
+    ? '已复制 ' + lineCount + ' 行'
+    : '复制失败'
+  if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer)
+  copyFeedbackTimer = setTimeout(() => { copyFeedback.value = '' }, 2000)
+}
+
+function handleCopyVisible(): void {
+  if (!logBody.value) return
+  const scrollTop = logBody.value.scrollTop
+  const clientHeight = logBody.value.clientHeight
+  // 计算实际可见范围（去掉 BUFFER_SIZE 的预渲染行）
+  const startLine = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT))
+  const endLine = Math.min(
+    allLines.value.length - 1,
+    Math.ceil((scrollTop + clientHeight) / LINE_HEIGHT)
+  )
+  const lines: string[] = []
+  for (let i = startLine; i <= endLine; i++) {
+    if (allLines.value[i] !== undefined) {
+      lines.push(allLines.value[i])
+    }
+  }
+  const lineCount = lines.length
+  const text = lines.join('\n')
+  if (!text) return
+  copyToClipboard(text, lineCount)
+}
 
 const searchOptions = reactive({
   mode: 'keyword' as 'keyword' | 'regex'
@@ -1520,5 +1582,38 @@ onUnmounted(() => {
   }
 }
 
+/* Copy toast (HarmonyOS 7.0 Liquid Glass) */
+.copy-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--primary-color) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-color-on-primary);
+  padding: 10px 24px;
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 10000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.copy-toast-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.copy-toast-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.copy-toast-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(12px);
+}
+.copy-toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
+}
 
 </style>
