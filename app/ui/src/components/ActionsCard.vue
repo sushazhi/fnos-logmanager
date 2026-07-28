@@ -103,7 +103,7 @@ const statusIcons: Record<StatusType, string> = {
 }
 </script>
 
-<style>
+<style scoped>
 .actions-row {
   display: flex;
   gap: var(--spacing-sm);
@@ -128,20 +128,32 @@ button {
   );
   color: var(--text-color);
   font-size: var(--font-size-md);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--depth-1);
+  position: relative;
+  overflow: hidden;
+}
+
+button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-2px) perspective(var(--perspective-near)) rotateX(0.5deg);
+  box-shadow: var(--depth-2), 0 0 20px var(--glow-primary);
 }
 
 button:active {
-  transform: scale(0.98);
+  transform: scale(var(--scale-active));
+  box-shadow: var(--depth-1), 0 0 28px var(--glow-primary-strong);
 }
 
 button.danger {
@@ -159,6 +171,11 @@ button.danger:hover {
     var(--card-color-4) 50%,
     var(--card-color-3-light) 100%
   );
+  box-shadow: var(--depth-2), 0 0 20px var(--glow-error);
+}
+
+button.danger:active {
+  box-shadow: var(--depth-1), 0 0 28px var(--glow-error);
 }
 
 button.warning {
@@ -176,13 +193,17 @@ button.warning:hover {
     var(--warning-color) 50%,
     var(--error-color) 100%
   );
+  box-shadow: var(--depth-2), 0 0 20px var(--glow-warning);
 }
 
 .filter-section {
   margin-top: var(--spacing-lg);
   padding: var(--spacing-md);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
 }
 
 .filter-toggle {
@@ -192,7 +213,7 @@ button.warning:hover {
 }
 
 .filter-label {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   font-size: var(--font-size-md);
   color: var(--text-color-1);
 }
@@ -232,11 +253,12 @@ button.warning:hover {
   background-color: white;
   transition: var(--transition-base);
   border-radius: 50%;
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--depth-0);
 }
 
 input:checked + .slider {
   background: var(--primary-color);
+  box-shadow: 0 0 8px var(--glow-primary);
 }
 
 input:checked + .slider::before {
@@ -245,7 +267,7 @@ input:checked + .slider::before {
 
 .filter-status {
   font-size: var(--font-size-sm);
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
   color: var(--text-color-2);
 }
 
@@ -257,27 +279,35 @@ input:checked + .slider::before {
   align-items: center;
   gap: var(--spacing-sm);
   font-size: var(--font-size-md);
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
 }
 
 .status.success {
   background: var(--success-bg);
   color: var(--success-color);
+  border-color: rgba(100, 187, 90, 0.2);
 }
 
 .status.error {
   background: var(--error-bg);
   color: var(--error-color);
+  border-color: rgba(232, 64, 38, 0.2);
 }
 
 .status.warning {
   background: var(--warning-bg);
   color: var(--warning-color);
+  border-color: rgba(232, 179, 57, 0.2);
 }
 
 .status.loading {
   background: var(--info-bg);
   color: var(--info-color);
+  border-color: rgba(49, 122, 247, 0.2);
 }
 
 .status-icon {
@@ -285,16 +315,26 @@ input:checked + .slider::before {
 }
 
 .btn-primary:hover {
-  box-shadow: 0 0 20px var(--glow-primary);
+  box-shadow: var(--depth-2), 0 0 20px var(--glow-primary);
 }
 
 .btn-primary:active {
   transform: scale(0.97);
-  box-shadow: 0 0 28px var(--glow-primary-strong);
+  box-shadow: var(--depth-1), 0 0 28px var(--glow-primary-strong);
 }
 
 .glass-card {
   border: 1px solid var(--glass-border);
+  position: relative;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-shine);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 @media (max-width: 768px) {

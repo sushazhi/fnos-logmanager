@@ -1,7 +1,7 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <div class="modal active non-blocking">
-    <div class="modal-content large">
+  <div class="hm-overlay-base modal non-blocking">
+    <div class="hm-modal-base modal-content large">
       <div class="tab-bar" v-if="logsStore.logTabs.length > 0" @click.right.prevent="closeContextMenu">
         <template v-for="(tab, idx) in logsStore.logTabs" :key="tab.id">
           <div class="tab-group-divider" v-if="showGroupDivider(idx)" title="分组边界"></div>
@@ -777,7 +777,7 @@ onUnmounted(() => {
 }
 .tab-context-menu {
   position: fixed;
-  z-index: 1300;
+  z-index: var(--z-context-menu);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -802,28 +802,16 @@ onUnmounted(() => {
   background: var(--divider-color);
   margin: var(--spacing-xs) 0;
 }
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1000;
-}
 .modal.non-blocking {
   pointer-events: none;
   background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  /* 结果列表抽屉 Teleport 到 body 末尾（z-overlay:1000），日志查看器需高一层 */
+  z-index: var(--z-modal);
 }
 .modal.non-blocking .modal-content {
   pointer-events: auto;
-}
-.modal.active {
-  height: 100%;
-  background: var(--overlay);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1100;
 }
 
 .modal-content.large {
@@ -831,11 +819,6 @@ onUnmounted(() => {
   max-width: 1200px;
   height: 85vh;
   max-height: 85vh;
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -970,7 +953,7 @@ onUnmounted(() => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
-  z-index: 1200;
+  z-index: var(--z-drawer);
   min-width: 140px;
   overflow: hidden;
   animation: dropdown-enter var(--transition-fast) ease-out;
@@ -1070,7 +1053,7 @@ onUnmounted(() => {
 .search-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--info-bg);
+  box-shadow: var(--focus-ring);
 }
 
 .search-input.regex-mode {
@@ -1079,7 +1062,7 @@ onUnmounted(() => {
 
 .search-input.regex-mode:focus {
   border-color: var(--warning-color);
-  box-shadow: 0 0 0 2px var(--warning-bg);
+  box-shadow: var(--focus-ring-error);
 }
 
 .search-mode-segment {
@@ -1248,7 +1231,7 @@ onUnmounted(() => {
 
 .log-line {
   display: flex;
-  padding: 0 15px;
+  padding: 0 var(--spacing-lg);
   height: 24px;
   min-width: max-content;
 }
@@ -1589,23 +1572,23 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   background: color-mix(in srgb, var(--primary-color) 92%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color-on-primary);
-  padding: 10px 24px;
+  padding: var(--spacing-sm) var(--spacing-2xl);
   border-radius: var(--radius-xs);
   font-size: var(--font-size-sm);
   box-shadow: var(--shadow-md);
-  z-index: 10000;
+  z-index: var(--z-toast);
   pointer-events: none;
   white-space: nowrap;
 }
 
 .copy-toast-enter-active {
-  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity var(--transition-base), transform var(--transition-spring);
 }
 .copy-toast-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity var(--transition-base), transform var(--transition-base);
 }
 .copy-toast-enter-from {
   opacity: 0;

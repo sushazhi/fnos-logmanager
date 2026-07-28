@@ -82,17 +82,18 @@ defineProps<{
   position: relative;
   padding: var(--spacing-lg);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  box-shadow: var(--depth-1);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
   overflow: hidden;
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  perspective: var(--perspective-near);
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  transform: perspective(var(--perspective-near)) translateY(var(--translate-hover)) rotateX(var(--rotate-subtle));
+  box-shadow: var(--depth-2), 0 0 20px var(--glow-primary-soft);
 }
 
 .stat-card::before {
@@ -102,12 +103,28 @@ defineProps<{
   left: 0;
   right: 0;
   bottom: 0;
-  opacity: 0.1;
-  transition: opacity var(--transition-fast);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+  background: var(--glass-shine);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 40%, rgba(0,0,0,0.06) 100%);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .stat-card:hover::before {
-  opacity: 0.15;
+  opacity: 1;
+}
+
+.stat-card:active {
+  transform: scale(0.97);
 }
 
 /* 渐变色卡片 */
@@ -161,16 +178,31 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-color-3);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-sm);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--depth-1), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .stat-icon svg {
   width: 24px;
   height: 24px;
-  color: var(--text-color);
+  color: var(--text-color-on-primary);
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
 }
 
 .stat-content {
@@ -180,21 +212,32 @@ defineProps<{
 
 .stat-card .value {
   font-size: var(--font-size-5xl);
-  font-weight: 600;
+  font-weight: var(--font-weight-bold);
   margin-bottom: var(--spacing-xs);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--letter-spacing-tight);
   line-height: 1.2;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .stat-card .label {
   font-size: var(--font-size-sm);
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
   opacity: 0.9;
   white-space: nowrap;
 }
 
 .glass-card {
   border: 1px solid var(--glass-border);
+  position: relative;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-shine);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 @media (max-width: 768px) {
@@ -221,7 +264,7 @@ defineProps<{
   }
 
   .stat-card .value {
-    font-size: var(--font-size-3xl);
+    font-size: var(--font-size-4xl);
   }
 
   .stat-card .label {
@@ -231,7 +274,7 @@ defineProps<{
 
 @media (max-width: 480px) {
   .stat-card .value {
-    font-size: var(--font-size-2xl);
+    font-size: var(--font-size-3xl);
   }
 
   .stat-icon {

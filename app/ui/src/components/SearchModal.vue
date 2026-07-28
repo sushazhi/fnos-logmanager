@@ -53,14 +53,40 @@ function execute(): void {
   padding: var(--spacing-2xl);
   max-width: 400px;
   width: 90%;
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-shine);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.modal-content::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: var(--glass-edge-light);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 2;
 }
 
 .modal-header {
+  position: relative;
+  z-index: 3;
   font-size: var(--font-size-2xl);
-  font-weight: 600;
-  margin-bottom: var(--spacing-xl);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: 0;
+  padding-bottom: var(--spacing-md);
   color: var(--text-color-1);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--letter-spacing-tight);
+  border-bottom: 1px solid var(--divider-color);
 }
 
 .form-group {
@@ -70,28 +96,33 @@ function execute(): void {
 .form-group label {
   display: block;
   margin-bottom: var(--spacing-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   font-size: var(--font-size-md);
-  color: var(--text-color-1);
+  color: var(--text-color-2);
 }
 
 .form-group input,
 .form-group select {
   width: 100%;
-  padding: var(--spacing-sm);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-md);
   font-family: var(--font-family);
-  background: var(--card-bg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color-1);
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative;
+  z-index: 3;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: var(--primary-color);
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--focus-ring);
 }
 
 .form-group input::placeholder {
@@ -102,6 +133,8 @@ function execute(): void {
   margin-top: var(--spacing-xs);
   font-size: var(--font-size-sm);
   color: var(--text-color-2);
+  position: relative;
+  z-index: 3;
 }
 
 .modal-footer {
@@ -117,17 +150,23 @@ function execute(): void {
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-md);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   transition: all var(--transition-fast);
+  position: relative;
+  z-index: 3;
 }
 
 .modal-footer button.secondary {
-  background: var(--bg-color-2);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   color: var(--text-color-1);
 }
 
 .modal-footer button.secondary:hover {
-  background: var(--bg-color-3);
+  background: var(--glass-bg-heavy);
+  border-color: var(--glass-border-strong);
 }
 
 .modal-footer button:not(.secondary) {
@@ -137,7 +176,7 @@ function execute(): void {
 
 .modal-footer button:not(.secondary):hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 0 20px var(--glow-primary), var(--shadow-md);
 }
 
 .modal-footer button:active {
@@ -145,6 +184,6 @@ function execute(): void {
 }
 
 .modal-footer button:not(.secondary):active {
-  box-shadow: 0 0 20px var(--glow-primary);
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 </style>

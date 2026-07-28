@@ -1,30 +1,48 @@
 :root {
-  /* HarmonyOS NEXT 6.1 - 字体系统 */
-  --base-font-size: 16px;
-  --font-family: 'HarmonyOS Sans', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacFontFont, sans-serif;
-  --font-size-2xs: 0.625rem;   /* 10px */
-  --font-size-xs: 0.6875rem;   /* 11px */
-  --font-size-sm: 0.75rem;     /* 12px */
-  --font-size-base: 0.8125rem; /* 13px */
-  --font-size-md: 0.875rem;    /* 14px */
-  --font-size-lg: 0.9375rem;   /* 15px */
-  --font-size-xl: 1rem;        /* 16px */
-  --font-size-2xl: 1.125rem;   /* 18px */
-  --font-size-3xl: 1.25rem;    /* 20px */
-  --font-size-4xl: 1.375rem;   /* 22px */
-  --font-size-5xl: 1.5rem;     /* 24px */
+  /* ═══════════════════════════════════════════════════════════════
+     鸿蒙 HarmonyOS 7.0 — 完整设计令牌系统 (Design Token System)
+     空间化设计 · 液态玻璃 · 3D景深 · 沉浸光感
+     ═══════════════════════════════════════════════════════════════ */
 
-  /* 主题色 - 鸿蒙蓝青 */
+  /* ── 字体系统 (可变自适应排版) ── */
+  --base-font-size: 16px;
+  --font-family: 'HarmonyOS Sans', 'PingFang SC', 'Microsoft YaHei', -apple-system, system-ui, sans-serif;
+  --font-mono: 'Monaco', 'Menlo', 'Consolas', 'SF Mono', monospace;
+  --font-size-2xs: clamp(0.5rem, 0.45rem + 0.25vw, 0.625rem);   /* 10-12px */
+  --font-size-xs: clamp(0.625rem, 0.55rem + 0.35vw, 0.6875rem); /* 11-13px */
+  --font-size-sm: clamp(0.6875rem, 0.625rem + 0.35vw, 0.75rem); /* 12-14px */
+  --font-size-base: clamp(0.75rem, 0.7rem + 0.35vw, 0.8125rem); /* 13-15px */
+  --font-size-md: clamp(0.8125rem, 0.75rem + 0.35vw, 0.875rem); /* 14-16px */
+  --font-size-lg: clamp(0.875rem, 0.8rem + 0.5vw, 0.9375rem);   /* 15-17px */
+  --font-size-xl: clamp(0.9375rem, 0.85rem + 0.5vw, 1rem);      /* 16-18px */
+  --font-size-2xl: clamp(1rem, 0.9rem + 0.65vw, 1.125rem);      /* 18-20px */
+  --font-size-3xl: clamp(1.125rem, 1rem + 0.75vw, 1.25rem);     /* 20-22px */
+  --font-size-4xl: clamp(1.25rem, 1.1rem + 0.85vw, 1.5rem);     /* 22-26px */
+  --font-size-5xl: clamp(1.5rem, 1.3rem + 1vw, 1.75rem);        /* 26-30px */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.02em;
+
+  /* ── 主题色 - 鸿蒙蓝青 ── */
   --primary-gradient: linear-gradient(135deg, #0A59F7 0%, #317AF7 50%, #54B2F7 100%);
   --primary-color: #0A59F7;
   --primary-hover: #0A50E0;
   --primary-pressed: #0847C9;
+  --primary-soft: rgba(10, 89, 247, 0.08);
+  --primary-mist: rgba(10, 89, 247, 0.04);
 
-  /* 鸿蒙渐变 */
+  /* ── 鸿蒙渐变── */
   --rainbow-gradient: linear-gradient(135deg, #0A59F7 0%, #317AF7 50%, #54B2F7 100%);
   --rainbow-gradient-animated: linear-gradient(90deg, #0A59F7, #317AF7, #54B2F7, #0A59F7);
 
-  /* 统计卡片色系 - 鸿蒙6.0纯净色 */
+  /* ── 统计卡片色系 - 鸿蒙7.0纯净色 ── */
   --card-color-1: #0A59F7;
   --card-color-1-light: #317AF7;
   --card-color-2: #54B2F7;
@@ -34,58 +52,88 @@
   --card-color-4: #E84026;
   --card-color-4-light: #F06048;
 
-  /* 语义色彩 - 鸿蒙6.0 */
+  /* ── 语义色彩 ── */
   --success-color: #64BB5A;
   --warning-color: #E8B339;
   --error-color: #E84026;
   --info-color: #317AF7;
 
-  /* 语义背景色（低透明度） */
+  /* ── 语义背景色 (低透明度) ── */
   --success-bg: rgba(100, 187, 90, 0.1);
   --warning-bg: rgba(232, 179, 57, 0.1);
   --error-bg: rgba(232, 64, 38, 0.1);
   --info-bg: rgba(49, 122, 247, 0.1);
 
-  /* 遮罩层 */
+  /* ── 遮罩层 ── */
   --overlay: rgba(0, 0, 0, 0.5);
+  --overlay-heavy: rgba(0, 0, 0, 0.65);
+  --overlay-light: rgba(0, 0, 0, 0.25);
 
-  /* 日志级别色 */
+  /* ── 日志级别色 ── */
   --log-debug-color: #9AA5B1;
   --log-info-color: #317AF7;
   --log-warning-color: #E8B339;
   --log-error-color: #E84026;
   --log-critical-color: #C8301E;
 
-  /* 背景色 - 日间模式(鸿蒙白) */
+  /* ── 背景色 - 日间模式(鸿蒙白) ── */
   --bg-color: #F1F3F5;
   --bg-color-1: #FFFFFF;
   --bg-color-2: #F1F3F5;
   --bg-color-3: #E8E8E8;
   --bg-color-4: #D9D9D9;
+  --bg-gradient: linear-gradient(180deg, #F1F3F5 0%, #E8EAEC 100%);
 
-  /* 卡片背景 */
+  /* ── 卡片背景 ── */
   --card-bg: #FFFFFF;
   --card-hover: #F1F3F5;
 
-  /* 文字颜色 - 日间模式 */
+  /* ── 文字颜色 - 日间模式 ── */
   --text-color: #182431;
   --text-color-1: #182431;
   --text-color-2: #5A6A7A;
   --text-color-3: #9AA5B1;
   --text-color-4: #C4C7CC;
 
-  /* 边框颜色 - 日间模式 */
+  /* ── 边框颜色 - 日间模式 ── */
   --border-color: #E5E6E8;
   --divider-color: #F1F3F5;
 
-  /* 阴影 - 鸿蒙6.0柔和扩散 */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
+  /* ═══════════════════════════════════════════════════════════════
+     鸿蒙 7.0 空间化 · 3D景深阴影系统 (Spatial Depth Shadows)
+     每层深度对应不同场景：
+       depth-0: 平面元素 (文字/图标)
+       depth-1: 卡片/面板 (轻微浮动)
+       depth-2: 弹窗/菜单 (中层抬升)
+       depth-3: 模态框/抽屉 (高层悬浮)
+       depth-4: Toast/通知 (最高层)
+     ═══════════════════════════════════════════════════════════════ */
+  --depth-0: 0 0 0 rgba(0, 0, 0, 0);
+  --depth-1: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --depth-2: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+  --depth-3: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --depth-4: 0 16px 48px rgba(0, 0, 0, 0.10), 0 4px 16px rgba(0, 0, 0, 0.06);
+  --depth-5: 0 24px 64px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08);
 
-  /* 圆角 - 鸿蒙6.1大圆角 */
+  /* 空间化 z-index 层 */
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 1000;
+  --z-modal: 1100;
+  --z-drawer: 1200;
+  --z-context-menu: 1300;
+  --z-toast: 2000;
+  --z-tooltip: 3000;
+
+  /* 兼容旧变量 */
+  --shadow-xs: var(--depth-1);
+  --shadow-sm: var(--depth-2);
+  --shadow-md: var(--depth-3);
+  --shadow-lg: var(--depth-4);
+  --shadow-xl: var(--depth-5);
+
+  /* ── 圆角 - 鸿蒙7.0 大圆角系统 ── */
   --radius-3xs: 2px;
   --radius-2xs: 4px;
   --radius-xs: 8px;
@@ -96,7 +144,7 @@
   --radius-2xl: 28px;
   --radius-full: 9999px;
 
-  /* 间距 */
+  /* ── 间距 ── */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 12px;
@@ -104,39 +152,113 @@
   --spacing-xl: 20px;
   --spacing-2xl: 24px;
   --spacing-3xl: 32px;
+  --spacing-4xl: 40px;
+  --spacing-5xl: 48px;
 
-  /* 过渡 - 鸿蒙标准曲线 (FastOutSlowIn) */
-  --ease-harmony: cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-fast: 0.1s var(--ease-harmony);
-  --transition-base: 0.2s var(--ease-harmony);
+  /* ═══════════════════════════════════════════════════════════════
+     鸿蒙 7.0 过渡曲线系统 (Motion Curves)
+     标准: cubic-bezier(0.4, 0, 0.2, 1)    — 自然减速
+     强调: cubic-bezier(0.34, 1.56, 0.64, 1) — 弹性回弹
+     进入: cubic-bezier(0.05, 0.7, 0.1, 1.0) — 平滑进入
+     退出: cubic-bezier(0.3, 0.0, 0.8, 0.15) — 快速退出
+     ═══════════════════════════════════════════════════════════════ */
+  --ease-harmony: cubic-bezier(0.4, 0, 0.2, 1);         /* 标准曲线 */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);     /* 弹性回弹 */
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1.0);      /* 平滑进入 */
+  --ease-exit: cubic-bezier(0.3, 0.0, 0.8, 0.15);       /* 快速退出 */
+  --ease-bounce: cubic-bezier(0.18, 0.89, 0.32, 1.28);   /* 弹跳效果 */
+  --ease-emphatic: cubic-bezier(0.25, 0.8, 0.25, 1);    /* 强调减速 */
+
+  --transition-micro: 0.12s var(--ease-harmony);
+  --transition-fast: 0.18s var(--ease-harmony);
+  --transition-base: 0.25s var(--ease-harmony);
   --transition-slow: 0.35s var(--ease-harmony);
+  --transition-spring: 0.4s var(--ease-spring);
+  --transition-bounce: 0.5s var(--ease-bounce);
   --motion-duration: 280ms;
 
-  /* 文字在实色/渐变底色上的颜色（替代散落的 #fff） */
+  /* ── 文字在实色/渐变底色上的颜色 ── */
   --text-color-on-primary: #FFFFFF;
 
-  /* 鸿蒙 7.0 液态玻璃 (Liquid Glass) 表面令牌 */
-  --glass-bg: rgba(255, 255, 255, 0.78);
+  /* ═══════════════════════════════════════════════════════════════
+     鸿蒙 7.0 液态玻璃系统 (Liquid Glass)
+     多层玻璃表面：从轻柔雾面到强效光泽
+     ═══════════════════════════════════════════════════════════════ */
+  --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-bg-strong: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-bg-heavy: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --glass-border-strong: rgba(255, 255, 255, 0.55);
   --glass-blur: 20px;
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --glass-blur-heavy: 32px;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), 0 1px 4px rgba(0, 0, 0, 0.04);
+  --glass-edge-light: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --glass-edge-dark: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-shine: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.02) 80%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
 
-  /* 鸿蒙 7.0 动态光效（主色辉光，由 useThemeColor 注入实际色值） */
-  --glow-primary: rgba(10, 89, 247, 0.35);
-  --glow-primary-strong: rgba(10, 89, 247, 0.55);
+  /* ═══════════════════════════════════════════════════════════════
+     鸿蒙 7.0 动态光效系统 (Dynamic Glow)
+     主色辉光、强调色辉光、悬浮光晕
+     ═══════════════════════════════════════════════════════════════ */
+  --glow-primary: rgba(10, 89, 247, 0.30);
+  --glow-primary-strong: rgba(10, 89, 247, 0.50);
+  --glow-primary-soft: rgba(10, 89, 247, 0.15);
+  --glow-success: rgba(100, 187, 90, 0.30);
+  --glow-warning: rgba(232, 179, 57, 0.30);
+  --glow-error: rgba(232, 64, 38, 0.30);
+
+  /* ── 光晕扩散半径 ── */
+  --glow-radius-sm: 12px;
+  --glow-radius-md: 20px;
+  --glow-radius-lg: 30px;
+
+  /* ═══════════════════════════════════════════════════════════════
+     鸿蒙 7.0 聚焦环 (Focus Ring)
+     ═══════════════════════════════════════════════════════════════ */
+  --focus-ring: 0 0 0 3px rgba(10, 89, 247, 0.25);
+  --focus-ring-error: 0 0 0 3px rgba(232, 64, 38, 0.25);
+  --focus-ring-width: 3px;
+
+  /* ═══════════════════════════════════════════════════════════════
+     鸿蒙 7.0 滚动条 (Scrollbar)
+     ═══════════════════════════════════════════════════════════════ */
+  --scrollbar-width: 6px;
+  --scrollbar-track: rgba(0, 0, 0, 0.04);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+
+  /* ═══════════════════════════════════════════════════════════════
+     鸿蒙 7.0 空间化变换 (Spatial Transforms)
+     ═══════════════════════════════════════════════════════════════ */
+  --perspective-near: 800px;
+  --perspective-far: 1200px;
+  --rotate-subtle: 0.5deg;
+  --scale-hover: 1.02;
+  --scale-active: 0.97;
+  --translate-hover: -2px;
+  --translate-active: 0;
 }
 
-/* 深色模式 - 鸿蒙6.1 */
+/* ═══════════════════════════════════════════════════════════════
+   深色模式 - 鸿蒙 7.0 夜间主题
+   ═══════════════════════════════════════════════════════════════ */
 .dark-theme {
   --primary-gradient: linear-gradient(135deg, #317AF7 0%, #54B2F7 50%, #7DC8F8 100%);
 
-  /* 背景色 - 夜间模式 */
+  /* 背景 - 深色基调 */
   --bg-color: #1A1A1A;
   --bg-color-1: #202020;
   --bg-color-2: #2A2A2A;
   --bg-color-3: #333333;
   --bg-color-4: #3D3D3D;
+  --bg-gradient: linear-gradient(180deg, #1A1A1A 0%, #222222 100%);
 
   /* 卡片背景 */
   --card-bg: #202020;
@@ -153,20 +275,59 @@
   --border-color: #333333;
   --divider-color: #2A2A2A;
 
-  /* 阴影 - 夜间模式 */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+  /* 空间深度阴影 - 夜间模式 (更深更重) */
+  --depth-0: 0 0 0 rgba(0, 0, 0, 0);
+  --depth-1: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --depth-2: 0 4px 12px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
+  --depth-3: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --depth-4: 0 16px 48px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3);
+  --depth-5: 0 24px 64px rgba(0, 0, 0, 0.55), 0 8px 24px rgba(0, 0, 0, 0.35);
 
-  /* 鸿蒙 7.0 玻璃令牌 - 夜间模式 */
-  --glass-bg: rgba(40, 40, 44, 0.78);
+  /* 兼容旧变量 */
+  --shadow-xs: var(--depth-1);
+  --shadow-sm: var(--depth-2);
+  --shadow-md: var(--depth-3);
+  --shadow-lg: var(--depth-4);
+  --shadow-xl: var(--depth-5);
+
+  /* 液态玻璃 - 夜间模式 */
+  --glass-bg: rgba(40, 40, 44, 0.72);
   --glass-bg-strong: rgba(40, 40, 44, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --glass-bg-heavy: rgba(40, 40, 44, 0.92);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.14);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.3);
+  --glass-edge-light: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --glass-edge-dark: inset 0 1px 0 rgba(0, 0, 0, 0.2);
+  --glass-shine: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 40%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.01) 80%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+
+  /* 动态光效 - 夜间模式 */
+  --glow-primary: rgba(49, 122, 247, 0.35);
+  --glow-primary-strong: rgba(49, 122, 247, 0.55);
+  --glow-primary-soft: rgba(49, 122, 247, 0.18);
+
+  /* 聚焦环 - 夜间 */
+  --focus-ring: 0 0 0 3px rgba(49, 122, 247, 0.35);
+
+  /* 语义色 - 夜间微调 */
+  --info-bg: rgba(49, 122, 247, 0.15);
+
+  /* 滚动条 - 夜间 */
+  --scrollbar-track: rgba(255, 255, 255, 0.04);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   全局基础层
+   ═══════════════════════════════════════════════════════════════ */
 * {
   margin: 0;
   padding: 0;
@@ -179,59 +340,127 @@ html {
 
 body {
   font-family: var(--font-family);
-  background: var(--bg-color);
+  background: var(--bg-gradient);
+  background-attachment: fixed;
   color: var(--text-color);
-  line-height: 1.6;
+  line-height: var(--line-height-relaxed);
   transition: background var(--transition-slow), color var(--transition-slow);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── 自定义滚动条 (鸿蒙7空间化风格) ── */
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   布局系统
+   ═══════════════════════════════════════════════════════════════ */
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--spacing-xl);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   卡片系统 - 鸿蒙7空间化
+   基础卡片 + 液态玻璃卡片 + 3D景深卡片
+   ═══════════════════════════════════════════════════════════════ */
 .card {
   background: var(--card-bg);
   border-radius: var(--radius-md);
   padding: var(--spacing-xl);
   margin-bottom: var(--spacing-xl);
-  box-shadow: var(--shadow-sm);
-  transition: background var(--transition-base), box-shadow var(--transition-base);
+  box-shadow: var(--depth-1);
+  transition: background var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-shine);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--depth-2);
+  transform: translateY(-1px);
 }
 
+/* 液态玻璃卡片 */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-card::before {
+  background: var(--glass-shine);
+}
+
+.glass-card:hover {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--glass-shadow), 0 0 30px var(--glow-primary-soft);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   标题系统
+   ═══════════════════════════════════════════════════════════════ */
 h2 {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   margin: 0 0 var(--spacing-lg) 0;
   color: var(--text-color-1);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: var(--line-height-tight);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   按钮系统 - 鸿蒙7闪控风格
+   ═══════════════════════════════════════════════════════════════ */
 button {
   cursor: pointer;
   border: none;
   font-family: var(--font-family);
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
   position: relative;
   overflow: hidden;
 }
 
-button:focus {
+button:focus-visible {
   outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 button:active {
-  transform: scale(0.97);
+  transform: scale(var(--scale-active));
 }
 
 .secondary {
@@ -251,7 +480,23 @@ button:active {
   background: var(--log-critical-color) !important;
 }
 
-/* 鸿蒙 7.0 液态玻璃表面工具类 */
+/* 主按钮辉光效果 */
+.btn-primary {
+  position: relative;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 28px var(--glow-primary-strong);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   鸿蒙 7.0 液态玻璃表面工具类
+   ═══════════════════════════════════════════════════════════════ */
 .glass-surface {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
@@ -260,7 +505,18 @@ button:active {
   box-shadow: var(--glass-shadow);
 }
 
-/* 统一弹窗基座：所有弹窗复用相同的圆角/遮罩，避免多套风格并存 */
+/* 强效玻璃表面（弹窗/重要面板） */
+.glass-surface-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: var(--glass-shadow), var(--depth-3);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   统一弹窗系统 (HarmonyOS 7 空间弹出)
+   ═══════════════════════════════════════════════════════════════ */
 .hm-overlay-base {
   position: fixed;
   inset: 0;
@@ -270,33 +526,89 @@ button:active {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-overlay);
   animation: hm-fade-in var(--transition-base);
 }
 
 .hm-modal-base {
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius-xl);
-  box-shadow: var(--glass-shadow);
-  animation: hm-pop-in var(--transition-slow);
+  box-shadow: var(--glass-shadow), var(--depth-4);
+  animation: hm-space-in var(--transition-spring);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   关键帧动画
+   ═══════════════════════════════════════════════════════════════ */
 @keyframes hm-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
 @keyframes hm-pop-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes hm-space-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.94);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes hm-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes hm-slide-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes hm-glow-pulse {
+  0%, 100% { box-shadow: 0 0 12px var(--glow-primary); }
+  50% { box-shadow: 0 0 24px var(--glow-primary-strong); }
+}
+
+@keyframes hm-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── 涟漪效果 ── */
+@keyframes hm-ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0);
+  animation: hm-ripple 0.6s ease-out;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   小工具类
+   ═══════════════════════════════════════════════════════════════ */
 .small {
   padding: var(--spacing-xs) var(--spacing-sm) !important;
-  font-size: 0.75rem !important;
+  font-size: var(--font-size-sm) !important;
 }
 
 a {
@@ -309,33 +621,24 @@ a:hover {
   color: var(--primary-hover);
 }
 
-@media (max-width: 768px) {
-  .container {
-    padding: var(--spacing-md);
-  }
-
-  .card {
-    padding: var(--spacing-lg);
-    margin-bottom: var(--spacing-lg);
-  }
-
-  h2 {
-    font-size: 0.9375rem;
-  }
+/* ── 彩虹渐变 ── */
+@keyframes rainbow-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
-@media (max-width: 480px) {
-  .container {
-    padding: var(--spacing-sm);
-  }
-
-  .card {
-    padding: var(--spacing-md);
-    margin-bottom: var(--spacing-md);
-    border-radius: var(--radius-sm);
-  }
+.rainbow-gradient {
+  background: var(--rainbow-gradient-animated);
+  background-size: 200% 200%;
+  animation: rainbow-shift 3s ease infinite;
 }
 
+.rainbow-gradient-static {
+  background: var(--rainbow-gradient);
+}
+
+/* ── 认证加载 ── */
 .auth-loading {
   position: fixed;
   top: 0;
@@ -359,29 +662,36 @@ a:hover {
 }
 
 @keyframes auth-spin {
-  to {
-    transform: rotate(360deg);
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   响应式适配
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .container {
+    padding: var(--spacing-md);
+  }
+
+  .card {
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    border-radius: var(--radius-sm);
+  }
+
+  h2 {
+    font-size: var(--font-size-lg);
   }
 }
 
-@keyframes rainbow-shift {
-  0% {
-    background-position: 0% 50%;
+@media (max-width: 480px) {
+  .container {
+    padding: var(--spacing-sm);
   }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
 
-.rainbow-gradient {
-  background: var(--rainbow-gradient-animated);
-  background-size: 200% 200%;
-  animation: rainbow-shift 3s ease infinite;
-}
-
-.rainbow-gradient-static {
-  background: var(--rainbow-gradient);
+  .card {
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-radius: var(--radius-sm);
+  }
 }

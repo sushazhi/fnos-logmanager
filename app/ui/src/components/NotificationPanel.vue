@@ -1,6 +1,6 @@
 <template>
   <div class="hm-overlay-base" @click.self="$emit('close')">
-    <div class="notification-panel">
+    <div class="notification-panel hm-modal-base">
       <div class="panel-header">
         <h3>通知设置</h3>
         <button class="close-btn" @click="$emit('close')">×</button>
@@ -1591,16 +1591,12 @@ onUnmounted(() => {
 }
 
 .notification-panel {
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
   max-width: 600px;
   width: 100%;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .panel-header {
@@ -1615,7 +1611,7 @@ onUnmounted(() => {
 .panel-header h3 {
   margin: 0;
   font-size: var(--font-size-xl);
-  font-weight: 500;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-color-1);
 }
 
@@ -1627,10 +1623,12 @@ onUnmounted(() => {
   color: var(--text-color-2);
   padding: 0;
   line-height: 1;
+  transition: color var(--transition-slow) var(--ease-spring), transform var(--transition-slow) var(--ease-spring);
 }
 
 .close-btn:hover {
   color: var(--text-color-1);
+  transform: scale(1.1);
 }
 
 .panel-body {
@@ -1653,7 +1651,7 @@ onUnmounted(() => {
 .section-header h4 {
   margin: 0;
   font-size: var(--font-size-lg);
-  font-weight: 500;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-color-1);
 }
 
@@ -1689,7 +1687,7 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   background-color: var(--bg-color-3);
-  transition: var(--transition-base);
+  transition: var(--transition-base) var(--ease-spring);
   border-radius: var(--radius-xl);
 }
 
@@ -1712,6 +1710,7 @@ onUnmounted(() => {
 
 input:checked + .slider {
   background-color: var(--primary-color);
+  box-shadow: 0 0 8px var(--glow-primary);
 }
 
 input:checked + .slider:before {
@@ -1790,13 +1789,15 @@ input:checked + .slider:before {
 .control-btn {
   flex: 1;
   padding: var(--spacing-sm);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color-1);
   font-size: var(--font-size-base);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base) var(--ease-spring);
 }
 
 .control-btn:hover:not(:disabled) {
@@ -1807,17 +1808,19 @@ input:checked + .slider:before {
 }
 
 .control-btn:active:not(:disabled) {
+  transform: scale(0.97);
   box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
 .control-btn.danger:hover:not(:disabled) {
   background: var(--error-color);
   border-color: var(--error-color);
-  box-shadow: 0 0 20px var(--glow-primary);
+  box-shadow: 0 0 20px var(--glow-error);
 }
 
 .control-btn.danger:active:not(:disabled) {
-  box-shadow: 0 0 28px var(--glow-primary-strong);
+  transform: scale(0.97);
+  box-shadow: 0 0 28px var(--glow-error);
 }
 
 .control-btn:disabled {
@@ -1833,7 +1836,7 @@ input:checked + .slider:before {
   color: var(--primary-color);
   font-size: var(--font-size-base);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base) var(--ease-spring);
 }
 
 .add-btn:hover {
@@ -1843,6 +1846,7 @@ input:checked + .slider:before {
 }
 
 .add-btn:active {
+  transform: scale(0.97);
   box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
@@ -1852,10 +1856,38 @@ input:checked + .slider:before {
   gap: 8px;
 }
 
-.channel-item, .rule-item {
+.channel-item {
   padding: var(--spacing-md);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
+  transition: all var(--transition-base) var(--ease-spring);
+}
+
+.channel-item:hover {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--depth-1);
+}
+
+.rule-item {
+  padding: var(--spacing-md);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--primary-color);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-base) var(--ease-spring);
+}
+
+.rule-item:hover {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--depth-2);
+  transform: translateY(-1px);
 }
 
 .channel-info, .rule-header {
@@ -1883,12 +1915,15 @@ input:checked + .slider:before {
 
 .test-btn, .edit-btn, .toggle-btn {
   padding: 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-  background: var(--bg-color-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color-1);
   font-size: var(--font-size-sm);
   cursor: pointer;
+  transition: all var(--transition-base) var(--ease-spring);
 }
 
 .test-btn:hover, .edit-btn:hover, .toggle-btn:hover {
@@ -1899,6 +1934,7 @@ input:checked + .slider:before {
 }
 
 .test-btn:active, .edit-btn:active, .toggle-btn:active {
+  transform: scale(0.97);
   box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
@@ -1910,10 +1946,16 @@ input:checked + .slider:before {
   color: var(--text-color-3);
   font-size: var(--font-size-xl);
   cursor: pointer;
+  transition: all var(--transition-base) var(--ease-spring);
 }
 
 .delete-btn:hover {
   color: var(--error-color);
+  text-shadow: 0 0 8px var(--glow-error);
+}
+
+.delete-btn:active {
+  transform: scale(0.97);
 }
 
 .rule-status {
@@ -1940,8 +1982,11 @@ input:checked + .slider:before {
 }
 
 .info-tag {
-  padding: 2px 6px;
-  background: var(--bg-color-3);
+  padding: 2px 8px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-2xs);
   font-size: var(--font-size-xs);
   color: var(--text-color-2);
@@ -1973,15 +2018,18 @@ input:checked + .slider:before {
 /* Modal styles */
 .modal-content {
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glass-shadow), var(--depth-4);
   width: 90%;
   max-width: 500px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  animation: hm-space-in var(--transition-spring);
 }
 
 .modal-header {
@@ -2027,12 +2075,15 @@ input:checked + .slider:before {
 .form-group select {
   width: 100%;
   padding: var(--spacing-sm);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-xs);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color-1);
   font-size: var(--font-size-md);
   box-sizing: border-box;
+  transition: all var(--transition-fast) var(--ease-spring);
 }
 
 /* 不影响checkbox和radio的宽度 */
@@ -2042,12 +2093,15 @@ input:checked + .slider:before {
   padding: 0;
   border: none;
   background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
   border-color: var(--primary-color);
+  box-shadow: var(--focus-ring);
 }
 
 .form-row {
@@ -2069,18 +2123,22 @@ input:checked + .slider:before {
   max-height: 200px;
   overflow-y: auto;
   padding: var(--spacing-sm);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-xs);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
 }
 
 .app-select-group {
   max-height: 300px;
   overflow-y: auto;
   padding: var(--spacing-sm);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-xs);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
 }
 
 .dropdown-select {
@@ -2092,16 +2150,20 @@ input:checked + .slider:before {
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-color-2);
-  border: 1px solid var(--border-color);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: var(--font-size-md);
   color: var(--text-color-1);
+  transition: all var(--transition-fast) var(--ease-spring);
 }
 
 .dropdown-trigger:hover {
   border-color: var(--primary-color);
+  box-shadow: var(--focus-ring);
 }
 
 .dropdown-text {
@@ -2128,10 +2190,12 @@ input:checked + .slider:before {
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-  box-shadow: var(--shadow-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--depth-3);
   max-height: 300px;
   overflow-y: auto;
   z-index: 100;
@@ -2148,7 +2212,7 @@ input:checked + .slider:before {
 }
 
 .dropdown-item:hover {
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
 }
 
 .dropdown-item input[type="checkbox"] {
@@ -2174,6 +2238,13 @@ input:checked + .slider:before {
   cursor: pointer;
   font-size: var(--font-size-md);
   color: var(--text-color-1);
+  padding: 2px 6px;
+  border-radius: var(--radius-2xs);
+  transition: background var(--transition-fast) var(--ease-spring);
+}
+
+.checkbox:hover {
+  background: var(--glass-bg);
 }
 
 .checkbox input {
@@ -2195,12 +2266,14 @@ input:checked + .slider:before {
   font-size: var(--font-size-sm);
   font-weight: bold;
   color: var(--primary-color);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--primary-color);
   border-radius: 50%;
   text-decoration: none;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base) var(--ease-spring);
 }
 
 .help-link:hover {
@@ -2210,12 +2283,24 @@ input:checked + .slider:before {
 
 .cancel-btn {
   padding: var(--spacing-sm) var(--spacing-lg);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color-1);
   font-size: var(--font-size-md);
   cursor: pointer;
+  transition: all var(--transition-base) var(--ease-spring);
+}
+
+.cancel-btn:hover {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
+}
+
+.cancel-btn:active {
+  transform: scale(0.97);
 }
 
 .submit-btn {
@@ -2226,6 +2311,7 @@ input:checked + .slider:before {
   color: var(--text-color-on-primary);
   font-size: var(--font-size-md);
   cursor: pointer;
+  transition: all var(--transition-base) var(--ease-spring);
 }
 
 .submit-btn:hover {
@@ -2234,6 +2320,7 @@ input:checked + .slider:before {
 }
 
 .submit-btn:active {
+  transform: scale(0.97);
   box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
@@ -2249,17 +2336,25 @@ input:checked + .slider:before {
   padding: 12px;
   border: 2px dashed var(--primary-color);
   border-radius: var(--radius-sm);
-  background: var(--info-bg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--primary-color);
   font-size: var(--font-size-xl);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-slow) var(--ease-spring);
 }
 
 .qr-login-btn:hover:not(:disabled) {
   background: var(--primary-color);
   color: var(--text-color-on-primary);
+  border-style: solid;
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.qr-login-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .qr-login-btn:disabled {
@@ -2277,9 +2372,13 @@ input:checked + .slider:before {
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-lg);
-  background: var(--card-bg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-sm);
+  box-shadow: 0 0 24px var(--glow-primary-soft);
 }
 
 .qr-code-img {

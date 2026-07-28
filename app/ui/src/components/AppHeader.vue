@@ -1,5 +1,5 @@
 ﻿<template>
-  <header class="glass-surface">
+  <header class="app-header">
     <div class="header-content">
       <div class="title-section">
         <h1>飞牛应用日志管理</h1>
@@ -19,32 +19,36 @@ const { appVersion, updateInfo } = useUpdate()
 </script>
 
 <style scoped>
-header {
-  color: var(--text-color-1);
+.app-header {
+  color: var(--text-color-on-primary);
   padding: var(--spacing-2xl);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   margin-bottom: var(--spacing-xl);
   position: relative;
   overflow: hidden;
+  background: var(--primary-gradient);
+  box-shadow: var(--depth-3), 0 0 30px var(--glow-primary-soft);
+  transition: background var(--transition-base), box-shadow var(--transition-base);
 }
 
-header::before {
+.app-header::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 20% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 60%);
+  background: var(--glass-shine);
   pointer-events: none;
+  border-radius: inherit;
 }
 
-header::after {
+/* 鸿蒙 7.0 液态高光装饰 */
+.app-header::after {
   content: '';
   position: absolute;
-  top: -30%;
-  right: -15%;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.04) 0%, transparent 70%);
-  border-radius: 50%;
+  top: -50%;
+  right: -10%;
+  width: 60%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.25) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -63,9 +67,11 @@ header::after {
 h1 {
   margin: 0 0 var(--spacing-xs) 0;
   font-size: var(--font-size-4xl);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
   line-height: 1.3;
+  color: var(--text-color-on-primary);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.12);
 }
 
 .version {
@@ -76,6 +82,14 @@ h1 {
   font-weight: 400;
   opacity: 0.8;
   position: relative;
+}
+
+.version-text {
+  transition: transform var(--transition-base), opacity var(--transition-base);
+}
+
+.version-text:hover {
+  transform: scale(1.05);
 }
 
 .version-badge {
@@ -93,9 +107,9 @@ h1 {
 }
 
 @media (max-width: 768px) {
-  header {
+  .app-header {
     padding: var(--spacing-xl);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
   }
 
   h1 {
@@ -104,8 +118,9 @@ h1 {
 }
 
 @media (max-width: 480px) {
-  header {
+  .app-header {
     padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
   }
 
   h1 {

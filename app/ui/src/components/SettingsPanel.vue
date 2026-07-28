@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-panel">
+  <div class="hm-modal-base settings-panel">
     <div class="settings-header">
       <h3>设置</h3>
       <button class="close-btn" @click="$emit('close')">×</button>
@@ -135,13 +135,14 @@ async function startUpdate() {
 
 const fontSize = ref<number>(16)
 const theme = ref<'light' | 'dark' | 'auto'>('light')
-const primaryColor = ref<string>('#5b9bd5')
+const primaryColor = ref<string>('#0A59F7')
 
 const colors: ColorOption[] = [
-  { name: '紫色', value: '#9b59b6', gradient: 'linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%)' },
-  { name: '蓝色', value: '#3498db', gradient: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)' },
-  { name: '青色', value: '#1abc9c', gradient: 'linear-gradient(135deg, #1abc9c 0%, #16a085 100%)' },
-  { name: '粉色', value: '#e74c8c', gradient: 'linear-gradient(135deg, #e74c8c 0%, #c0392b 100%)' },
+  { name: '鸿蒙蓝', value: '#0A59F7', gradient: 'linear-gradient(135deg, #0A59F7 0%, #317AF7 50%, #54B2F7 100%)' },
+  { name: '天青', value: '#317AF7', gradient: 'linear-gradient(135deg, #317AF7 0%, #54B2F7 100%)' },
+  { name: '翠青', value: '#64BB5A', gradient: 'linear-gradient(135deg, #64BB5A 0%, #86CD7E 100%)' },
+  { name: '琥珀金', value: '#E8B339', gradient: 'linear-gradient(135deg, #E8B339 0%, #F0C96A 100%)' },
+  { name: '丹霞橙', value: '#E84026', gradient: 'linear-gradient(135deg, #E84026 0%, #F06048 100%)' },
   { name: '莫兰迪渐变', value: '#8ec5fc', gradient: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 33%, #a8edea 66%, #fed6e3 100%)' },
 ]
 
@@ -217,7 +218,7 @@ function loadSettings(): void {
       const settings = JSON.parse(saved) as ThemeSettings
       fontSize.value = settings.fontSize || 16
       theme.value = (settings.theme as 'light' | 'dark' | 'auto') || 'light'
-      primaryColor.value = settings.primaryColor || '#5b9bd5'
+      primaryColor.value = settings.primaryColor || '#0A59F7'
     }
   } catch (e) {
     console.warn('Failed to load settings:', e)
@@ -238,16 +239,32 @@ onMounted(() => {
 })
 </script>
 
-<style>
+<style scoped>
 .settings-panel {
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--glass-shadow);
   max-width: 400px;
   width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.settings-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-shine);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.settings-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: var(--glass-edge-light);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 2;
 }
 
 .settings-header {
@@ -402,7 +419,7 @@ onMounted(() => {
 
 .color-btn.active {
   border-color: var(--text-color-1);
-  box-shadow: 0 0 0 2px var(--primary-color);
+  box-shadow: var(--focus-ring);
 }
 
 .divider {
@@ -531,7 +548,7 @@ onMounted(() => {
 @media (max-width: 768px) {
   .settings-panel {
     max-width: 100%;
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   }
 
   .settings-body {

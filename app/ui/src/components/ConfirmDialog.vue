@@ -128,13 +128,16 @@ defineExpose({ show })
 
 /* ===== Modal ===== */
 .hm-modal {
-  background: var(--card-bg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius-xl);
   padding: var(--spacing-3xl) var(--spacing-2xl) var(--spacing-2xl);
   max-width: 340px;
   width: 100%;
   text-align: center;
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--glass-shadow), var(--depth-4);
   position: relative;
   overflow: hidden;
 }
@@ -154,6 +157,7 @@ defineExpose({ show })
   align-items: center;
   justify-content: center;
   position: relative;
+  box-shadow: 0 0 20px var(--glow-primary-soft);
 }
 
 .hm-danger .hm-icon {
@@ -232,16 +236,18 @@ defineExpose({ show })
   outline: none;
 }
 
-/* Cancel button - outline style */
+/* Cancel button - glass style */
 .hm-btn-cancel {
-  background: transparent;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color-1);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
 }
 
 .hm-btn-cancel:hover {
-  background: var(--bg-color-2);
-  border-color: var(--text-color-3);
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
 }
 
 .hm-btn-cancel:active {
@@ -259,7 +265,7 @@ defineExpose({ show })
 }
 .hm-btn-info:hover {
   background: var(--primary-hover);
-  box-shadow: 0 0 20px var(--glow-primary);
+  box-shadow: 0 0 28px var(--glow-primary), 0 0 60px var(--glow-primary-soft);
 }
 
 .hm-btn-info:active {
@@ -315,10 +321,10 @@ defineExpose({ show })
 
 /* ===== Animations - HMOS6 spring curves ===== */
 .hm-overlay-enter-active {
-  transition: opacity 0.25s var(--ease-harmony);
+  transition: opacity var(--transition-base) var(--ease-harmony);
 }
 .hm-overlay-leave-active {
-  transition: opacity 0.15s var(--ease-harmony);
+  transition: opacity var(--transition-micro) var(--ease-harmony);
 }
 .hm-overlay-enter-from,
 .hm-overlay-leave-to {
@@ -326,10 +332,10 @@ defineExpose({ show })
 }
 
 .hm-modal-enter-active {
-  transition: all 0.3s var(--ease-harmony);
+  transition: all var(--transition-slow) var(--ease-spring);
 }
 .hm-modal-leave-active {
-  transition: all 0.2s var(--ease-harmony);
+  transition: all var(--transition-fast) var(--ease-exit);
 }
 .hm-modal-enter-from {
   opacity: 0;

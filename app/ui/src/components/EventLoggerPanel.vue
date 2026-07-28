@@ -1,6 +1,6 @@
 <template>
   <div class="hm-overlay-base" @click.self="$emit('close')">
-    <div class="event-logger-panel">
+    <div class="hm-modal-base event-logger-panel">
       <div class="panel-header">
         <h3>系统日志监控</h3>
         <button class="close-btn" @click="$emit('close')">×</button>
@@ -325,11 +325,6 @@ onUnmounted(() => {
 
 <style scoped>
 .event-logger-panel {
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
   max-width: 900px;
   width: 95%;
   max-height: 90vh;
@@ -440,7 +435,7 @@ onUnmounted(() => {
 .status-title {
   font-weight: 500;
   color: var(--text-color-1);
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-xs);
 }
 
 .status-detail {
@@ -453,19 +448,19 @@ onUnmounted(() => {
 .status-detail code {
   font-size: inherit;
   background: var(--bg-color-3);
-  padding: 0 4px;
+  padding: 0 var(--spacing-xs);
   border-radius: var(--radius-3xs);
 }
 
 .db-ok {
   color: var(--success-color);
-  margin-left: 4px;
+  margin-left: var(--spacing-xs);
   font-size: var(--font-size-sm);
 }
 
 .db-err {
   color: var(--error-color);
-  margin-left: 4px;
+  margin-left: var(--spacing-xs);
   font-size: var(--font-size-sm);
 }
 
@@ -677,7 +672,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-xs);
 }
 
 .event-source {
@@ -688,7 +683,7 @@ onUnmounted(() => {
 
 .event-severity {
   font-size: var(--font-size-xs);
-  padding: 2px 6px;
+  padding: calc(var(--spacing-xs) / 2) var(--spacing-sm);
   border-radius: var(--radius-2xs);
   background: var(--bg-color-3);
   color: var(--text-color-2);
@@ -699,7 +694,7 @@ onUnmounted(() => {
   font-size: var(--font-size-base);
   color: var(--text-color-2);
   word-break: break-word;
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-xs);
 }
 
 .event-time {

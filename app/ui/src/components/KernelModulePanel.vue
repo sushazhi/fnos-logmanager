@@ -1,6 +1,6 @@
 <template>
   <div class="hm-overlay-base" @click.self="$emit('close')">
-    <div class="kernel-panel">
+    <div class="hm-modal-base kernel-panel">
       <div class="panel-header">
         <h3>Linux 内核版本</h3>
         <button class="close-btn" @click="$emit('close')">×</button>
@@ -207,11 +207,6 @@ onMounted(() => {
 
 <style scoped>
 .kernel-panel {
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
   max-width: 960px;
   width: 95%;
   max-height: 90vh;
@@ -359,7 +354,7 @@ onMounted(() => {
   display: block;
   font-size: var(--font-size-sm);
   color: var(--text-color-3);
-  margin-top: 2px;
+  margin-top: calc(var(--spacing-xs) / 2);
 }
 
 .current-info {
@@ -379,10 +374,10 @@ onMounted(() => {
 }
 
 .current-version {
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: var(--font-size-base);
   background: var(--bg-color-3);
-  padding: 2px 8px;
+  padding: calc(var(--spacing-xs) / 2) var(--spacing-sm);
   border-radius: var(--radius-2xs);
   color: var(--primary-color);
   font-weight: 600;
@@ -475,7 +470,7 @@ onMounted(() => {
   font-weight: 500;
   font-size: var(--font-size-base);
   color: var(--text-color-1);
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
   word-break: break-all;
 }
 
@@ -502,11 +497,11 @@ onMounted(() => {
 .col-total {
   font-size: var(--font-size-sm);
   color: var(--text-color-2);
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
 }
 
 .remove-btn {
-  padding: 2px 10px;
+  padding: calc(var(--spacing-xs) / 2) var(--spacing-sm);
   border: 1px solid var(--error-color);
   border-radius: var(--radius-xs);
   background: transparent;

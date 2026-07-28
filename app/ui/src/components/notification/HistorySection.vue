@@ -239,12 +239,12 @@ function pad(n: number): string {
 
 .section-header h4 {
   margin: 0;
-  font-size: var(--font-size-lg, 15px);
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--text-color-1);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--spacing-xs);
 }
 
 .header-icon {
@@ -261,7 +261,7 @@ function pad(n: number): string {
 .filter-tabs {
   display: flex;
   background: var(--bg-color-2);
-  border-radius: var(--radius-full, 9999px);
+  border-radius: var(--radius-full);
   padding: var(--spacing-xs);
   gap: 1px;
 }
@@ -271,9 +271,9 @@ function pad(n: number): string {
   border: none;
   background: transparent;
   color: var(--text-color-3);
-  font-size: var(--font-size-xs, 11px);
+  font-size: var(--font-size-xs);
   padding: var(--spacing-xs) var(--spacing-md);
-  border-radius: var(--radius-full, 9999px);
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--transition-base);
   display: flex;
@@ -307,9 +307,9 @@ function pad(n: number): string {
   border: 1px solid var(--border-color);
   background: var(--bg-color-1);
   color: var(--text-color-3);
-  font-size: var(--font-size-xs, 11px);
+  font-size: var(--font-size-xs);
   padding: var(--spacing-xs) var(--spacing-md);
-  border-radius: var(--radius-full, 9999px);
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--transition-fast);
   white-space: nowrap;
@@ -331,9 +331,9 @@ function pad(n: number): string {
 .history-card {
   background: var(--bg-color-1);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm, 12px);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-base);
   overflow: hidden;
 }
 
@@ -389,17 +389,17 @@ function pad(n: number): string {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-sm);
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-xs);
 }
 
 .channel-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: var(--font-size-2xs, 10px);
+  font-size: var(--font-size-2xs);
   font-weight: 500;
   padding: 1px var(--spacing-sm);
-  border-radius: var(--radius-full, 9999px);
+  border-radius: var(--radius-full);
   white-space: nowrap;
   line-height: 1.6;
 }
@@ -410,14 +410,14 @@ function pad(n: number): string {
 }
 
 .time {
-  font-size: var(--font-size-2xs, 10px);
+  font-size: var(--font-size-2xs);
   color: var(--text-color-4);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .card-title {
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--text-color-1);
   line-height: 1.4;
@@ -425,7 +425,7 @@ function pad(n: number): string {
 }
 
 .card-message {
-  font-size: var(--font-size-2xs, 10px);
+  font-size: var(--font-size-2xs);
   color: var(--text-color-3);
   line-height: 1.5;
   display: -webkit-box;
@@ -445,12 +445,12 @@ function pad(n: number): string {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-xs);
-  margin-top: 4px;
-  font-size: var(--font-size-2xs, 10px);
+  margin-top: var(--spacing-xs);
+  font-size: var(--font-size-2xs);
   color: var(--error-color);
   background: var(--error-bg);
   padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm, 12px);
+  border-radius: var(--radius-sm);
   line-height: 1.4;
   word-break: break-all;
 }
@@ -463,7 +463,7 @@ function pad(n: number): string {
 .card-chevron {
   flex-shrink: 0;
   color: var(--text-color-4);
-  padding-top: 4px;
+  padding-top: var(--spacing-xs);
   transition: transform var(--transition-fast);
 }
 
@@ -477,7 +477,7 @@ function pad(n: number): string {
 
 /* Transition animations */
 .history-item-enter-active {
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-slow);
 }
 
 .history-item-leave-active {
@@ -514,7 +514,7 @@ function pad(n: number): string {
 
 .empty-state p {
   margin: 0;
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm);
   color: var(--text-color-3);
 }
 </style>

@@ -1,6 +1,6 @@
 <template>
   <div class="hm-overlay-base" @click.self="$emit('close')">
-    <div class="modal audit-modal">
+    <div class="hm-modal-base modal audit-modal">
       <div class="modal-header">
         <h3>审计日志</h3>
         <button class="close-btn" @click="$emit('close')">×</button>
@@ -152,12 +152,6 @@ function formatDetails(details) {
 
 <style scoped>
 .modal {
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glass-shadow);
   width: 100%;
   overflow: hidden;
 }
@@ -192,14 +186,14 @@ function formatDetails(details) {
 .filter-bar {
   display: flex;
   gap: var(--spacing-sm);
-  padding: 10px 16px;
+  padding: var(--spacing-sm) var(--spacing-lg);
   background: var(--bg-color-2);
   border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
 }
 
 .filter-btn {
-  padding: 6px 14px;
+  padding: var(--spacing-xs) var(--spacing-md);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: var(--card-bg);
@@ -207,7 +201,7 @@ function formatDetails(details) {
   font-size: var(--font-size-base);
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .filter-btn:hover {
@@ -250,7 +244,7 @@ function formatDetails(details) {
 .log-item {
   padding: var(--spacing-md);
   border-radius: var(--radius-md);
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-sm);
   background: var(--bg-color-2);
   border-left: 4px solid var(--primary-color);
 }
@@ -274,7 +268,7 @@ function formatDetails(details) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: var(--spacing-xs);
 }
 
 .log-action {
@@ -292,12 +286,12 @@ function formatDetails(details) {
   color: var(--text-color-2);
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--spacing-sm);
 }
 
 .log-ip {
   background: var(--card-bg);
-  padding: 2px 8px;
+  padding: calc(var(--spacing-xs) / 2) var(--spacing-sm);
   border-radius: var(--radius-2xs);
 }
 
@@ -307,7 +301,7 @@ function formatDetails(details) {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
-  .modal-overlay {
+  .hm-overlay-base {
     padding: var(--spacing-sm);
     align-items: flex-end;
   }
@@ -315,7 +309,7 @@ function formatDetails(details) {
   .audit-modal {
     max-width: 100%;
     max-height: 90vh;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   }
 
   .modal-header {
@@ -444,7 +438,7 @@ function formatDetails(details) {
 }
 
 @media (max-width: 480px) {
-  .modal-overlay {
+  .hm-overlay-base {
     padding: 0;
     align-items: flex-end;
   }
@@ -468,12 +462,12 @@ function formatDetails(details) {
   }
 
   .filter-bar {
-    padding: 4px var(--spacing-sm);
-    gap: 4px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    gap: var(--spacing-xs);
   }
 
   .filter-btn {
-    padding: 4px var(--spacing-xs);
+    padding: var(--spacing-xs);
     font-size: var(--font-size-xs);
   }
 
@@ -501,11 +495,11 @@ function formatDetails(details) {
 
   .log-details {
     font-size: var(--font-size-xs);
-    gap: 2px;
+    gap: calc(var(--spacing-xs) / 2);
   }
 
   .log-ip {
-    padding: 2px var(--spacing-xs);
+    padding: calc(var(--spacing-xs) / 2) var(--spacing-xs);
     font-size: var(--font-size-xs);
   }
 

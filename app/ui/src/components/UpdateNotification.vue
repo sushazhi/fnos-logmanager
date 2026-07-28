@@ -170,8 +170,8 @@ onMounted(() => {
   background: var(--glass-bg-strong);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: var(--glass-shadow), var(--depth-4);
   padding: var(--spacing-xl) var(--spacing-2xl);
   border-radius: var(--radius-md);
   position: relative;
@@ -248,7 +248,7 @@ onMounted(() => {
 .update-notification-btn-primary:hover {
   background: var(--primary-hover);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 0 24px var(--glow-primary), var(--shadow-lg);
 }
 
 .update-notification-btn-primary:active {
@@ -256,13 +256,16 @@ onMounted(() => {
 }
 
 .update-notification-btn-secondary {
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color-2);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
 }
 
 .update-notification-btn-secondary:hover {
-  background: var(--bg-color-3);
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
   transform: translateY(-2px);
   color: var(--text-color-1);
 }
@@ -288,8 +291,10 @@ onMounted(() => {
 
 .progress {
   height: 100%;
-  background: var(--primary-color);
-  transition: width 0.3s;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
+  box-shadow: 0 0 12px var(--glow-primary);
+  border-radius: inherit;
+  transition: width var(--transition-slow) var(--ease-spring);
 }
 
 .progress-text {
@@ -315,12 +320,12 @@ onMounted(() => {
   position: absolute;
   top: var(--spacing-sm);
   right: var(--spacing-sm);
-  transition: all var(--transition-fast);
+  transition: all var(--transition-spring);
 }
 
 .update-notification-close:hover {
   color: var(--text-color-1);
-  transform: scale(1.15);
+  transform: scale(1.2) rotate(90deg);
 }
 
 /* 深色主题 */
@@ -350,13 +355,14 @@ onMounted(() => {
 }
 
 :global(.dark-theme) .update-notification-btn-secondary {
-  background: var(--bg-color-2);
+  background: var(--glass-bg);
   color: var(--text-color-2);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
 }
 
 :global(.dark-theme) .update-notification-btn-secondary:hover {
-  background: var(--bg-color-3);
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
   color: var(--text-color-1);
 }
 

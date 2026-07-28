@@ -119,26 +119,31 @@ defineExpose({
   align-items: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-xs) var(--spacing-sm);
-  background: var(--bg-color-1);
-  border: 1px solid var(--bg-color-4);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-xs);
   font-size: var(--font-size-base);
   color: var(--text-color-2);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-spring);
   white-space: nowrap;
   max-width: 200px;
 }
 
 .bookmark-tag:hover {
-  background: var(--info-bg);
+  background: var(--glass-bg-strong);
   border-color: var(--primary-color);
   color: var(--primary-color);
-  box-shadow: var(--shadow-xs);
+  box-shadow: 0 0 20px var(--glow-primary-soft);
+  transform: translateY(-1px);
 }
 
 .bookmark-tag.docker {
-  background: var(--info-bg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-color: var(--info-color);
   color: var(--info-color);
 }
@@ -192,20 +197,22 @@ defineExpose({
   height: 28px;
   min-width: 28px;
   max-width: 28px;
-  border: 1px dashed var(--bg-color-4);
+  border: 1px dashed var(--glass-border);
   border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-color-3);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-spring);
   flex-shrink: 0;
 }
 
 .add-btn:hover {
   border-color: var(--primary-color);
   color: var(--primary-color);
-  background: var(--info-bg);
+  background: var(--glass-bg-strong);
   border-style: solid;
+  transform: scale(1.1) translateY(-1px);
+  box-shadow: 0 0 16px var(--glow-primary-soft);
 }
 
 .add-icon {
@@ -219,14 +226,22 @@ defineExpose({
   align-items: center;
   gap: var(--spacing-xs);
   flex-wrap: wrap;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm);
 }
 
 .add-input {
   padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--bg-color-4);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-xs);
   font-size: var(--font-size-base);
-  background: var(--bg-color-1);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--text-color);
   max-width: 200px;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
@@ -235,7 +250,7 @@ defineExpose({
 .add-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--info-bg);
+  box-shadow: var(--focus-ring);
 }
 
 .docker-toggle {

@@ -304,7 +304,6 @@ onMounted(() => {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-xl);
 }
 
 .panel-header {

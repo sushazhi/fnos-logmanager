@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
     <Transition name="hm-overlay">
-      <div v-if="visible" class="hm-overlay" @click.self="cancel">
-        <Transition name="hm-modal" appear>
-          <div v-if="visible" class="hm-modal" :class="`hm-${type}`">
+      <div v-if="visible" class="hm-overlay-base hm-overlay" @click.self="cancel">
+        <Transition name="hm-modal">
+          <div v-if="visible" class="hm-modal-base hm-modal" :class="`hm-${type}`">
             <!-- Icon (not for confirm type) -->
             <div v-if="type !== 'confirm'" class="hm-icon-wrap">
               <div class="hm-icon">
@@ -159,27 +159,16 @@ function fallbackCopy() {
 <style scoped>
 /* ===== Overlay ===== */
 .hm-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
+  z-index: var(--z-toast);
   padding: var(--spacing-xl);
 }
 
 /* ===== Modal ===== */
 .hm-modal {
-  background: var(--card-bg);
-  border-radius: var(--radius-xl);
   padding: var(--spacing-3xl) var(--spacing-2xl) var(--spacing-2xl);
   max-width: 360px;
   width: 100%;
   text-align: center;
-  box-shadow: var(--shadow-xl);
   overflow: hidden;
 }
 
@@ -358,27 +347,16 @@ function fallbackCopy() {
   100% { opacity: 0; transform: scale(2); }
 }
 
-/* ===== Transitions ===== */
-.hm-overlay-enter-active {
-  transition: opacity 0.25s var(--ease-harmony);
-}
+/* ===== Transitions (进入动画由 hm-fade-in / hm-space-in 提供) ===== */
 .hm-overlay-leave-active {
-  transition: opacity 0.15s var(--ease-harmony);
+  transition: opacity var(--transition-fast);
 }
-.hm-overlay-enter-from,
 .hm-overlay-leave-to {
   opacity: 0;
 }
 
-.hm-modal-enter-active {
-  transition: all 0.3s var(--ease-harmony);
-}
 .hm-modal-leave-active {
-  transition: all 0.2s var(--ease-harmony);
-}
-.hm-modal-enter-from {
-  opacity: 0;
-  transform: translateY(24px) scale(0.96);
+  transition: all var(--transition-base);
 }
 .hm-modal-leave-to {
   opacity: 0;

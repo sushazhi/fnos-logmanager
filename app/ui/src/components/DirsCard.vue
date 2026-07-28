@@ -158,8 +158,10 @@ loadVisibleDirs()
 }
 
 .config-btn {
-  background: var(--bg-color-2);
-  border: none;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-xs);
   cursor: pointer;
@@ -170,11 +172,14 @@ loadVisibleDirs()
   min-width: 0;
   flex-shrink: 0;
   transition: all var(--transition-fast);
+  font-weight: var(--font-weight-medium);
 }
 
 .config-btn:hover {
   background: var(--primary-color);
   color: var(--text-color-on-primary);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 12px var(--glow-primary);
 }
 
 .config-btn:active {
@@ -189,6 +194,7 @@ loadVisibleDirs()
   padding: var(--spacing-md);
   border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-lg);
+  box-shadow: var(--depth-1);
 }
 
 .config-hint {
@@ -213,11 +219,19 @@ loadVisibleDirs()
   font-size: var(--font-size-base);
   cursor: pointer;
   color: var(--text-color-1);
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
 }
 
 .dir-checkbox:hover {
   background: var(--bg-color-2);
+  transform: translateY(-1px);
+  box-shadow: var(--depth-1);
+  border-color: var(--glass-border);
+}
+
+.dir-checkbox:active {
+  transform: scale(0.97);
 }
 
 .dir-status {
@@ -249,21 +263,37 @@ loadVisibleDirs()
   border-radius: var(--radius-sm);
   border-left: 4px solid var(--primary-color);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+  perspective: var(--perspective-near);
+}
+
+.log-dir-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .log-dir-item:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  transform: perspective(var(--perspective-near)) translateY(var(--translate-hover)) rotateX(var(--rotate-subtle));
+  box-shadow: var(--depth-2);
+  border-left-color: var(--primary-hover);
 }
 
 .log-dir-item:active {
-  transform: translateY(0);
+  transform: scale(var(--scale-active));
 }
 
 .log-dir-item.active {
-  background: var(--bg-color-3);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-left-color: var(--primary-hover);
+  box-shadow: 0 0 12px var(--glow-primary-soft);
 }
 
 .log-dir-item.error {
@@ -280,13 +310,17 @@ loadVisibleDirs()
 .log-dir-item h3 {
   margin: 0 0 var(--spacing-xs) 0;
   font-size: var(--font-size-base);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-color-1);
+  position: relative;
+  z-index: 1;
 }
 
 .log-dir-item .stats {
   display: flex;
   gap: var(--spacing-sm);
+  position: relative;
+  z-index: 1;
 }
 
 .log-dir-item .stat {
@@ -296,7 +330,7 @@ loadVisibleDirs()
 .log-dir-item .stat-value {
   display: block;
   font-size: var(--font-size-md);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--primary-color);
 }
 
@@ -336,17 +370,18 @@ loadVisibleDirs()
   }
 }
 
-.btn-primary:hover {
-  box-shadow: 0 0 20px var(--glow-primary);
-}
-
-.btn-primary:active {
-  transform: scale(0.97);
-  box-shadow: 0 0 28px var(--glow-primary-strong);
-}
-
 .glass-card {
   border: 1px solid var(--glass-border);
+  position: relative;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-shine);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 @media (max-width: 480px) {
