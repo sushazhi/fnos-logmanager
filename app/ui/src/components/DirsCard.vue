@@ -263,7 +263,7 @@ loadVisibleDirs()
   border-radius: var(--radius-sm);
   border-left: 4px solid var(--primary-color);
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: all var(--transition-spring);
   position: relative;
   overflow: hidden;
   perspective: var(--perspective-near);
@@ -294,6 +294,12 @@ loadVisibleDirs()
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border-left-color: var(--primary-hover);
   box-shadow: 0 0 12px var(--glow-primary-soft);
+  animation: glow-pulse-dir 2.5s ease-in-out infinite;
+}
+
+@keyframes glow-pulse-dir {
+  0%, 100% { box-shadow: 0 0 8px var(--glow-primary-soft); }
+  50% { box-shadow: 0 0 20px var(--glow-primary); }
 }
 
 .log-dir-item.error {

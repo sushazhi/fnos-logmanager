@@ -26,9 +26,11 @@ const { appVersion, updateInfo } = useUpdate()
   margin-bottom: var(--spacing-xl);
   position: relative;
   overflow: hidden;
-  background: var(--primary-gradient);
+  background: var(--rainbow-gradient-animated);
+  background-size: 300% 300%;
+  animation: rainbow-shift 6s ease infinite;
   box-shadow: var(--depth-3), 0 0 30px var(--glow-primary-soft);
-  transition: background var(--transition-base), box-shadow var(--transition-base);
+  transition: box-shadow var(--transition-base);
 }
 
 .app-header::before {

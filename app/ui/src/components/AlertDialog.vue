@@ -362,4 +362,36 @@ function fallbackCopy() {
   opacity: 0;
   transform: translateY(12px) scale(0.98);
 }
+
+/* ===== Mobile ===== */
+@media (max-width: 480px) {
+  .hm-overlay {
+    padding: var(--spacing-md);
+  }
+
+  .hm-modal {
+    padding: var(--spacing-2xl) var(--spacing-lg) var(--spacing-lg);
+    max-width: 100%;
+  }
+
+  .hm-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .hm-message {
+    font-size: var(--font-size-sm);
+  }
+
+  .hm-footer {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .hm-btn {
+    width: 100%;
+    height: 44px;
+    justify-content: center;
+    font-size: var(--font-size-base);
+  }
+}
 </style>

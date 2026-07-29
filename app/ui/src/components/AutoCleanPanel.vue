@@ -638,14 +638,88 @@ input:checked + .slider::before {
     max-height: 90vh;
   }
 
+  .panel-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .panel-header h3 {
+    font-size: var(--font-size-lg);
+  }
+
+  .close-btn {
+    font-size: var(--font-size-3xl);
+  }
+
+  .panel-body {
+    padding: var(--spacing-md);
+  }
+
   .rule-item {
     flex-direction: column;
     align-items: flex-start;
+    padding: var(--spacing-sm);
+  }
+
+  .rule-fields {
+    width: 100%;
+  }
+
+  .rule-fields input,
+  .rule-fields select {
+    width: 100%;
   }
 
   .rule-actions {
     width: 100%;
     justify-content: flex-end;
+    margin-top: var(--spacing-xs);
+  }
+
+  .add-form {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .add-form input,
+  .add-form select {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .auto-clean-panel {
+    width: 100%;
+    height: 95vh;
+    max-height: 95vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .panel-header {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .panel-header h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .panel-body {
+    padding: var(--spacing-sm);
+  }
+
+  .form-group label {
+    font-size: var(--font-size-sm);
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: var(--spacing-sm) var(--spacing-xs);
+    font-size: var(--font-size-base);
+    height: 44px;
+  }
+
+  .action-btn {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
   }
 }
 </style>

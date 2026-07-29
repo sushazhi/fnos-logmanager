@@ -341,8 +341,13 @@ export const bookmarkApi = {
   add: (data: { name?: string; path: string; isDocker?: boolean }) =>
     api.post<{ bookmark: Bookmark }>('/api/bookmarks', data),
 
-  delete: (id: string) =>
-    api.delete<{ success: boolean }>(`/api/bookmarks/${id}`)
+  delete: (id: string, path?: string, isDocker?: boolean) => {
+    const params = new URLSearchParams()
+    if (path) params.set('path', path)
+    if (isDocker) params.set('isDocker', 'true')
+    const qs = params.toString()
+    return api.delete<{ success: boolean }>(`/api/bookmarks/${id}${qs ? '?' + qs : ''}`)
+  }
 }
 
 // ==================== 内核版本 API ====================

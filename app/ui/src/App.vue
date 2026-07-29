@@ -1,6 +1,20 @@
 <template>
   <div v-if="isCheckingAuth" class="auth-loading">
-    <div class="auth-loading-spinner"></div>
+    <div class="auth-shimmer">
+      <div class="shimmer-header hm-shimmer"></div>
+      <div class="shimmer-cards">
+        <div class="shimmer-card hm-shimmer hm-shimmer-card"></div>
+        <div class="shimmer-card hm-shimmer hm-shimmer-card"></div>
+        <div class="shimmer-card hm-shimmer hm-shimmer-card"></div>
+        <div class="shimmer-card hm-shimmer hm-shimmer-card"></div>
+      </div>
+      <div class="shimmer-list">
+        <div class="shimmer-row hm-shimmer hm-shimmer-text"></div>
+        <div class="shimmer-row hm-shimmer hm-shimmer-text short"></div>
+        <div class="shimmer-row hm-shimmer hm-shimmer-text"></div>
+        <div class="shimmer-row hm-shimmer hm-shimmer-text short"></div>
+      </div>
+    </div>
   </div>
   
   <div v-else class="container">
@@ -17,6 +31,7 @@
     
     <BookmarkBar 
       :bookmarks="bookmarks"
+      :current-path="logCurrentPath"
       @open-bookmark="handleOpenBookmark"
       @delete-bookmark="handleDeleteBookmark"
       @add-bookmark="handleAddBookmark"
@@ -71,11 +86,12 @@
       :is-docker="logIsDocker"
       :container-name="logCurrentPath"
       :file-path="logCurrentPath"
+      :bookmarks="bookmarks"
       @close="handleCloseLogModal"
       @back="showLogModal = false"
       @load-all="handleLoadAllLines"
       @export="handleExportLog"
-      @add-bookmark="handleLogModalAddBookmark"
+      @toggle-bookmark="handleLogModalToggleBookmark"
       @truncate="handleLogModalTruncate"
     />
     
@@ -158,6 +174,7 @@ const {
   dirs,
   logList,
   status,
+  setStatus,
   filterEnabled,
   showLogModal,
   showCleanModal,
@@ -227,12 +244,16 @@ async function handleOpenBookmark(bookmark) {
   }
 }
 
-async function handleDeleteBookmark(id) {
+async function handleDeleteBookmark(bookmark) {
+  const id = bookmark.id
+  const path = bookmark.path
+  const isDocker = bookmark.isDocker
   try {
-    await bookmarkApi.delete(id)
-    bookmarks.value = bookmarks.value.filter(b => b.id !== id)
+    await bookmarkApi.delete(id, path, isDocker)
+    bookmarks.value = bookmarks.value.filter(b => b.id !== id && !(b.path === path && (b.isDocker || false) === (isDocker || false)))
+    setStatus('已移除书签', 'success')
   } catch (e) {
-    console.error('删除书签失败:', e)
+    setStatus('移除书签失败: ' + (e?.message || e), 'error')
   }
 }
 
@@ -252,16 +273,31 @@ function handleCloseLogModal() {
   showLogModal.value = false
 }
 
-async function handleLogModalAddBookmark() {
+async function handleLogModalToggleBookmark() {
   if (!logCurrentPath.value) return
   const pathVal = logCurrentPath.value
-  const name = pathVal.split('/').pop() || pathVal
   const isDocker = logIsDocker.value
+  const existing = bookmarks.value.find(b => b.path === pathVal && (b.isDocker || false) === isDocker)
+  if (existing) {
+    try {
+      await bookmarkApi.delete(existing.id, existing.path, existing.isDocker)
+      bookmarks.value = bookmarks.value.filter(b => b.id !== existing.id && !(b.path === existing.path && (b.isDocker || false) === (existing.isDocker || false)))
+      setStatus('已移除书签', 'success')
+    } catch (e) {
+      setStatus('移除书签失败: ' + (e?.message || e), 'error')
+    }
+    return
+  }
+  const name = pathVal.split('/').pop() || pathVal
   try {
     const result = await bookmarkApi.add({ path: pathVal, name, isDocker })
-    bookmarks.value.push(result.bookmark)
+    // Avoid pushing duplicates (server is idempotent: returns existing bookmark if already present)
+    if (!bookmarks.value.some(b => b.id === result.bookmark.id)) {
+      bookmarks.value.push(result.bookmark)
+    }
+    setStatus('已添加书签', 'success')
   } catch (e) {
-    console.error('添加书签失败:', e)
+    setStatus('添加书签失败: ' + (e?.message || e), 'error')
   }
 }
 

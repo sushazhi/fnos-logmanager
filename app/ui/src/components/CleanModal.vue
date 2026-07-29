@@ -27,8 +27,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="secondary" @click="$emit('close')">取消</button>
-        <button class="danger" @click="execute">执行清理</button>
+        <button class="secondary hm-ripple-btn" @click="$emit('close')">取消</button>
+        <button class="danger hm-ripple-btn" @click="execute">执行清理</button>
       </div>
     </div>
   </div>
@@ -194,5 +194,52 @@ function execute(): void {
 
 .modal-footer button.danger:active {
   box-shadow: 0 0 28px var(--glow-primary-strong);
+}
+
+/* ===== Mobile ===== */
+@media (max-width: 480px) {
+  .modal-content {
+    padding: var(--spacing-xl) var(--spacing-md);
+    max-width: 100%;
+    width: 95%;
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md);
+  }
+
+  .modal-header {
+    font-size: var(--font-size-xl);
+    padding-bottom: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .modal-body {
+    z-index: 3;
+    position: relative;
+  }
+
+  .form-group {
+    margin-bottom: var(--spacing-md);
+  }
+
+  .form-group label {
+    font-size: var(--font-size-sm);
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: var(--spacing-sm) var(--spacing-sm);
+    font-size: var(--font-size-base);
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .modal-footer button {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-base);
+    height: 44px;
+  }
 }
 </style>

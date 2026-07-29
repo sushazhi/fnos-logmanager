@@ -18,8 +18,20 @@
         </div>
 
         <div class="loading-state" v-if="loading && versions.length === 0">
-          <div class="spinner"></div>
-          <span>加载内核版本信息...</span>
+          <div class="kernel-shimmer">
+            <div class="shimmer-stat-row">
+              <div class="hm-shimmer shimmer-stat-card"></div>
+              <div class="hm-shimmer shimmer-stat-card"></div>
+              <div class="hm-shimmer shimmer-stat-card"></div>
+            </div>
+            <div class="hm-shimmer shimmer-current"></div>
+            <div class="shimmer-list-rows">
+              <div class="hm-shimmer shimmer-list-item"></div>
+              <div class="hm-shimmer shimmer-list-item"></div>
+              <div class="hm-shimmer shimmer-list-item"></div>
+            </div>
+          </div>
+          <span class="loading-tip">加载内核版本信息...</span>
         </div>
 
         <template v-if="!loading || versions.length > 0">
@@ -302,22 +314,54 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-3xl);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xl);
   color: var(--text-color-2);
 }
 
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--bg-color-4);
-  border-top-color: var(--primary-color);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+.kernel-shimmer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.shimmer-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.shimmer-stat-card {
+  height: 72px;
+  border-radius: var(--radius-sm);
+}
+
+.shimmer-current {
+  height: 56px;
+  border-radius: var(--radius-sm);
+}
+
+.shimmer-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.shimmer-list-item {
+  height: 48px;
+  border-radius: var(--radius-xs);
+}
+
+.loading-tip {
+  color: var(--text-color-3);
+  font-size: var(--font-size-sm);
+  animation: pulse-text 2s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .stats-row {
@@ -536,48 +580,234 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .version-list-header {
-    display: none;
-  }
-
-  .version-item {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-xs);
-  }
-
-  .col-version {
-    grid-column: 1 / -1;
-  }
-
-  .col-action {
-    grid-column: 1 / -1;
-  }
-
-  .current-info {
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 600px) {
   .kernel-panel {
     max-width: 100%;
-    max-height: 90vh;
+    width: 100%;
+    height: 95vh;
+    max-height: 95vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    margin-top: auto;
+  }
+
+  .panel-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+    min-height: auto;
+  }
+
+  .panel-header h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 500;
+  }
+
+  .close-btn {
+    font-size: var(--font-size-3xl);
+    line-height: 1;
+    min-width: 32px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .panel-body {
     padding: var(--spacing-md);
   }
 
+  /* Stats: 2 per row */
   .stats-row {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xs);
   }
 
   .stat-card {
-    min-width: calc(50% - var(--spacing-md));
+    padding: var(--spacing-sm);
   }
 
+  .stat-value {
+    font-size: var(--font-size-3xl);
+  }
+
+  .stat-label {
+    font-size: var(--font-size-xs);
+  }
+
+  /* Current kernel info: wrap */
+  .current-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+  }
+
+  .current-version {
+    font-size: var(--font-size-sm);
+    word-break: break-all;
+  }
+
+  /* Action buttons: stacked */
   .action-section {
     flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .action-btn {
+    flex: none;
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+  }
+
+  .cleanup-btn {
+    font-size: var(--font-size-sm);
+  }
+
+  /* Table header: hide on mobile */
+  .version-list-header {
+    display: none;
+  }
+
+  /* Version cards: stacked card layout */
+  .version-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .col-version {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  .version-name {
+    font-size: var(--font-size-sm);
+  }
+
+  .col-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .col-status::before {
+    content: '状态:';
+    color: var(--text-color-3);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    min-width: 36px;
+  }
+
+  .version-status {
+    font-size: var(--font-size-2xs);
+  }
+
+  .col-boot {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .col-boot::before {
+    content: '引导:';
+    color: var(--text-color-3);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    min-width: 36px;
+  }
+
+  .col-modules {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .col-modules::before {
+    content: '模块:';
+    color: var(--text-color-3);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    min-width: 36px;
+  }
+
+  .col-total {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .col-total::before {
+    content: '总计:';
+    color: var(--text-color-3);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    min-width: 36px;
+  }
+
+  .col-action {
+    margin-top: var(--spacing-xs);
+  }
+
+  .remove-btn {
+    width: 100%;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    text-align: center;
+  }
+
+  .current-badge {
+    display: block;
+    text-align: center;
+    font-size: var(--font-size-sm);
+  }
+
+  .no-versions {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-2xl);
+  }
+
+  .loading-state {
+    padding: var(--spacing-lg);
+    font-size: var(--font-size-sm);
+  }
+
+  .shimmer-stat-row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+
+  .shimmer-stat-card {
+    height: 56px;
+  }
+}
+
+@media (max-width: 480px) {
+  .kernel-panel {
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .panel-header {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .panel-header h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .panel-body {
+    padding: var(--spacing-sm);
+  }
+
+  .stat-value {
+    font-size: var(--font-size-2xl);
   }
 }
 </style>

@@ -345,4 +345,36 @@ defineExpose({ show })
   opacity: 0;
   transform: translateY(12px) scale(0.98);
 }
+
+/* ===== Mobile ===== */
+@media (max-width: 480px) {
+  .hm-overlay {
+    padding: var(--spacing-md);
+  }
+
+  .hm-modal {
+    padding: var(--spacing-2xl) var(--spacing-lg) var(--spacing-lg);
+    max-width: 100%;
+  }
+
+  .hm-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .hm-message {
+    font-size: var(--font-size-sm);
+    max-height: 200px;
+    margin-bottom: var(--spacing-xl);
+  }
+
+  .hm-actions {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .hm-btn {
+    height: 44px;
+    font-size: var(--font-size-base);
+  }
+}
 </style>

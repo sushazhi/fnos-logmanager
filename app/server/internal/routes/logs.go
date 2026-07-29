@@ -1533,12 +1533,22 @@ func updateBookmarkHandler(c *gin.Context) {
 
 func deleteBookmarkHandler(c *gin.Context) {
 	id := c.Param("id")
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少书签ID"})
+	path := c.Query("path")
+	isDocker := c.Query("isDocker") == "true"
+	if id == "" && path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少书签ID或路径"})
 		return
 	}
 
-	if !services.DeleteBookmark(id) {
+	deleted := false
+	if id != "" {
+		deleted = services.DeleteBookmark(id)
+	}
+	if !deleted && path != "" {
+		deleted = services.DeleteBookmarkByPath(path, isDocker)
+	}
+
+	if !deleted {
 		c.JSON(http.StatusNotFound, gin.H{"error": "书签不存在"})
 		return
 	}

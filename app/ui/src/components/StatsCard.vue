@@ -83,7 +83,7 @@ defineProps<{
   padding: var(--spacing-lg);
   border-radius: var(--radius-md);
   box-shadow: var(--depth-1);
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  transition: transform var(--transition-spring), box-shadow var(--transition-spring);
   overflow: hidden;
   display: flex;
   align-items: center;

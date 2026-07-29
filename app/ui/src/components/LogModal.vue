@@ -65,8 +65,13 @@
             <span class="action-icon">⧉</span>
             <span class="action-text">复制</span>
           </button>
-          <button class="action-btn" @click="$emit('addBookmark')" title="添加书签">
-            <span class="action-icon">☆</span>
+          <button
+            class="action-btn"
+            :class="{ 'is-active': isBookmarked }"
+            @click="$emit('toggleBookmark')"
+            :title="isBookmarked ? '取消书签' : '添加书签'"
+          >
+            <span class="action-icon">{{ isBookmarked ? '★' : '☆' }}</span>
             <span class="action-text">书签</span>
           </button>
           <button class="action-btn back-btn" @click="$emit('back')" title="返回主页">
@@ -147,6 +152,7 @@ import { useLogSearch } from '../composables/useLogSearch'
 import { useLogStream } from '../composables/useLogStream'
 import { useDockerLogStream } from '../composables/useDockerLogStream'
 import { useLogsStore } from '../stores/useLogsStore'
+import type { Bookmark } from '../services/api'
 interface Props {
   title?: string
   content?: string
@@ -156,6 +162,7 @@ interface Props {
   isDocker?: boolean
   containerName?: string
   filePath?: string
+  bookmarks?: Bookmark[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -186,9 +193,15 @@ const emit = defineEmits<{
   back: []
   loadAll: []
   export: [format: string]
-  addBookmark: []
+  toggleBookmark: []
   truncate: []
 }>()
+
+const isBookmarked = computed(() => {
+  const path = props.filePath
+  if (!path) return false
+  return (props.bookmarks || []).some(b => b.path === path && (b.isDocker || false) === props.isDocker)
+})
 
 /** 标签页色彩方案 */
 const TAB_COLORS = [
@@ -902,6 +915,17 @@ onUnmounted(() => {
   box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 
+.action-btn.is-active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--info-bg);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.action-btn.is-active .action-icon {
+  color: #ffd700;
+}
+
 .action-icon {
   font-size: var(--font-size-base);
   line-height: 1;
@@ -1296,7 +1320,8 @@ onUnmounted(() => {
 
   .modal-header {
     padding: var(--spacing-sm) var(--spacing-md);
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: var(--spacing-sm);
     min-height: auto;
     background: var(--bg-color-2);
@@ -1306,16 +1331,21 @@ onUnmounted(() => {
   .modal-header .title {
     font-size: var(--font-size-base);
     font-weight: 500;
-    flex: 1;
+    flex: 1 1 100%;
+    min-width: 0;
     order: 0;
     color: var(--text-color-1);
   }
 
   .header-actions {
-    width: auto;
-    justify-content: flex-end;
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
     order: 0;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-xs);
   }
 
   .line-count {
@@ -1343,13 +1373,24 @@ onUnmounted(() => {
     color: var(--text-color-1);
   }
 
+  .action-text {
+    display: inline;
+  }
+
   .action-btn {
-    padding: 2px 7px;
-    font-size: var(--font-size-2xs);
+    flex: 0 0 auto;
+    justify-content: center;
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: var(--font-size-sm);
   }
 
   .action-icon {
-    font-size: var(--font-size-2xs);
+    font-size: var(--font-size-sm);
+  }
+
+  .close-btn {
+    flex: 0 0 auto;
   }
 
   .action-dropdown {

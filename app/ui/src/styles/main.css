@@ -586,6 +586,40 @@ button:active {
   100% { background-position: 200% 0; }
 }
 
+/* ── 骨架屏加载 ── */
+.hm-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--glass-bg) 0%,
+    var(--glass-bg-strong) 40%,
+    var(--glass-bg) 80%
+  );
+  background-size: 200% 100%;
+  animation: hm-shimmer 1.8s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+.hm-shimmer-card {
+  width: 100%;
+  height: 120px;
+}
+
+.hm-shimmer-text {
+  height: 16px;
+  margin-bottom: var(--spacing-sm);
+  width: 80%;
+}
+
+.hm-shimmer-text.short {
+  width: 50%;
+}
+
+.hm-shimmer-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+}
+
 /* ── 涟漪效果 ── */
 @keyframes hm-ripple {
   to {
@@ -601,6 +635,30 @@ button:active {
   transform: scale(0);
   animation: hm-ripple 0.6s ease-out;
   pointer-events: none;
+}
+
+/* CSS-only 涟漪：所有需要涟漪的按钮加 .hm-ripple-btn 类 */
+.hm-ripple-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.hm-ripple-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.3s var(--ease-harmony), transform 0.3s var(--ease-harmony);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.hm-ripple-btn:active::after {
+  opacity: 1;
+  transform: scale(2);
+  transition: opacity 0s, transform 0.4s var(--ease-exit);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -638,7 +696,7 @@ a:hover {
   background: var(--rainbow-gradient);
 }
 
-/* ── 认证加载 ── */
+/* ── 认证加载骨架屏 ── */
 .auth-loading {
   position: fixed;
   top: 0;
@@ -652,17 +710,35 @@ a:hover {
   z-index: 9999;
 }
 
-.auth-loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--bg-color-3);
-  border-top-color: var(--primary-color);
-  border-radius: 50%;
-  animation: auth-spin 0.8s linear infinite;
+.auth-shimmer {
+  width: 90%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
 }
 
-@keyframes auth-spin {
-  to { transform: rotate(360deg); }
+.shimmer-header {
+  height: 80px;
+  border-radius: var(--radius-lg);
+}
+
+.shimmer-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.shimmer-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+@media (max-width: 480px) {
+  .shimmer-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════

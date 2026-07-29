@@ -131,7 +131,7 @@ button {
   font-weight: var(--font-weight-semibold);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-spring);
   box-shadow: var(--depth-1);
   position: relative;
   overflow: hidden;

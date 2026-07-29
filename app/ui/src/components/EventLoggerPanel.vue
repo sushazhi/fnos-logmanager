@@ -714,17 +714,110 @@ onUnmounted(() => {
     max-width: 100%;
     max-height: 90vh;
   }
-  
+
+  .panel-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .panel-header h3 {
+    font-size: var(--font-size-lg);
+  }
+
+  .close-btn {
+    font-size: var(--font-size-3xl);
+  }
+
   .panel-body {
     padding: var(--spacing-md);
   }
-  
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-xs);
+  }
+
+  .stat-value {
+    font-size: var(--font-size-2xl);
+  }
+
   .action-buttons {
     flex-direction: column;
   }
-  
+
   .action-btn {
     width: 100%;
+  }
+
+  .events-list {
+    max-height: 350px;
+  }
+
+  .event-item {
+    padding: var(--spacing-xs);
+  }
+
+  .event-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+
+  .event-source {
+    font-size: var(--font-size-sm);
+  }
+
+  .event-severity {
+    font-size: var(--font-size-2xs);
+  }
+
+  .event-message {
+    font-size: var(--font-size-sm);
+  }
+}
+
+@media (max-width: 480px) {
+  .event-logger-panel {
+    max-width: 100%;
+    width: 100%;
+    height: 95vh;
+    max-height: 95vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .panel-header {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .panel-header h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .panel-body {
+    padding: var(--spacing-sm);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+  }
+
+  .stat-item {
+    padding: var(--spacing-xs);
+  }
+
+  .stat-value {
+    font-size: var(--font-size-xl);
+  }
+
+  .stat-label {
+    font-size: var(--font-size-2xs);
+  }
+
+  .save-btn {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-base);
+    height: 44px;
   }
 }
 </style>

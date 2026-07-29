@@ -60,6 +60,24 @@ func loadBookmarks() {
 		}
 		slog.Info("migrated bookmarks from old format", "count", len(bookmarks))
 	}
+
+	// Deduplicate: keep only the first occurrence of each path+isDocker combination
+	seen := make(map[string]bool)
+	deduped := make([]Bookmark, 0, len(bookmarks))
+	dupCount := 0
+	for _, b := range bookmarks {
+		key := fmt.Sprintf("%s|%v", b.Path, b.IsDocker)
+		if seen[key] {
+			dupCount++
+			continue
+		}
+		seen[key] = true
+		deduped = append(deduped, b)
+	}
+	if dupCount > 0 {
+		bookmarks = deduped
+		slog.Info("deduplicated bookmarks on load", "removed", dupCount, "remaining", len(bookmarks))
+	}
 }
 
 func saveBookmarks() {
@@ -90,8 +108,19 @@ func LoadBookmarks() ([]Bookmark, error) {
 	return result, nil
 }
 
-// AddBookmark adds a new bookmark.
+// AddBookmark adds a new bookmark. Returns the existing bookmark if one
+// with the same path+isDocker already exists (idempotent).
 func AddBookmark(name, path string, isDocker bool) (Bookmark, error) {
+	// Check for existing bookmark with same path+isDocker
+	bookmarksMu.RLock()
+	for _, b := range bookmarks {
+		if b.Path == path && b.IsDocker == isDocker {
+			bookmarksMu.RUnlock()
+			return b, nil // idempotent: return existing, no error
+		}
+	}
+	bookmarksMu.RUnlock()
+
 	id := generateID("bm")
 	b := Bookmark{
 		ID:       id,
@@ -111,30 +140,53 @@ func AddBookmark(name, path string, isDocker bool) (Bookmark, error) {
 // DeleteBookmark removes a bookmark by ID.
 func DeleteBookmark(id string) bool {
 	bookmarksMu.Lock()
-	defer bookmarksMu.Unlock()
 
 	for i, b := range bookmarks {
 		if b.ID == id {
 			bookmarks = append(bookmarks[:i], bookmarks[i+1:]...)
+			bookmarksMu.Unlock()
 			saveBookmarks()
 			return true
 		}
 	}
+	bookmarksMu.Unlock()
+	return false
+}
+
+// DeleteBookmarkByPath removes a bookmark by its path and docker flag.
+// Used as a fallback when the bookmark ID is missing (e.g. legacy data).
+func DeleteBookmarkByPath(path string, isDocker bool) bool {
+	if path == "" {
+		return false
+	}
+	bookmarksMu.Lock()
+
+	for i, b := range bookmarks {
+		if b.Path == path && b.IsDocker == isDocker {
+			bookmarks = append(bookmarks[:i], bookmarks[i+1:]...)
+			bookmarksMu.Unlock()
+			saveBookmarks()
+			return true
+		}
+	}
+	bookmarksMu.Unlock()
 	return false
 }
 
 // UpdateBookmark updates a bookmark's name.
 func UpdateBookmark(id, name string) *Bookmark {
 	bookmarksMu.Lock()
-	defer bookmarksMu.Unlock()
 
 	for i, b := range bookmarks {
 		if b.ID == id {
 			bookmarks[i].Name = name
+			copied := bookmarks[i]
+			bookmarksMu.Unlock()
 			saveBookmarks()
-			return &bookmarks[i]
+			return &copied
 		}
 	}
+	bookmarksMu.Unlock()
 	return nil
 }
 

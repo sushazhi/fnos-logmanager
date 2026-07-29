@@ -1,18 +1,22 @@
 <template>
-  <div class="bookmark-bar" v-if="bookmarks.length > 0 || showAddForm">
+  <div class="bookmark-bar">
     <div class="bookmark-list" ref="listRef">
+      <div v-if="bookmarks.length === 0 && !showAddForm" class="bookmark-empty">
+        暂无书签，点击 + 添加
+      </div>
+
       <div
         v-for="bookmark in bookmarks"
         :key="bookmark.id"
         class="bookmark-tag"
-        :class="{ docker: bookmark.isDocker }"
+        :class="{ docker: bookmark.isDocker, active: bookmark.path === currentPath }"
         @click="$emit('open-bookmark', bookmark)"
       >
         <span class="bookmark-icon">{{ bookmark.isDocker ? '🐳' : '📄' }}</span>
         <span class="bookmark-name" :title="bookmark.path">{{ bookmark.name }}</span>
         <button
           class="bookmark-delete"
-          @click.stop="$emit('delete-bookmark', bookmark.id)"
+          @click.stop="$emit('delete-bookmark', bookmark)"
           title="删除书签"
         >×</button>
       </div>
@@ -49,11 +53,12 @@ import type { Bookmark } from '../services/api'
 
 defineProps<{
   bookmarks: Bookmark[]
+  currentPath?: string
 }>()
 
 const emit = defineEmits<{
   'open-bookmark': [bookmark: Bookmark]
-  'delete-bookmark': [id: string]
+  'delete-bookmark': [bookmark: Bookmark]
   'add-bookmark': [data: { path: string; name?: string; isDocker?: boolean }]
 }>()
 
@@ -114,6 +119,13 @@ defineExpose({
   overflow-x: auto;
 }
 
+.bookmark-empty {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-3);
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
 .bookmark-tag {
   display: inline-flex;
   align-items: center;
@@ -153,6 +165,19 @@ defineExpose({
   color: var(--primary-color);
 }
 
+.bookmark-tag.active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--glass-bg-strong);
+  box-shadow: 0 0 16px var(--glow-primary-soft);
+  animation: hm-glow-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes hm-glow-pulse {
+  0%, 100% { box-shadow: 0 0 12px var(--glow-primary); }
+  50% { box-shadow: 0 0 28px var(--glow-primary-strong); }
+}
+
 .bookmark-icon {
   flex-shrink: 0;
   font-size: var(--font-size-sm);
@@ -172,7 +197,6 @@ defineExpose({
   font-size: var(--font-size-sm);
   width: 16px;
   height: 16px;
-  display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
@@ -314,6 +338,13 @@ defineExpose({
 
   .bookmark-tag {
     max-width: 150px;
+  }
+}
+
+/* 触屏设备无 hover，始终显示删除按钮以便取消固定 */
+@media (hover: none) {
+  .bookmark-delete {
+    display: inline-flex;
   }
 }
 </style>
