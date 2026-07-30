@@ -119,10 +119,12 @@ func AddAuditLog(action string, details map[string]interface{}, c *gin.Context) 
 		}
 		method = c.Request.Method
 		requestPath = c.Request.URL.Path
-	}
 
-	if v, exists := c.Get("clientIP"); exists {
-		ip = v.(string)
+		if v, exists := c.Get("clientIP"); exists {
+			if s, ok := v.(string); ok {
+				ip = s
+			}
+		}
 	}
 
 	entry := types.AuditLogEntry{

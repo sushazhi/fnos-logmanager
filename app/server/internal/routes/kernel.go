@@ -32,8 +32,8 @@ type kernelVersion struct {
 // RegisterKernelRoutes registers kernel-related routes under the given router group.
 func RegisterKernelRoutes(rg *gin.RouterGroup) {
 	rg.GET("/kernel/versions", middleware.ValidateToken, kernelVersionsHandler)
-	rg.POST("/kernel/versions/cleanup", middleware.ValidateToken, middleware.ValidateCSRF, kernelVersionCleanupHandler)
-	rg.POST("/kernel/versions/:version/remove", middleware.ValidateToken, middleware.ValidateCSRF, kernelVersionRemoveHandler)
+	rg.POST("/kernel/versions/cleanup", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), kernelVersionCleanupHandler)
+	rg.POST("/kernel/versions/:version/remove", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), kernelVersionRemoveHandler)
 }
 
 // kernelVersionsHandler lists all installed kernel versions.
@@ -126,10 +126,25 @@ func kernelVersionRemoveHandler(c *gin.Context) {
 		return
 	}
 
-	// Validate version string (alphanumeric, dots, hyphens, underscores only)
-	valid := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`).MatchString(version)
-	if !valid {
+	// Validate version string strictly: no path components, no "."/"..",
+	// and the version must actually be installed before we touch the filesystem.
+	if !isValidKernelVersion(version) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的内核版本号"})
+		return
+	}
+
+	installed, err := getInstalledKernels(currentKernel)
+	found := false
+	if err == nil {
+		for _, v := range installed {
+			if v.Version == version {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "内核版本不存在或未安装"})
 		return
 	}
 
@@ -139,7 +154,7 @@ func kernelVersionRemoveHandler(c *gin.Context) {
 	}
 
 	// Re-read to return updated state
-	installed, _ := getInstalledKernels(currentKernel)
+	installed, _ = getInstalledKernels(currentKernel)
 	c.JSON(http.StatusOK, gin.H{
 		"success":  true,
 		"message":  fmt.Sprintf("内核 %s 已删除", version),
@@ -274,8 +289,31 @@ func calcDirSize(path string) int64 {
 	return total
 }
 
+// kernelVersionPattern allows alphanumeric, dots, hyphens, underscores only.
+var kernelVersionPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+// isValidKernelVersion reports whether version is safe to use in filesystem
+// operations: it must be a single path component (no separators, not "."/"..")
+// and must contain at least one digit, as real kernel versions always do.
+func isValidKernelVersion(version string) bool {
+	if version == "" || version == "." || version == ".." {
+		return false
+	}
+	if !kernelVersionPattern.MatchString(version) {
+		return false
+	}
+	if filepath.Base(version) != version || strings.ContainsAny(version, `/\\`) {
+		return false
+	}
+	return strings.ContainsAny(version, "0123456789")
+}
+
 // removeKernelVersion removes all files associated with a kernel version.
 func removeKernelVersion(version string) error {
+	if !isValidKernelVersion(version) {
+		return fmt.Errorf("无效的内核版本号")
+	}
+
 	var errs []string
 
 	// Remove boot files
@@ -293,9 +331,9 @@ func removeKernelVersion(version string) error {
 		}
 	}
 
-	// Remove /lib/modules/<version>/
+	// Remove /lib/modules/<version>/ (Lstat: never follow symlinks)
 	modPath := filepath.Join("/lib/modules", version)
-	if fi, err := os.Stat(modPath); err == nil && fi.IsDir() {
+	if fi, err := os.Lstat(modPath); err == nil && fi.IsDir() {
 		if err := os.RemoveAll(modPath); err != nil {
 			errs = append(errs, fmt.Sprintf("删除 %s 失败: %s", modPath, err.Error()))
 		}

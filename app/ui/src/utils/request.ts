@@ -124,14 +124,28 @@ export class RequestDeduper {
 export function filterSensitiveInfo(message: unknown): string {
   if (typeof message !== 'string') return String(message)
 
-  // 过滤路径信息
-  let filtered = message.replace(/\/[\w\-./]+/g, '[PATH]')
+  let msg: string = message
 
-  // 过滤IP地址
-  filtered = filtered.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, '[IP]')
+  // Guard against excessively long input strings (ReDoS prevention)
+  const MAX_LENGTH = 8192
+  if (msg.length > MAX_LENGTH) {
+    msg = msg.slice(0, MAX_LENGTH) + '...[TRUNCATED]'
+  }
 
-  // 过滤端口号
+  // Filter absolute Unix/Windows paths (use non-backtracking alternation)
+  let filtered = msg.replace(/(?:\/[\w\-.]{0,64})+|\\(?:[\w\-.]{0,64}\\)*[\w\-.]{0,64}/g, '[PATH]')
+
+  // Filter IP addresses (including IPv4-mapped-IPv6 prefix)
+  filtered = filtered.replace(/(?:::ffff:)?\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, '[IP]')
+
+  // Filter port numbers
   filtered = filtered.replace(/:\d{2,5}/g, ':[PORT]')
+
+  // Filter hex tokens / session IDs (32+ hex chars)
+  filtered = filtered.replace(/\b[a-f0-9]{32,}\b/gi, '[TOKEN]')
+
+  // Filter hostnames with ports (e.g. api.example.com:443)
+  filtered = filtered.replace(/[\w-]+\.[\w.-]+:\d{2,5}/g, '[HOST:PORT]')
 
   return filtered
 }

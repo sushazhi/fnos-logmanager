@@ -15,8 +15,11 @@ import (
 const maxRateLimitEntries = 10000
 
 type rateLimitStore struct {
-	mu    sync.RWMutex
-	store map[string]*types.RateLimitRecord
+	mu          sync.RWMutex
+	store       map[string]*types.RateLimitRecord
+	// oldestKey tracks the oldest entry for deterministic LRU eviction.
+	oldestKey   string
+	oldestTime  int64
 }
 
 func newRateLimitStore() *rateLimitStore {
@@ -35,11 +38,28 @@ func (rls *rateLimitStore) set(key string, record *types.RateLimitRecord) {
 	rls.mu.Lock()
 	defer rls.mu.Unlock()
 	if len(rls.store) >= maxRateLimitEntries {
-		// Evict oldest entry
-		for k := range rls.store {
-			delete(rls.store, k)
-			break
+		// Evict the oldest entry deterministically instead of random.
+		// If the tracked oldest key is stale, scan for the real oldest.
+		if rls.oldestKey == "" || rls.store[rls.oldestKey] == nil {
+			var minTime int64 = 1<<63 - 1
+			var minKey string
+			for k, v := range rls.store {
+				if v.ResetTime < minTime {
+					minTime = v.ResetTime
+					minKey = k
+				}
+			}
+			rls.oldestKey = minKey
+			rls.oldestTime = minTime
 		}
+		if rls.oldestKey != "" {
+			delete(rls.store, rls.oldestKey)
+			rls.oldestKey = ""
+		}
+	}
+	// Track the new oldest entry
+	if rls.oldestKey == "" || record.ResetTime < rls.oldestTime {
+		rls.oldestTime = record.ResetTime
 	}
 	rls.store[key] = record
 }

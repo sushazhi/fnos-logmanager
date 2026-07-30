@@ -41,11 +41,8 @@ func isPrivateIP(ip string) bool {
 		return true
 	}
 	if strings.HasPrefix(cleanIP, "172.") {
-		parts := strings.Split(cleanIP, ".")
-		if len(parts) >= 2 {
-			second := parts[1]
-			if len(second) == 2 || (len(second) == 1 && second >= "16" && second <= "31") ||
-				(len(second) == 2 && second >= "16" && second <= "31") {
+		if addr, err := netip.ParseAddr(cleanIP); err == nil {
+			if prefix172 := netip.MustParsePrefix("172.16.0.0/12"); prefix172.Contains(addr) {
 				return true
 			}
 		}
@@ -202,12 +199,9 @@ func IsPrivateURL(rawURL string) bool {
 
 	// Check 172.16.0.0/12
 	if strings.HasPrefix(hostname, "172.") {
-		parts := strings.SplitN(hostname, ".", 3)
-		if len(parts) >= 2 {
-			if second := parts[1]; len(second) > 0 {
-				if second[0] >= '1' && second[0] <= '3' {
-					return true
-				}
+		if addr, err := netip.ParseAddr(hostname); err == nil {
+			if prefix172 := netip.MustParsePrefix("172.16.0.0/12"); prefix172.Contains(addr) {
+				return true
 			}
 		}
 	}

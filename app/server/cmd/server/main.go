@@ -115,10 +115,20 @@ func main() {
 		slog.Warn("自动清理调度启动失败", "error", err)
 	}
 
-	// Create HTTP server (bind to 127.0.0.1 in gateway mode to prevent bypassing the gateway)
-	bindAddr := "0.0.0.0"
-	if cfg.GatewaySocket != "" {
-		bindAddr = "127.0.0.1"
+	// Create HTTP server.
+	// Gateway mode always binds 127.0.0.1 (only reachable via the gateway proxy).
+	// Standalone mode defaults to 127.0.0.1 as well: it has no authentication,
+	// so exposing it on all interfaces would leave every API (log deletion,
+	// kernel removal, docker, updates) open to the whole network. Set
+	// LOGMANAGER_BIND_ADDR=0.0.0.0 explicitly if external access is required.
+	bindAddr := "127.0.0.1"
+	if cfg.GatewaySocket == "" {
+		if v := os.Getenv("LOGMANAGER_BIND_ADDR"); v != "" {
+			bindAddr = v
+		}
+	}
+	if bindAddr != "127.0.0.1" && bindAddr != "::1" && cfg.GatewaySocket == "" {
+		slog.Warn("独立模式监听非回环地址，所有接口将无认证暴露，请确保网络可信", "bindAddr", bindAddr)
 	}
 	addr := fmt.Sprintf("%s:%d", bindAddr, cfg.Port)
 	server := &http.Server{

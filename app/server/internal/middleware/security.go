@@ -32,8 +32,11 @@ func SecurityHeaders(c *gin.Context) {
 		frameAncestors = fmt.Sprintf("'self' https://%s:* http://%s:*", hostBase, hostBase)
 	}
 
+	// script-src uses 'self' only — the SPA bundles all JS into external files, no
+	// inline <script> tags needed at runtime. style-src keeps 'unsafe-inline' because
+	// Vue scoped styles inject inline <style> tags into the DOM.
 	c.Header("Content-Security-Policy",
-		fmt.Sprintf("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors %s", frameAncestors))
+		fmt.Sprintf("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors %s; base-uri 'self'; form-action 'self'", frameAncestors))
 
 	c.Next()
 }

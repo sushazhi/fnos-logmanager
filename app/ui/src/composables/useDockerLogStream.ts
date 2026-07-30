@@ -14,6 +14,20 @@ interface DockerStreamMessage {
   message?: string
 }
 
+const VALID_DOCKER_STREAM_TYPES = new Set([
+  'connected', 'subscribed', 'data', 'error', 'pong'
+])
+const MAX_DOCKER_MESSAGE_LENGTH = 256 * 1024
+
+function isValidDockerStreamMessage(msg: unknown): msg is DockerStreamMessage {
+  if (!msg || typeof msg !== 'object') return false
+  const m = msg as Record<string, unknown>
+  if (typeof m.type !== 'string' || !VALID_DOCKER_STREAM_TYPES.has(m.type)) return false
+  if (typeof m.content === 'string' && m.content.length > MAX_DOCKER_MESSAGE_LENGTH) return false
+  if (typeof m.message === 'string' && m.message.length > 4096) return false
+  return true
+}
+
 export function useDockerLogStream() {
   const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
@@ -50,9 +64,11 @@ export function useDockerLogStream() {
       socket.onmessage = (event) => {
         try {
           const message: DockerStreamMessage = JSON.parse(event.data)
-          handleMessage(message)
+          if (isValidDockerStreamMessage(message)) {
+            handleMessage(message)
+          }
         } catch {
-          // Ignore invalid messages
+          // Ignore invalid or malicious messages
         }
       }
 

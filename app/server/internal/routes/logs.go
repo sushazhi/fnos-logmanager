@@ -46,34 +46,34 @@ func RegisterLogRoutes(rg *gin.RouterGroup) {
 	rg.GET("/log/tail", middleware.ValidateToken, tailLogHandler)
 	rg.GET("/log/content", middleware.ValidateToken, getLogContentHandler)
 	rg.GET("/log/export", middleware.ValidateToken, exportLogHandler)
-	rg.POST("/log/truncate", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), truncateLogHandler)
-	rg.POST("/log/delete", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), deleteLogHandler)
-	rg.POST("/logs/clean", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanLogsHandler)
+	rg.POST("/log/truncate", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), truncateLogHandler)
+	rg.POST("/log/delete", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), deleteLogHandler)
+	rg.POST("/logs/clean", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanLogsHandler)
 
 	// Backup
-	rg.POST("/logs/backup", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 600000), backupLogsHandler)
+	rg.POST("/logs/backup", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 600000), backupLogsHandler)
 	rg.GET("/backups/list", middleware.ValidateToken, listBackupsHandler)
-	rg.POST("/backups/delete", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), deleteBackupHandler)
-	rg.POST("/backups/clean", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanBackupsHandler)
+	rg.POST("/backups/delete", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), deleteBackupHandler)
+	rg.POST("/backups/clean", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanBackupsHandler)
 
 	// Archives
 	rg.GET("/archives/list", middleware.ValidateToken, listArchivesHandler)
 	rg.GET("/archive/content", middleware.ValidateToken, getArchiveContentHandler)
-	rg.POST("/archives/delete", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), deleteArchiveHandler)
+	rg.POST("/archives/delete", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), deleteArchiveHandler)
 
 	// Audit
 	rg.GET("/audit/log", middleware.ValidateToken, getAuditLogHandler)
 
 	// Dirs
-	rg.POST("/dirs/clean-empty", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanEmptyDirsHandler)
+	rg.POST("/dirs/clean-empty", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanEmptyDirsHandler)
 
 	// Auto-clean rules
 	rg.GET("/auto-clean/rules", middleware.ValidateToken, listCleanRulesHandler)
-	rg.POST("/auto-clean/rules", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), createCleanRuleHandler)
-	rg.PUT("/auto-clean/rules/:id", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), updateCleanRuleHandler)
-	rg.DELETE("/auto-clean/rules/:id", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), deleteCleanRuleHandler)
-	rg.POST("/auto-clean/rules/:id/toggle", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), toggleCleanRuleHandler)
-	rg.POST("/auto-clean/rules/:id/execute", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), executeCleanRuleHandler)
+	rg.POST("/auto-clean/rules", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), createCleanRuleHandler)
+	rg.PUT("/auto-clean/rules/:id", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), updateCleanRuleHandler)
+	rg.DELETE("/auto-clean/rules/:id", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), deleteCleanRuleHandler)
+	rg.POST("/auto-clean/rules/:id/toggle", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), toggleCleanRuleHandler)
+	rg.POST("/auto-clean/rules/:id/execute", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), executeCleanRuleHandler)
 
 	// Bookmarks
 	rg.GET("/bookmarks", middleware.ValidateToken, listBookmarksHandler)

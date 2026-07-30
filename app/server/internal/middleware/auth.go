@@ -56,15 +56,22 @@ func ValidateToken(c *gin.Context) {
 
 	if isGatewayMode {
 		uid := c.GetHeader("X-Trim-Userid")
-		if uid != "" {
+		// The X-Trim-Userid header is only trustworthy when the connection
+		// genuinely comes from the local gateway proxy (loopback). Otherwise
+		// a remote client could forge the header and impersonate any user.
+		if uid != "" && utils.IsLoopbackAddr(c.Request.RemoteAddr) {
 			slog.Debug("auth gateway ok: X-Trim-Userid present",
 				"uid", uid, "path", c.Request.URL.Path, "clientIP", clientIP)
-			sessionToken := services.CreateSession(uid)
+			sessionToken := services.GetOrCreateUserSession(uid)
 			c.Set("sessionToken", sessionToken)
 			c.Set("clientIP", clientIP)
 			c.Set("gatewayUID", uid)
 			c.Next()
 			return
+		}
+		if uid != "" {
+			slog.Warn("auth gateway: X-Trim-Userid from non-loopback ignored",
+				"uid", uid, "path", c.Request.URL.Path, "remoteAddr", c.Request.RemoteAddr)
 		}
 		slog.Debug("auth gateway: X-Trim-Userid missing, falling to token",
 			"path", c.Request.URL.Path, "clientIP", clientIP)
@@ -129,6 +136,22 @@ func resolveToken(c *gin.Context) string {
 	}
 
 	return ""
+}
+
+// RequireAdmin middleware ensures the request is made by an administrator.
+// In gateway mode the fnOS gateway injects x-trim-isadmin for admin users;
+// in standalone (single-user) mode every authenticated session is an admin.
+func RequireAdmin(c *gin.Context) {
+	if config.IsGatewayMode() && c.GetHeader("x-trim-isadmin") != "true" {
+		services.AddAuditLog("admin_required", map[string]interface{}{
+			"path": c.Request.URL.Path,
+		}, c)
+
+		c.Error(apperrors.NewAppError("需要管理员权限", 403, "FORBIDDEN"))
+		c.Abort()
+		return
+	}
+	c.Next()
 }
 
 // ValidateCSRF middleware validates the CSRF token.

@@ -90,6 +90,10 @@ func findFiles(dir string, filterFn func(string) bool, limit int) ([]string, err
 		if len(results) >= limit {
 			return filepath.SkipDir
 		}
+		// Skip symlinks to prevent traversal outside the allowed directory tree
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
 		if !info.IsDir() && filterFn(info.Name()) {
 			results = append(results, path)
 		}
@@ -638,6 +642,12 @@ func TruncateLogFile(filePath string) error {
 		return fmt.Errorf("不能清空目录")
 	}
 
+	// Re-validate after Stat to prevent TOCTOU (symlink substitution between
+	// the initial check and the write operation).
+	if !utils.IsAllowedPath(normalizedPath, config.Get().LogDirs) {
+		return fmt.Errorf("不允许访问此文件")
+	}
+
 	return os.WriteFile(normalizedPath, []byte{}, 0644)
 }
 
@@ -654,6 +664,11 @@ func DeleteLogFile(filePath string) error {
 	}
 	if info.IsDir() {
 		return fmt.Errorf("不能删除目录")
+	}
+
+	// Re-validate after Stat (TOCTOU protection).
+	if !utils.IsAllowedPath(normalizedPath, config.Get().LogDirs) {
+		return fmt.Errorf("不允许访问此文件")
 	}
 
 	return os.Remove(normalizedPath)

@@ -142,14 +142,9 @@ export function useStore() {
     const success = await truncateLog(path)
     if (success) {
       loadStats()
-      // 清空成功后直接打开该日志的详情页，而不是停留在/重新弹出结果列表
+      // 清空成功后直接打开该日志的详情页，不会弹出结果列表
+      // stats 已在后台刷新，返回列表时会自动显示最新文件大小
       viewLog(path)
-      // 后台刷新列表，关闭详情页后可看到更新后的文件大小
-      if (selectedDir.value) {
-        handleSelectDir(selectedDir.value)
-      } else if (listType.value === 'logs') {
-        listLogs()
-      }
     }
     return success
   }

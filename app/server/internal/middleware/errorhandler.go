@@ -1,9 +1,10 @@
 package middleware
 
 import (
+	"crypto/rand"
 	"log/slog"
+	"math/big"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,18 +40,14 @@ func randomString(n int) string {
 	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
-		time.Sleep(1) // ensure different values
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
+		if err != nil {
+			b[i] = letters[i%len(letters)] // fallback, should never happen
+			continue
+		}
+		b[i] = letters[idx.Int64()]
 	}
 	return string(b)
-}
-
-var sensitiveKeyPattern = regexp.MustCompile(`(?i)password|secret|token|key|credential`)
-
-func redactSensitiveBody(body gin.LogFormatterParams) interface{} {
-	// Gin doesn't expose request body easily in middleware.
-	// This is handled at the application level.
-	return nil
 }
 
 // NotFoundHandler handles 404 routes.
@@ -121,21 +118,14 @@ func ErrorHandler(c *gin.Context) {
 		return
 	}
 
-	// Unknown error
-	isProduction := gin.Mode() == gin.ReleaseMode
-	msg := "服务器内部错误"
-	if !isProduction {
-		msg = err.Error()
-		if len(msg) > 200 {
-			msg = msg[:200]
-		}
-	}
-
+	// Unknown error — always return a generic message to prevent information
+	// leakage. The full error is logged server-side (see slog.Error above)
+	// and can be correlated via the requestId field.
 	c.JSON(http.StatusInternalServerError, APIResponse{
 		Success: false,
 		Error: &APIError{
 			Code:    "INTERNAL_ERROR",
-			Message: msg,
+			Message: "服务器内部错误",
 		},
 		Meta: &APIMeta{
 			Timestamp: time.Now().UnixMilli(),

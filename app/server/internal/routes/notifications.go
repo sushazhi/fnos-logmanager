@@ -113,22 +113,22 @@ func RegisterNotificationRoutes(rg *gin.RouterGroup) {
 
 	// ==================== Settings ====================
 	rg.GET("/settings", middleware.ValidateToken, middleware.APIRateLimit(120, 60000), getNotificationSettings)
-	rg.POST("/settings", middleware.ValidateToken, middleware.ValidateCSRF, updateNotificationSettings)
+	rg.POST("/settings", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, updateNotificationSettings)
 
 	// ==================== Channels ====================
 	rg.GET("/channels", middleware.ValidateToken, middleware.APIRateLimit(120, 60000), listChannels)
 	rg.GET("/channels/types", middleware.ValidateToken, middleware.APIRateLimit(120, 60000), listChannelTypes)
-	rg.POST("/channels", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), addChannel)
-	rg.PUT("/channels/:name", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), updateChannel)
-	rg.DELETE("/channels/:name", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), deleteChannel)
+	rg.POST("/channels", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), addChannel)
+	rg.PUT("/channels/:name", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), updateChannel)
+	rg.DELETE("/channels/:name", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), deleteChannel)
 	rg.POST("/channels/:name/test", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 60000), testChannel)
 
 	// ==================== Rules ====================
 	rg.GET("/rules", middleware.ValidateToken, middleware.APIRateLimit(120, 60000), listRules)
 	rg.GET("/rules/:id", middleware.ValidateToken, middleware.APIRateLimit(120, 60000), getRule)
-	rg.POST("/rules", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), addRule)
-	rg.PUT("/rules/:id", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), updateRule)
-	rg.DELETE("/rules/:id", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), deleteRule)
+	rg.POST("/rules", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), addRule)
+	rg.PUT("/rules/:id", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), updateRule)
+	rg.DELETE("/rules/:id", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), deleteRule)
 	rg.POST("/rules/:id/toggle", middleware.ValidateToken, middleware.ValidateCSRF, toggleRule)
 	rg.POST("/rules/:id/test", middleware.ValidateToken, middleware.ValidateCSRF, testRuleMatch)
 
@@ -141,8 +141,8 @@ func RegisterNotificationRoutes(rg *gin.RouterGroup) {
 
 	// ==================== Monitor ====================
 	rg.GET("/monitor/status", middleware.ValidateToken, middleware.APIRateLimit(120, 60000), getMonitorStatus)
-	rg.POST("/monitor/start", middleware.ValidateToken, middleware.ValidateCSRF, startMonitor)
-	rg.POST("/monitor/stop", middleware.ValidateToken, middleware.ValidateCSRF, stopMonitor)
+	rg.POST("/monitor/start", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, startMonitor)
+	rg.POST("/monitor/stop", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, stopMonitor)
 	rg.POST("/monitor/check", middleware.ValidateToken, middleware.ValidateCSRF, triggerMonitorCheck)
 
 	// ==================== QQ Bot ====================

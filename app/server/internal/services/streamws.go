@@ -643,8 +643,9 @@ func authenticateWS(r *http.Request, clientIP string, path string) bool {
 	if config.IsGatewayMode() {
 		uid := r.Header.Get("X-Trim-Userid")
 		if uid != "" {
-			// Gateway handles auth, create local session
-			CreateSession(uid)
+			// Gateway handles auth; reuse a per-user session to avoid
+			// unbounded session growth on every WS reconnect.
+			GetOrCreateUserSession(uid)
 			return true
 		}
 	}

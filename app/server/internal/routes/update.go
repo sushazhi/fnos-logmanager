@@ -1,12 +1,18 @@
 package routes
 
 import (
+	"archive/tar"
+	"bufio"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +38,7 @@ const (
 var allowedGitHubHosts = []string{
 	"github.com",
 	"api.github.com",
+	"raw.githubusercontent.com",
 	"objects.githubusercontent.com",
 	"ghfast.top",
 }
@@ -65,7 +72,7 @@ var (
 func RegisterUpdateRoutes(rg *gin.RouterGroup) {
 	rg.GET("/version", middleware.ValidateToken, updateVersionHandler)
 	rg.GET("/check", middleware.ValidateToken, updateCheckHandler)
-	rg.POST("/install", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(1, 600000), updateInstallHandler)
+	rg.POST("/install", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(1, 600000), updateInstallHandler)
 	rg.GET("/status", middleware.ValidateToken, updateStatusHandler)
 }
 
@@ -295,8 +302,16 @@ func updateInstallHandler(c *gin.Context) {
 		"message": "开始下载更新，请稍候...",
 	})
 
-	// Run update in background
-	go performUpdate()
+	// Run update in background (recovered: a panic must not kill the server)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in performUpdate", "recover", r)
+				setUpdateError(fmt.Sprintf("内部错误: %v", r))
+			}
+		}()
+		performUpdate()
+	}()
 }
 
 func performUpdate() {
@@ -423,6 +438,15 @@ func performUpdate() {
 		}
 	}
 
+	// Verify SHA256 integrity when the release provides a checksum asset.
+	// A mismatched checksum aborts the update; absence only warns (for
+	// backward compatibility with older releases).
+	if err := verifyUpdateChecksum(releaseInfo, asset, fpkFile, updateDir); err != nil {
+		os.Remove(fpkFile)
+		setUpdateError("更新包完整性校验失败: " + err.Error())
+		return
+	}
+
 	globalUpdateState.mu.Lock()
 	globalUpdateState.updateMessage = "正在创建配置文件..."
 	globalUpdateState.updateProgress = 65
@@ -514,17 +538,98 @@ func ensureSafeUpdateDir(updateDir string) bool {
 	return false
 }
 
+// maxExtractBytes caps the total bytes extracted from an update package to
+// guard against decompression bombs.
+const maxExtractBytes = 1 << 30 // 1 GiB
+
+// extractTar safely extracts a (optionally gzipped) tar archive into targetDir
+// using Go's archive/tar with strict per-member path validation. It replaces
+// the previous `tar -xf` shell-out, whose traversal protection depends on the
+// system tar implementation.
 func extractTar(fpkFile, targetDir string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
+	f, err := os.Open(fpkFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-	cmd := exec.CommandContext(ctx, "tar", "-xf", fpkFile, "-C", targetDir)
+	br := bufio.NewReader(f)
+	magic, _ := br.Peek(2)
+	var tr *tar.Reader
+	if len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
+		gz, err := gzip.NewReader(br)
+		if err != nil {
+			return fmt.Errorf("解压 gzip 失败: %w", err)
+		}
+		defer gz.Close()
+		tr = tar.NewReader(gz)
+	} else {
+		tr = tar.NewReader(br)
+	}
+	cleanTarget := filepath.Clean(targetDir)
+	withinTarget := func(p string) bool {
+		return p == cleanTarget || strings.HasPrefix(p, cleanTarget+string(os.PathSeparator))
+	}
 
-	var stderrBuf strings.Builder
-	cmd.Stderr = &stderrBuf
+	var total int64
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("读取 tar 失败: %w", err)
+		}
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("tar 解压失败: %s", strings.TrimSpace(stderrBuf.String()))
+		name := filepath.Clean(hdr.Name)
+		if filepath.IsAbs(name) || name == ".." || strings.HasPrefix(name, ".."+string(os.PathSeparator)) {
+			return fmt.Errorf("tar 包含非法路径: %s", hdr.Name)
+		}
+		dest := filepath.Join(cleanTarget, name)
+		if !withinTarget(dest) {
+			return fmt.Errorf("tar 路径越界: %s", hdr.Name)
+		}
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(dest, 0755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			total += hdr.Size
+			if total > maxExtractBytes {
+				return fmt.Errorf("解压内容超过大小限制")
+			}
+			if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+				return err
+			}
+			out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0755)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(out, tr); err != nil {
+				out.Close()
+				return err
+			}
+			if err := out.Close(); err != nil {
+				return err
+			}
+		case tar.TypeSymlink:
+			// Allow symlinks only when the resolved target stays inside targetDir.
+			if filepath.IsAbs(hdr.Linkname) {
+				return fmt.Errorf("tar 符号链接越界: %s -> %s", hdr.Name, hdr.Linkname)
+			}
+			resolved := filepath.Clean(filepath.Join(filepath.Dir(dest), hdr.Linkname))
+			if !withinTarget(resolved) {
+				return fmt.Errorf("tar 符号链接越界: %s -> %s", hdr.Name, hdr.Linkname)
+			}
+			os.Remove(dest)
+			if err := os.Symlink(hdr.Linkname, dest); err != nil {
+				return fmt.Errorf("创建符号链接失败: %w", err)
+			}
+		default:
+			// Skip hard links, devices, fifos etc. — not needed for updates.
+		}
 	}
 	return nil
 }
@@ -629,31 +734,95 @@ func isHTTPSURL(rawURL string) bool {
 }
 
 func isAllowedHost(rawURL string) bool {
-	// For raw URL strings, just check if it starts with the proxy URL or
-	// matches an allowed host.
-	// Simple string-level check for the proxy prefix
-	if strings.HasPrefix(rawURL, binaryProxy) {
-		return true
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme != "https" {
+		return false
 	}
-
-	// Check GitHub API
-	if strings.HasPrefix(rawURL, githubAPI) {
-		return true
-	}
-
-	// Check raw.githubusercontent.com (proxy fallback)
-	if strings.HasPrefix(rawURL, rawProxyURL) || strings.HasPrefix(rawURL, "https://raw.githubusercontent.com") {
-		return true
-	}
-
-	// For URLs from GitHub API, they should start with allowed hosts
-	for _, host := range allowedGitHubHosts {
-		if strings.Contains(rawURL, host) {
+	host := strings.ToLower(u.Hostname())
+	for _, allowed := range allowedGitHubHosts {
+		if host == allowed || strings.HasSuffix(host, "."+allowed) {
 			return true
 		}
 	}
-
 	return false
+}
+
+// findChecksumAsset locates a checksum asset for the given fpk asset in the
+// release: either "<asset>.sha256" or a shared "checksums.txt"/"SHA256SUMS".
+func findChecksumAsset(info *releaseInfo, asset *configAsset) *configAsset {
+	for i, a := range info.Assets {
+		if a.Name == asset.Name+".sha256" {
+			return &info.Assets[i]
+		}
+	}
+	for i, a := range info.Assets {
+		if a.Name == "checksums.txt" || a.Name == "SHA256SUMS" || a.Name == "sha256sums.txt" {
+			return &info.Assets[i]
+		}
+	}
+	return nil
+}
+
+// expectedSHA256For parses checksum file content ("<hash>  <filename>" lines)
+// and returns the hash for the given file name.
+func expectedSHA256For(content, fileName string) string {
+	for _, line := range strings.Split(content, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && strings.TrimPrefix(fields[1], "*") == fileName {
+			return fields[0]
+		}
+		// Single-hash .sha256 file without filename
+		if len(fields) == 1 && len(fields[0]) == 64 {
+			return fields[0]
+		}
+	}
+	return ""
+}
+
+// verifyUpdateChecksum downloads the release checksum asset (if any) and
+// verifies the downloaded fpk file's SHA256 against it.
+func verifyUpdateChecksum(info *releaseInfo, asset *configAsset, fpkFile, updateDir string) error {
+	checksumAsset := findChecksumAsset(info, asset)
+	if checksumAsset == nil {
+		slog.Warn("release 未提供 SHA256 校验文件，跳过完整性校验", "asset", asset.Name)
+		return nil
+	}
+
+	checksumFile := filepath.Join(updateDir, "update.checksums")
+	defer os.Remove(checksumFile)
+
+	downloadURL := binaryProxy + checksumAsset.BrowserDownloadURL
+	if !isHTTPSURL(downloadURL) || !isAllowedHost(downloadURL) {
+		return fmt.Errorf("校验文件链接不安全")
+	}
+	if err := downloadFile(downloadURL, checksumFile, nil); err != nil {
+		return fmt.Errorf("下载校验文件失败: %w", err)
+	}
+
+	data, err := os.ReadFile(checksumFile)
+	if err != nil {
+		return err
+	}
+	expected := expectedSHA256For(string(data), asset.Name)
+	if expected == "" {
+		return fmt.Errorf("校验文件中未找到 %s 的哈希", asset.Name)
+	}
+
+	f, err := os.Open(fpkFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	if !strings.EqualFold(actual, strings.TrimSpace(expected)) {
+		return fmt.Errorf("SHA256 不匹配（期望 %s，实际 %s）", expected, actual)
+	}
+	slog.Info("更新包 SHA256 校验通过", "asset", asset.Name)
+	return nil
 }
 
 func downloadFile(url, dest string, onProgress func(float64)) error {

@@ -15,14 +15,14 @@ import (
 func RegisterEventLoggerRoutes(rg *gin.RouterGroup) {
 	rg.GET("/status", middleware.ValidateToken, eventLoggerStatusHandler)
 	rg.GET("/config", middleware.ValidateToken, eventLoggerGetConfigHandler)
-	rg.PUT("/config", middleware.ValidateToken, middleware.ValidateCSRF, eventLoggerUpdateConfigHandler)
+	rg.PUT("/config", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, eventLoggerUpdateConfigHandler)
 	rg.GET("/stats", middleware.ValidateToken, eventLoggerStatsHandler)
 	rg.GET("/sources", middleware.ValidateToken, eventLoggerSourcesHandler)
 	rg.GET("/events", middleware.ValidateToken, eventLoggerEventsHandler)
 	rg.POST("/check", middleware.ValidateToken, middleware.ValidateCSRF, eventLoggerCheckHandler)
-	rg.POST("/start", middleware.ValidateToken, middleware.ValidateCSRF, eventLoggerStartHandler)
-	rg.POST("/stop", middleware.ValidateToken, middleware.ValidateCSRF, eventLoggerStopHandler)
-	rg.POST("/restart", middleware.ValidateToken, middleware.ValidateCSRF, eventLoggerRestartHandler)
+	rg.POST("/start", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, eventLoggerStartHandler)
+	rg.POST("/stop", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, eventLoggerStopHandler)
+	rg.POST("/restart", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, eventLoggerRestartHandler)
 }
 
 func eventLoggerStatusHandler(c *gin.Context) {

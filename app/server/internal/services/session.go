@@ -6,9 +6,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +34,8 @@ const (
 	sessionFile = ".sessions.json"
 	keyFile     = ".sessions.key"
 	keyLength   = 32
+	// maxSessions caps the in-memory session map to prevent unbounded growth.
+	maxSessions = 10000
 )
 
 func sessionFilePath() string {
@@ -74,7 +78,8 @@ func getOrCreateKey() []byte {
 func encrypt(plaintext string) (string, error) {
 	key := getOrCreateKey()
 	if key == nil {
-		return "", nil // fallback to plaintext
+		// Never fall back to plaintext: sessions must not be persisted unencrypted.
+		return "", fmt.Errorf("session key unavailable")
 	}
 
 	block, err := aes.NewCipher(key)
@@ -99,7 +104,7 @@ func encrypt(plaintext string) (string, error) {
 func decrypt(encoded string) (string, error) {
 	key := getOrCreateKey()
 	if key == nil {
-		return encoded, nil // fallback
+		return "", fmt.Errorf("session key unavailable")
 	}
 
 	ciphertext, err := hex.DecodeString(encoded)
@@ -285,16 +290,75 @@ func generateToken() string {
 // CreateSession creates a new session.
 func CreateSession(username string) string {
 	token := generateToken()
+	now := time.Now().UnixMilli()
 	mu.Lock()
+	if len(sessions) >= maxSessions {
+		evictOldestSessionsLocked(now)
+	}
 	sessions[token] = &types.Session{
 		Username:   username,
-		CreatedAt:  time.Now().UnixMilli(),
-		LastAccess: time.Now().UnixMilli(),
+		CreatedAt:  now,
+		LastAccess: now,
 	}
 	mu.Unlock()
 
 	scheduleSave()
 	return token
+}
+
+// GetOrCreateUserSession returns an existing valid session for the given
+// username, creating one only when none exists. Gateway mode calls this on
+// every request, so reusing sessions prevents unbounded map growth and
+// constant re-encrypted disk writes.
+func GetOrCreateUserSession(username string) string {
+	now := time.Now().UnixMilli()
+	expiry := config.Get().SessionExpiry
+
+	mu.RLock()
+	for token, s := range sessions {
+		if s.Username == username && now-s.LastAccess <= expiry {
+			mu.RUnlock()
+			mu.Lock()
+			if sess, ok := sessions[token]; ok {
+				sess.LastAccess = now
+			}
+			mu.Unlock()
+			return token
+		}
+	}
+	mu.RUnlock()
+
+	return CreateSession(username)
+}
+
+// evictOldestSessionsLocked removes expired sessions first, then the oldest
+// 10% by LastAccess when the map is still full. Caller must hold mu.
+func evictOldestSessionsLocked(now int64) {
+	expiry := config.Get().SessionExpiry
+	for token, s := range sessions {
+		if now-s.LastAccess > expiry {
+			delete(sessions, token)
+			delete(csrfTokens, token)
+		}
+	}
+	if len(sessions) < maxSessions {
+		return
+	}
+	type kv struct {
+		token      string
+		lastAccess int64
+	}
+	all := make([]kv, 0, len(sessions))
+	for token, s := range sessions {
+		all = append(all, kv{token, s.LastAccess})
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].lastAccess < all[j].lastAccess })
+	evict := len(all)/10 + 1
+	for i := 0; i < evict && i < len(all); i++ {
+		delete(sessions, all[i].token)
+		delete(csrfTokens, all[i].token)
+	}
+	slog.Warn("session map full, evicted oldest sessions", "evicted", evict)
 }
 
 // ValidateSession validates and refreshes a session token.
@@ -321,7 +385,9 @@ func ValidateSession(token string) bool {
 		return false
 	}
 
+	mu.Lock()
 	session.LastAccess = now
+	mu.Unlock()
 	return true
 }
 

@@ -12,6 +12,15 @@ interface NotifyMessage {
   data: any
 }
 
+const VALID_NOTIFY_TYPES = new Set(['status', 'history', 'rules'])
+
+function isValidNotifyMessage(msg: unknown): msg is NotifyMessage {
+  if (!msg || typeof msg !== 'object') return false
+  const m = msg as Record<string, unknown>
+  if (typeof m.type !== 'string' || !VALID_NOTIFY_TYPES.has(m.type)) return false
+  return m.data !== undefined
+}
+
 export function useNotifyWebSocket() {
   const isConnected = ref(false)
   const lastMonitorUpdate = ref<any>(null)
@@ -41,7 +50,8 @@ export function useNotifyWebSocket() {
 
       ws.onmessage = (event) => {
         try {
-          const msg = JSON.parse(event.data) as NotifyMessage
+          const msg = JSON.parse(event.data)
+          if (!isValidNotifyMessage(msg)) return
           switch (msg.type) {
             case 'status':
               lastMonitorUpdate.value = msg.data

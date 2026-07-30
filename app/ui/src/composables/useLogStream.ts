@@ -17,6 +17,22 @@ interface StreamMessage {
   message?: string
 }
 
+const VALID_STREAM_TYPES = new Set([
+  'connected', 'subscribed', 'unsubscribed', 'data',
+  'file_rotated', 'file_deleted', 'error'
+])
+const MAX_MESSAGE_CONTENT_LENGTH = 256 * 1024 // 256 KB per message
+
+function isValidStreamMessage(msg: unknown): msg is StreamMessage {
+  if (!msg || typeof msg !== 'object') return false
+  const m = msg as Record<string, unknown>
+  if (typeof m.type !== 'string' || !VALID_STREAM_TYPES.has(m.type)) return false
+  // Reject oversized content payloads
+  if (typeof m.content === 'string' && m.content.length > MAX_MESSAGE_CONTENT_LENGTH) return false
+  if (typeof m.message === 'string' && m.message.length > 4096) return false
+  return true
+}
+
 export function useLogStream() {
   const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
@@ -49,9 +65,11 @@ export function useLogStream() {
       socket.onmessage = (event) => {
         try {
           const message: StreamMessage = JSON.parse(event.data)
-          handleMessage(message)
+          if (isValidStreamMessage(message)) {
+            handleMessage(message)
+          }
         } catch {
-          // Ignore invalid messages
+          // Ignore invalid or malicious messages
         }
       }
 

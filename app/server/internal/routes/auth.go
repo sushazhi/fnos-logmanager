@@ -12,7 +12,7 @@ import (
 func RegisterAuthRoutes(rg *gin.RouterGroup) {
 	rg.POST("/logout", middleware.ValidateToken, middleware.ValidateCSRF, logoutHandler)
 	rg.GET("/status", statusHandler)
-	rg.GET("/csrf-token", csrfTokenHandler)
+	rg.GET("/csrf-token", middleware.ValidateToken, csrfTokenHandler)
 }
 
 func logoutHandler(c *gin.Context) {
