@@ -144,12 +144,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useStore, setConfirmFn } from './composables/useStore'
 import { useLogsStore } from './stores/useLogsStore'
 import { applyThemeColor } from './composables/useThemeColor'
-import api from './services/api'
-import { bookmarkApi } from './services/api'
+import api, { bookmarkApi, API_BASE } from './services/api'
+import { setTitle, onThemeChange, onLanguageChange, waitForReady, getHostSnapshot, setBackendApiBase } from './services/fnos'
 import AppHeader from './components/AppHeader.vue'
 import StatsCard from './components/StatsCard.vue'
 import BookmarkBar from './components/BookmarkBar.vue'
@@ -226,6 +226,10 @@ const showAutoClean = ref(false)
 const showKernelModules = ref(false)
 const loadingAllLines = ref(false)
 const bookmarks = ref([])
+
+// P3: fnOS page interaction cleanup functions
+const themeCleanupRef = ref(null)
+const languageCleanupRef = ref(null)
 
 async function loadBookmarks() {
   try {
@@ -395,8 +399,46 @@ function loadSavedSettings() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadSavedSettings()
+
+  // 设置后端 API 地址（供 fnos.ts 中 convertPathViaBackend 等方法使用）
+  setBackendApiBase(API_BASE)
+
+  // P0: 等待 SDK 就绪并获取用户信息
+  await waitForReady()
+  getHostSnapshot().then(snapshot => {
+    if (snapshot) {
+      console.log('[fnOS] 用户:', snapshot.username, '会话数:', snapshot.sessions?.length)
+    }
+  }).catch(() => {})
+  
   checkAuth()
+  
+  // P3: Set page title via fnOS SDK
+  setTitle('飞牛日志管理').catch(() => {})
+  
+  // P3: Listen for fnOS theme changes
+  themeCleanupRef.value = onThemeChange((theme) => {
+    const root = document.documentElement
+    if (theme === 'dark') {
+      root.classList.add('dark-theme')
+    } else {
+      root.classList.remove('dark-theme')
+    }
+  })
+  
+  // P3: Listen for fnOS language changes
+  languageCleanupRef.value = onLanguageChange((lang) => {
+    // Store language preference for future use
+    try {
+      localStorage.setItem('logmanager_lang', lang)
+    } catch { /* ignore */ }
+  })
+})
+
+onUnmounted(() => {
+  if (themeCleanupRef.value) themeCleanupRef.value()
+  if (languageCleanupRef.value) languageCleanupRef.value()
 })
 </script>

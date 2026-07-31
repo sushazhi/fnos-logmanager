@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import type { UpdateInfo, UpdateStatus } from '../types'
 import api, { API_BASE } from '../services/api'
 
-const APP_VERSION = '__APP_VERSION__'
 const REPO_OWNER = 'sushazhi'
 const REPO_NAME = 'fnos-logmanager'
 
@@ -13,8 +12,24 @@ const IGNORE_KEY = 'logmanager_ignore_version'
 const CLOSE_TIME_KEY = 'logmanager_update_close_time'
 const CLOSE_DURATION = 24 * 60 * 60 * 1000
 
+/**
+ * 从后端 /api/version 加载本地版本号（后端从环境变量 TRIM_APPVER 读取）
+ */
+async function loadVersion(): Promise<string> {
+  try {
+    const resp = await api.get('/api/update/version')
+    if (resp?.version) {
+      return resp.version
+    }
+  } catch { /* ignore */ }
+  return '0.0.0'
+}
+
 export const useUpdateStore = defineStore('update', () => {
-  const appVersion = ref<string>(APP_VERSION)
+  const appVersion = ref<string>('0.0.0')
+
+  // 启动时加载真实版本号
+  loadVersion().then(v => { appVersion.value = v })
   const updateInfo = ref<UpdateInfo | null>(null)
   const updateStatus = ref<UpdateStatus>({
     updating: false,

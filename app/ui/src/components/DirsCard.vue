@@ -2,9 +2,18 @@
   <div class="card glass-card">
     <div class="header-row">
       <h2>日志目录</h2>
-      <button class="config-btn btn-primary" @click="showConfig = !showConfig" title="配置">
-        设置
-      </button>
+      <div class="header-actions-row">
+        <button 
+          class="config-btn btn-add-dir" 
+          @click="handlePickDir" 
+          title="添加自定义日志目录"
+        >
+          +目录
+        </button>
+        <button class="config-btn btn-primary" @click="showConfig = !showConfig" title="配置">
+          设置
+        </button>
+      </div>
     </div>
     
     <div class="config-panel" v-if="showConfig">
@@ -21,6 +30,26 @@
             {{ dir.exists ? '√' : '×' }}
           </span>
         </label>
+      </div>
+      <!-- P1: Custom directories added via file picker -->
+      <div v-if="customDirs.length > 0" class="custom-dirs-section">
+        <p class="config-hint">自定义目录：</p>
+        <div v-for="cd in customDirs" :key="cd.path" class="custom-dir-item">
+          <span class="custom-dir-path">{{ cd.displayPath || cd.path }}</span>
+          <button class="custom-dir-remove" @click="removeCustomDir(cd.path)" title="移除">×</button>
+        </div>
+      </div>
+      <!-- Manual custom dir input -->
+      <div v-if="showCustomDirInput" class="custom-dir-input-row">
+        <input
+          type="text"
+          v-model="customDirInput"
+          placeholder="输入日志目录路径，如 /vol1/@appdata/myapp"
+          class="custom-dir-input"
+          @keyup.enter="confirmCustomDir"
+        >
+        <button class="config-btn btn-primary" @click="confirmCustomDir">确认</button>
+        <button class="config-btn" @click="showCustomDirInput = false">取消</button>
       </div>
     </div>
     
@@ -53,8 +82,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import type { Dir } from '../types'
+import { pickUserFile, isFnosEnvironment, convertPathViaBackend } from '../services/fnos'
 
 interface Props {
   dirs: Dir[]
@@ -65,12 +95,102 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   selectDir: [dirPath: string]
+  addCustomDir: [dirPath: string]
 }>()
 
 const STORAGE_KEY = 'logmanager_visible_dirs'
+const CUSTOM_DIRS_KEY = 'logmanager_custom_dirs'
 
 const showConfig = ref(false)
 const visibleDirs = ref<string[]>([])
+const isFnosEnv = ref(false)
+
+// P1: Custom directories
+interface CustomDir {
+  path: string
+  displayPath?: string
+}
+const customDirs = ref<CustomDir[]>([])
+
+onMounted(async () => {
+  isFnosEnv.value = isFnosEnvironment()
+  loadCustomDirs()
+  // P2: Convert paths for display
+  if (isFnosEnv.value && customDirs.value.length > 0) {
+    for (const cd of customDirs.value) {
+      try {
+        cd.displayPath = await convertPathViaBackend(cd.path)
+      } catch {
+        cd.displayPath = cd.path
+      }
+    }
+  }
+})
+
+// P1: Open fnOS file picker or prompt to add custom directory
+const showCustomDirInput = ref(false)
+const customDirInput = ref('')
+
+async function handlePickDir(): Promise<void> {
+  // Try fnOS file picker first
+  if (isFnosEnvironment()) {
+    try {
+      const result = await pickUserFile({
+        directory: true,
+        title: '选择日志目录'
+      })
+      if (result && result.code === 0 && result.data && result.data.length > 0) {
+        const dirPath = result.data[0]
+        addCustomDir(dirPath)
+        emit('selectDir', dirPath)
+        return
+      }
+    } catch (e) {
+      console.error('选择目录失败:', e)
+    }
+  }
+  // Fallback: show manual input
+  showCustomDirInput.value = !showCustomDirInput.value
+}
+
+function confirmCustomDir(): void {
+  const path = customDirInput.value.trim()
+  if (!path) return
+  addCustomDir(path)
+  emit('selectDir', path)
+  customDirInput.value = ''
+  showCustomDirInput.value = false
+}
+
+function addCustomDir(path: string): void {
+  if (customDirs.value.some(d => d.path === path)) return
+  customDirs.value.push({ path })
+  saveCustomDirs()
+}
+
+function removeCustomDir(path: string): void {
+  customDirs.value = customDirs.value.filter(d => d.path !== path)
+  saveCustomDirs()
+}
+
+function saveCustomDirs(): void {
+  try {
+    localStorage.setItem(CUSTOM_DIRS_KEY, JSON.stringify(customDirs.value))
+  } catch {
+    // ignore
+  }
+}
+
+function loadCustomDirs(): void {
+  try {
+    const saved = localStorage.getItem(CUSTOM_DIRS_KEY)
+    if (saved) {
+      customDirs.value = JSON.parse(saved)
+    }
+  } catch {
+    localStorage.removeItem(CUSTOM_DIRS_KEY)
+  }
+}
 
 const dirNames: Record<string, string> = {
   '/vol1/@appdata': '@appdata',
@@ -157,6 +277,12 @@ loadVisibleDirs()
   flex: 1;
 }
 
+.header-actions-row {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
 .config-btn {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
@@ -175,6 +301,17 @@ loadVisibleDirs()
   font-weight: var(--font-weight-medium);
 }
 
+.btn-add-dir {
+  background: var(--primary-color);
+  color: var(--text-color-on-primary);
+  border-color: var(--primary-color);
+}
+
+.btn-add-dir:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
 .config-btn:hover {
   background: var(--primary-color);
   color: var(--text-color-on-primary);
@@ -184,6 +321,77 @@ loadVisibleDirs()
 
 .config-btn:active {
   transform: scale(0.95);
+}
+
+/* P1: Custom directory styles */
+.custom-dirs-section {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--glass-border);
+}
+
+.custom-dir-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--card-bg);
+  border-radius: var(--radius-xs);
+  margin-bottom: var(--spacing-xs);
+  border: 1px solid var(--primary-color);
+}
+
+.custom-dir-path {
+  font-size: var(--font-size-sm);
+  color: var(--primary-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  font-family: monospace;
+}
+
+.custom-dir-remove {
+  background: none;
+  border: none;
+  color: var(--text-color-3);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.custom-dir-remove:hover {
+  color: var(--error-color);
+}
+
+.custom-dir-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--glass-border);
+}
+
+.custom-dir-input {
+  flex: 1;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-sm);
+  background: var(--glass-bg);
+  color: var(--text-color);
+  font-family: monospace;
+  transition: border-color var(--transition-fast);
+}
+
+.custom-dir-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: var(--focus-ring);
 }
 
 .config-panel {

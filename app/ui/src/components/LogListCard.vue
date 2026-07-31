@@ -33,9 +33,12 @@
               <span class="path" :title="log.path">
                 <template v-if="searchQuery">
                   <!-- eslint-disable-next-line vue/no-v-html -->
-                  <span v-html="highlightText(log.path, searchQuery)"></span>
+                  <span v-html="highlightText(displayPath(log), searchQuery)"></span>
                 </template>
-                <template v-else>{{ log.path }}</template>
+                <template v-else>
+                  <span class="display-path">{{ displayPath(log) }}</span>
+                  <span v-if="log.displayPath && log.displayPath !== log.path" class="original-path">{{ log.path }}</span>
+                </template>
               </span>
               <span class="size">{{ log.sizeFormatted }}</span>
               <div class="actions">
@@ -136,6 +139,11 @@ const headerLabels = computed(() => {
   }
 })
 
+// P2: Use displayPath if available, fallback to path
+function displayPath(log) {
+  return log.displayPath || log.path || ''
+}
+
 const filteredLogs = computed(() => {
   if (!searchQuery.value.trim()) {
     return props.logs
@@ -143,8 +151,9 @@ const filteredLogs = computed(() => {
   const query = searchQuery.value.toLowerCase()
   return props.logs.filter(log => {
     const path = (log.path || '').toLowerCase()
+    const displayP = (log.displayPath || '').toLowerCase()
     const size = (log.sizeFormatted || '').toLowerCase()
-    return path.includes(query) || size.includes(query)
+    return path.includes(query) || displayP.includes(query) || size.includes(query)
   })
 })
 
@@ -438,6 +447,20 @@ function escapeRegex(string) {
   color: var(--warning-color);
   padding: 0 2px;
   border-radius: var(--radius-3xs);
+}
+
+/* P2: Display path styling */
+.display-path {
+  display: block;
+}
+
+.original-path {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--text-color-3);
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  opacity: 0.7;
+  margin-top: 2px;
 }
 
 @media (max-width: 768px) {

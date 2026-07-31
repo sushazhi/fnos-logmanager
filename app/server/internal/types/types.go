@@ -5,6 +5,7 @@ import "time"
 // LogFile represents a log file entry.
 type LogFile struct {
 	Path          string    `json:"path"`
+	DisplayPath   string    `json:"displayPath,omitempty"`
 	Size          int64     `json:"size"`
 	SizeFormatted string    `json:"sizeFormatted"`
 	Modified      time.Time `json:"modified"`
@@ -34,6 +35,7 @@ type LogStats struct {
 // DirInfo represents information about a log directory.
 type DirInfo struct {
 	Path         string `json:"path"`
+	DisplayPath  string `json:"displayPath,omitempty"`
 	Exists       bool   `json:"exists"`
 	LogCount     int    `json:"logCount,omitempty"`
 	ArchiveCount int    `json:"archiveCount,omitempty"`

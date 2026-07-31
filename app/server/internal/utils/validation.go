@@ -2,12 +2,14 @@ package utils
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // SafePath normalizes and validates a file path.
@@ -200,4 +202,91 @@ func ClampInt64(value, min, max int64) int64 {
 		return max
 	}
 	return value
+}
+
+// ---------------------------------------------------------------------------
+// fnOS Open Platform ACL integration (P0)
+// ---------------------------------------------------------------------------
+
+// ACLChecker is an interface for checking user file permissions via fnOS trim API.
+// This allows injecting the trim API client without circular imports.
+type ACLChecker interface {
+	CheckUserACL(userID, path, action string) (allowed bool, reason string, err error)
+}
+
+var (
+	aclChecker   ACLChecker
+	aclCheckerMu sync.RWMutex
+)
+
+// SetACLChecker registers the ACL checker implementation.
+func SetACLChecker(checker ACLChecker) {
+	aclCheckerMu.Lock()
+	defer aclCheckerMu.Unlock()
+	aclChecker = checker
+}
+
+// CheckUserFileACL checks if the given user has the specified permission on a file path.
+// It first validates the path via IsAllowedPath, then checks ACL via the fnOS trim API.
+// Returns (allowed, reason).
+func CheckUserFileACL(userID, inputPath string, allowedDirs []string, action string) (bool, string) {
+	// 1. Path whitelist check (existing security)
+	if !IsAllowedPath(inputPath, allowedDirs) {
+		return false, "路径不在允许的目录范围内"
+	}
+
+	// 2. ACL check via trim API (if available)
+	aclCheckerMu.RLock()
+	checker := aclChecker
+	aclCheckerMu.RUnlock()
+
+	if checker == nil {
+		// No ACL checker registered, fall back to path-only check
+		slog.Debug("no ACL checker registered, using path-only check",
+			"path", inputPath, "action", action)
+		return true, ""
+	}
+
+	allowed, reason, err := checker.CheckUserACL(userID, inputPath, action)
+	if err != nil {
+		slog.Warn("ACL check failed, allowing by path check",
+			"userId", userID, "path", inputPath, "action", action, "error", err)
+		// Graceful degradation: if trim API is down, allow access
+		return true, ""
+	}
+
+	if !allowed {
+		if reason == "" {
+			reason = "没有权限访问此文件"
+		}
+		return false, reason
+	}
+
+	return true, ""
+}
+
+// GetUserIDFromContext extracts the user ID from various context sources.
+// Returns empty string if no user ID can be determined.
+func GetUserIDFromContext(gatewayUID, sessionToken string) string {
+	if gatewayUID != "" {
+		return gatewayUID
+	}
+	// In standalone mode, use session token hash as identity
+	if sessionToken != "" {
+		return "local:" + hashSessionToken(sessionToken)
+	}
+	return ""
+}
+
+// hashSessionToken creates a short hash of the session token for identity.
+func hashSessionToken(token string) string {
+	if len(token) <= 8 {
+		return token
+	}
+	// Simple hash for identity purposes
+	var h uint32
+	for i := 0; i < len(token); i++ {
+		h = h*31 + uint32(token[i])
+	}
+	return fmt.Sprintf("%08x", h)
 }

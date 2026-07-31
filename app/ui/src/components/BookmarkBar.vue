@@ -13,7 +13,7 @@
         @click="$emit('open-bookmark', bookmark)"
       >
         <span class="bookmark-icon">{{ bookmark.isDocker ? '🐳' : '📄' }}</span>
-        <span class="bookmark-name" :title="bookmark.path">{{ bookmark.name }}</span>
+        <span class="bookmark-name" :title="bookmark.displayPath || bookmark.path">{{ bookmark.name }}</span>
         <button
           class="bookmark-delete"
           @click.stop="$emit('delete-bookmark', bookmark)"

@@ -17,6 +17,7 @@ import (
 	"github.com/sushazhi/fnos-logmanager/internal/middleware"
 	"github.com/sushazhi/fnos-logmanager/internal/routes"
 	"github.com/sushazhi/fnos-logmanager/internal/services"
+	"github.com/sushazhi/fnos-logmanager/internal/utils"
 )
 
 func main() {
@@ -46,6 +47,13 @@ func main() {
 		"dataDir", cfg.DataDir,
 		"gatewaySocket", cfg.GatewaySocket,
 	)
+
+	// P0: Initialize fnOS trim API client and register ACL checker
+	trimClient := services.GetTrimClient()
+	utils.SetACLChecker(trimClient)
+	slog.Info("ACL 权限检查已启用",
+		"socket", trimClient.GetBaseURL(),
+		"hasToken", os.Getenv("TRIM_API_TOKEN") != "")
 
 	// Initialize service directories
 	initServiceDirs(cfg.DataDir)

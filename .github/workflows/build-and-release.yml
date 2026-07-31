@@ -39,28 +39,6 @@ jobs:
         with:
           go-version: '1.26'
 
-      - name: Inject version into source files
-        run: |
-          APP_HEADER="app/ui/src/components/AppHeader.vue"
-          USE_UPDATE="app/ui/src/stores/useUpdateStore.ts"
-
-          if [ -f "$APP_HEADER" ]; then
-            sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$APP_HEADER"
-            echo "Version ${APP_VERSION} injected into AppHeader.vue"
-          fi
-
-          if [ -f "$USE_UPDATE" ]; then
-            sed -i "s/__APP_VERSION__/${APP_VERSION}/g" "$USE_UPDATE"
-            echo "Version ${APP_VERSION} injected into useUpdateStore.ts"
-          fi
-
-          # Verify no placeholder remains
-          if grep -rq '__APP_VERSION__' app/ui/src/; then
-            echo "ERROR: __APP_VERSION__ placeholder still exists in source files"
-            grep -rn '__APP_VERSION__' app/ui/src/
-            exit 1
-          fi
-
       - name: Build Vue frontend
         run: |
           cd app/ui
@@ -135,9 +113,6 @@ jobs:
           # Inject version into build manifest (mirror build.ps1 manifest update)
           sed "s/^version[[:space:]]*=.*/version = ${APP_VERSION}/" manifest > build/manifest
 
-          # Generate version.json in build directory (packaged but does not pollute repo)
-          echo "{\"version\":\"${APP_VERSION}\"}" > build/version.json
-
           for file in LICENSE ICON.PNG ICON_256.PNG; do
             if [ -f "$file" ]; then cp "$file" build/; fi
           done
@@ -186,6 +161,12 @@ jobs:
           path: ${{ env.PACKAGE_NAME }}
           retention-days: 30
 
+      - name: Calculate package checksum
+        run: |
+          SHA256=$(sha256sum "${PACKAGE_NAME}" | awk '{print $1}')
+          echo "PACKAGE_SHA256=${SHA256}" >> $GITHUB_ENV
+          echo "SHA256: ${SHA256}"
+
       - name: Build summary
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
@@ -200,17 +181,24 @@ jobs:
 
           **Build Artifacts:**
           - Package: \`${PACKAGE_NAME}\`
+          - SHA256: \`${{ env.PACKAGE_SHA256 }}\`
           EOF
+
+      - name: Create checksum file
+        run: |
+          echo "${PACKAGE_SHA256}  ${PACKAGE_NAME}" > "${PACKAGE_NAME}.sha256"
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG="${{ github.ref_name }}"
           CHANGELOG=$(grep '^changelog[[:space:]]*=' manifest | sed 's/^changelog[[:space:]]*=[[:space:]]*//' | sed 's/<br>/\n/g')
+          NOTES="${CHANGELOG}\n\n---\n**SHA256:** \`${PACKAGE_SHA256}\`"
 
           gh release create "$TAG" \
             "${PACKAGE_NAME}" \
+            "${PACKAGE_NAME}.sha256" \
             --title "$TAG" \
-            --notes "$CHANGELOG"
+            --notes "$(echo -e "$NOTES")"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

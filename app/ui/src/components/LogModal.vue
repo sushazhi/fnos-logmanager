@@ -31,7 +31,7 @@
         <div class="context-item" @click="closeTabsToRight">关闭右侧标签</div>
       </div>
       <div class="modal-header">
-        <span class="title">{{ title }}</span>
+        <span class="title" :title="displayPath">{{ title }}</span>
         <div class="header-actions">
           <span class="line-count">{{ totalLines }} 行{{ truncated ? ` / 共 ${totalLinesInFile} 行` : '' }}</span>
           <span class="tail-error" v-if="streamError">{{ streamError }}</span>
@@ -177,6 +177,12 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const logsStore = useLogsStore()
+
+// P2: Get display path for the active tab
+const displayPath = computed(() => {
+  const tab = logsStore.activeTab
+  return tab?.displayPath || props.filePath || ''
+})
 
 function handleSwitchTab(tabId: string): void {
   closeContextMenu()

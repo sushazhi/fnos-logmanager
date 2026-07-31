@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock fetch
-global.fetch = vi.fn()
+// Mock fetch (globalThis is the standard cross-platform global object)
+globalThis.fetch = vi.fn() as unknown as typeof fetch
 
 describe('API Service', () => {
   beforeEach(() => {

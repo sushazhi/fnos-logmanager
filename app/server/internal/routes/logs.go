@@ -134,7 +134,55 @@ func getDirsHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取目录信息失败"})
 		return
 	}
+
+	// P0: Filter directories by ACL permission
+	gatewayUID, _ := c.Get("gatewayUID")
+	sessionToken, _ := c.Get("sessionToken")
+	uid := utils.GetUserIDFromContext(
+		gatewayUIDToString(gatewayUID),
+		sessionTokenToString(sessionToken),
+	)
+	if uid != "" {
+		filtered := make([]types.DirInfo, 0, len(dirs))
+		for _, dir := range dirs {
+			if dir.Path != "" {
+				allowed, _ := utils.CheckUserFileACL(uid, dir.Path, config.Get().LogDirs, "readable")
+				if allowed {
+					filtered = append(filtered, dir)
+				}
+			} else {
+				filtered = append(filtered, dir)
+			}
+		}
+		dirs = filtered
+	}
+
+	// P2: Convert directory paths to display paths
+	for i := range dirs {
+		dirs[i].DisplayPath = convertPathToDisplay(dirs[i].Path)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"dirs": dirs})
+}
+
+func gatewayUIDToString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func sessionTokenToString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
 }
 
 func getAppNamesHandler(c *gin.Context) {
@@ -173,7 +221,7 @@ func listLogsHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "路径过长"})
 			return
 		}
-		if !utils.IsAllowedPath(q.Dir, config.Get().LogDirs) {
+		if !checkFileACL(c, q.Dir, "readable") {
 			c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此目录"})
 			return
 		}
@@ -188,6 +236,12 @@ func listLogsHandler(c *gin.Context) {
 	if logs == nil {
 		logs = []types.LogFile{}
 	}
+
+	// P2: Convert paths to display paths
+	for i := range logs {
+		logs[i].DisplayPath = convertPathToDisplay(logs[i].Path)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"logs":  logs,
 		"total": len(logs),
@@ -358,7 +412,7 @@ func tailLogHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "路径过长"})
 		return
 	}
-	if !utils.IsAllowedPath(q.Path, config.Get().LogDirs) {
+	if !checkFileACL(c, q.Path, "readable") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此文件"})
 		return
 	}
@@ -461,7 +515,7 @@ func getLogContentHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "路径过长"})
 		return
 	}
-	if !utils.IsAllowedPath(q.Path, config.Get().LogDirs) {
+	if !checkFileACL(c, q.Path, "readable") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此文件"})
 		return
 	}
@@ -528,7 +582,7 @@ func exportLogHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "路径过长"})
 		return
 	}
-	if !utils.IsAllowedPath(q.Path, config.Get().LogDirs) {
+	if !checkFileACL(c, q.Path, "readable") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此文件"})
 		return
 	}
@@ -638,7 +692,7 @@ func truncateLogHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "路径过长"})
 		return
 	}
-	if !utils.IsAllowedPath(body.Path, config.Get().LogDirs) {
+	if !checkFileACL(c, body.Path, "writable") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此文件"})
 		return
 	}
@@ -674,7 +728,7 @@ func deleteLogHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "路径过长"})
 		return
 	}
-	if !utils.IsAllowedPath(body.Path, config.Get().LogDirs) {
+	if !checkFileACL(c, body.Path, "deletable") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此文件"})
 		return
 	}
@@ -952,7 +1006,7 @@ func getArchiveContentHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "路径过长"})
 		return
 	}
-	if !utils.IsAllowedPath(q.Path, config.Get().LogDirs) {
+	if !checkFileACL(c, q.Path, "readable") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此文件"})
 		return
 	}
@@ -1111,7 +1165,7 @@ func deleteArchiveHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "路径过长"})
 		return
 	}
-	if !utils.IsAllowedPath(body.Path, config.Get().LogDirs) {
+	if !checkFileACL(c, body.Path, "deletable") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此文件"})
 		return
 	}
@@ -1468,7 +1522,7 @@ func createBookmarkHandler(c *gin.Context) {
 			return
 		}
 	} else {
-		if !utils.IsAllowedPath(body.Path, config.Get().LogDirs) {
+		if !checkFileACL(c, body.Path, "readable") {
 			c.JSON(http.StatusForbidden, gin.H{"error": "不允许访问此路径"})
 			return
 		}
@@ -1579,4 +1633,36 @@ func parseInt64OrZero(s string) int64 {
 		return 0
 	}
 	return n
+}
+
+// checkFileACL is a centralized helper that performs path whitelist + ACL check.
+// It extracts user info from gin.Context and returns true if access is allowed.
+// P0: Integrated ACL permission check via fnOS trim API.
+func checkFileACL(c *gin.Context, filePath string, action string) bool {
+	gatewayUID, _ := c.Get("gatewayUID")
+	sessionToken, _ := c.Get("sessionToken")
+	uid := utils.GetUserIDFromContext(
+		gatewayUIDToString(gatewayUID),
+		sessionTokenToString(sessionToken),
+	)
+
+	allowed, reason := utils.CheckUserFileACL(uid, filePath, config.Get().LogDirs, action)
+	if !allowed {
+		if reason == "" {
+			reason = "不允许访问此文件"
+		}
+		return false
+	}
+	return true
+}
+
+// convertPathToDisplay converts an internal path to a user-friendly display path.
+// P2: Uses trim.file.convertPath to make paths more readable.
+func convertPathToDisplay(path string) string {
+	client := services.GetTrimClient()
+	display, err := client.ConvertPath(path)
+	if err != nil || display == "" {
+		return path
+	}
+	return display
 }

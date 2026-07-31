@@ -10,6 +10,7 @@ export interface LogTab {
   title: string
   content: string
   filePath: string
+  displayPath?: string
   isDocker: boolean
   truncated: boolean
   hasMore: boolean
@@ -120,11 +121,15 @@ export const useLogsStore = defineStore('logs', () => {
         truncated?: boolean
         hasMore?: boolean
       }>(`/api/log/content?path=${encodeURIComponent(path)}&maxLines=${maxLines}`)
+      // P2: Use displayPath for title if available from the list
+      const logItem = logList.value.find(l => l.path === path)
+      const displayName = (logItem as any)?.displayPath || path
       const tab: LogTab = {
         id: `log_${Date.now()}`,
-        title: path.split('/').pop() || path,
+        title: displayName.split('/').pop() || path,
         content: data.content || '(空文件)',
         filePath: path,
+        displayPath: displayName,
         isDocker: false,
         totalLines: data.totalLines || 0,
         truncated: data.truncated || false,

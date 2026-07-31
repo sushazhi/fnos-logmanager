@@ -16,10 +16,11 @@ import (
 
 // Bookmark represents a bookmarked log file or container.
 type Bookmark struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Path     string `json:"path"`
-	IsDocker bool   `json:"isDocker"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+	DisplayPath string `json:"displayPath,omitempty"`
+	IsDocker    bool   `json:"isDocker"`
 }
 
 var (
@@ -99,12 +100,22 @@ func saveBookmarks() {
 	os.Rename(tmpFile, bookmarksFilePath())
 }
 
-// LoadBookmarks returns all bookmarks.
+// LoadBookmarks returns all bookmarks with display paths resolved.
 func LoadBookmarks() ([]Bookmark, error) {
 	bookmarksMu.RLock()
 	defer bookmarksMu.RUnlock()
 	result := make([]Bookmark, len(bookmarks))
 	copy(result, bookmarks)
+	// P2: Fill displayPath via trim API
+	trimClient := GetTrimClient()
+	for i := range result {
+		if !result[i].IsDocker && result[i].Path != "" {
+			dp, err := trimClient.ConvertPath(result[i].Path)
+			if err == nil && dp != "" && dp != result[i].Path {
+				result[i].DisplayPath = dp
+			}
+		}
+	}
 	return result, nil
 }
 
