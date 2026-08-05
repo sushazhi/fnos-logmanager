@@ -674,47 +674,79 @@ func DeleteLogFile(filePath string) error {
 	return os.Remove(normalizedPath)
 }
 
+// GetDirInfo computes DirInfo (exists, log/archive counts, total size) for a single path.
+func GetDirInfo(dir string) types.DirInfo {
+	normalizedDir := utils.SafePath(dir)
+	exists := false
+	logCount := 0
+	archiveCount := 0
+	var totalSize int64
+
+	if normalizedDir != "" {
+		if info, err := os.Stat(normalizedDir); err == nil && info.IsDir() {
+			exists = true
+
+			logFiles, _ := findFiles(normalizedDir, isLogFile, 10000)
+			logCount = len(logFiles)
+
+			archiveFiles, _ := findFiles(normalizedDir, isArchiveFile, 10000)
+			archiveCount = len(archiveFiles)
+
+			allFiles := append(logFiles, archiveFiles...)
+			for _, f := range allFiles {
+				if info, err := os.Stat(f); err == nil {
+					totalSize += info.Size()
+				}
+			}
+		}
+	}
+
+	return types.DirInfo{
+		Path:         dir,
+		Exists:       exists,
+		LogCount:     logCount,
+		ArchiveCount: archiveCount,
+		TotalSize:    utils.FormatBytes(totalSize),
+	}
+}
+
 // GetDirsInfo returns information about all log directories.
 func GetDirsInfo() ([]types.DirInfo, error) {
 	var results []types.DirInfo
 
 	for _, dir := range config.Get().LogDirs {
-		normalizedDir := utils.SafePath(dir)
-		exists := false
-		logCount := 0
-		archiveCount := 0
-		var totalSize int64
-
-		if normalizedDir != "" {
-			if info, err := os.Stat(normalizedDir); err == nil && info.IsDir() {
-				exists = true
-
-				logFiles, _ := findFiles(normalizedDir, isLogFile, 10000)
-				logCount = len(logFiles)
-
-				archiveFiles, _ := findFiles(normalizedDir, isArchiveFile, 10000)
-				archiveCount = len(archiveFiles)
-
-				allFiles := append(logFiles, archiveFiles...)
-				for _, f := range allFiles {
-					if info, err := os.Stat(f); err == nil {
-						totalSize += info.Size()
-					}
-				}
-			}
-		}
-
-		di := types.DirInfo{
-			Path:         dir,
-			Exists:       exists,
-			LogCount:     logCount,
-			ArchiveCount: archiveCount,
-			TotalSize:    utils.FormatBytes(totalSize),
-		}
-		results = append(results, di)
+		results = append(results, GetDirInfo(dir))
 	}
 
 	return results, nil
+}
+
+// GetUserDirsInfo returns DirInfo entries for the given user's fnOS-authorized
+// folders (trim.file.getUserAccessibleFolders). Used to keep custom dirs visible
+// after page refresh / service restart. Returns nil when the trim API is unavailable.
+func GetUserDirsInfo(uid string) []types.DirInfo {
+	if uid == "" {
+		return nil
+	}
+	folders, err := GetTrimClient().GetUserAccessibleFolders(uid)
+	if err != nil || len(folders) == 0 {
+		return nil
+	}
+	result := make([]types.DirInfo, 0, len(folders))
+	for _, f := range folders {
+		result = append(result, GetDirInfo(f))
+	}
+	return result
+}
+
+// DelUserDir removes the user's authorization for the given folder
+// (trim.file.delUserAccessibleFolder). Returns error if the trim API fails.
+func DelUserDir(uid, path string) error {
+	if uid == "" || path == "" {
+		return fmt.Errorf("缺少用户或路径")
+	}
+	_, err := GetTrimClient().DelUserAccessibleFolder(uid, path)
+	return err
 }
 
 // CleanUninstalledLogs deletes log files belonging to uninstalled applications.

@@ -110,7 +110,7 @@ func LoadBookmarks() ([]Bookmark, error) {
 	trimClient := GetTrimClient()
 	for i := range result {
 		if !result[i].IsDocker && result[i].Path != "" {
-			dp, err := trimClient.ConvertPath(result[i].Path)
+			dp, err := trimClient.ConvertPath(result[i].Path, "")
 			if err == nil && dp != "" && dp != result[i].Path {
 				result[i].DisplayPath = dp
 			}

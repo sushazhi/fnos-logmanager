@@ -40,6 +40,7 @@ type DirInfo struct {
 	LogCount     int    `json:"logCount,omitempty"`
 	ArchiveCount int    `json:"archiveCount,omitempty"`
 	TotalSize    string `json:"totalSize,omitempty"`
+	IsShared     bool   `json:"isShared,omitempty"`
 	Error        string `json:"error,omitempty"`
 }
 

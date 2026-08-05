@@ -300,21 +300,35 @@ export const eventLoggerApi = {
   getAppNames: () => api.get<string[]>('/api/appnames')
 }
 
+// 与后端 services.CleanRule JSON 契约保持一致
 export interface AutoCleanRule {
   id: string
   name: string
   enabled: boolean
-  type: 'truncateLarge' | 'deleteOld' | 'deleteUninstalled'
-  threshold?: string
-  days?: number
-  schedule: string
+  schedule: string // cron 表达式或秒级间隔（如 "3600s"）
+  logDirs: string[]
+  filePattern: string
+  minSizeBytes: number
+  maxSizeBytes: number
+  retentionDays: number
+  action: string // truncate | delete | deleteUninstalled
+  maxFilesToClean: number
+  description: string
   lastRun?: string
+  lastResult?: string
+  createdAt?: string
+  updatedAt?: string
 }
+
+// 新增规则的请求体（对应后端 createCleanRuleBody）
+export type AutoCleanRuleInput = Partial<
+  Omit<AutoCleanRule, 'id' | 'lastRun' | 'lastResult' | 'createdAt' | 'updatedAt'>
+>
 
 export const autoCleanApi = {
   getRules: () => api.get<{ rules: AutoCleanRule[] }>('/api/auto-clean/rules'),
 
-  addRule: (rule: Omit<AutoCleanRule, 'id' | 'lastRun'>) =>
+  addRule: (rule: AutoCleanRuleInput) =>
     api.post<{ rule: AutoCleanRule }>('/api/auto-clean/rules', rule),
 
   deleteRule: (id: string) =>
@@ -331,6 +345,7 @@ export interface Bookmark {
   id: string
   name: string
   path: string
+  displayPath?: string
   isDocker?: boolean
   createdAt: string
 }

@@ -297,18 +297,19 @@ export async function openAppSetting(): Promise<void> {
  *
  * @param url - 目标 URL
  * @param target - 窗口 target，默认 '_blank'
+ * @param features - 窗口特性（仅 Web 宿主有效，对应 window.open 的 features）
  *
  * @example
  * ```ts
  * await openURL('https://example.com/docs')
  * ```
  */
-export async function openURL(url: string, target?: string): Promise<void> {
+export async function openURL(url: string, target?: string, features?: string): Promise<void> {
   if (!sdk.isWeb) {
-    window.open(url, target || '_blank')
+    window.open(url, target || '_blank', features)
     return
   }
-  await sdk.openURL(url, target)
+  await sdk.openURL(url, target, features)
 }
 
 // ============================================================================
@@ -587,23 +588,26 @@ export function setBackendApiBase(baseUrl: string): void {
  * 使用前需先调用 setBackendApiBase() 设置 API 地址。
  *
  * @param path - 内部路径，如 /vol1/@appdata/myapp
+ * @param language - 展示语言，如 'zh-CN'、'en-US'，默认取当前界面语言（zh-CN）
  * @returns 语义化路径，如 "存储空间1/应用数据/myapp"
  *
  * @example
  * ```ts
  * const friendly = await convertPathViaBackend('/vol1/@appdata/myapp/log.txt')
+ * const en = await convertPathViaBackend('/vol1/@appdata/myapp/log.txt', 'en-US')
  * ```
  */
-export async function convertPathViaBackend(path: string): Promise<string> {
+export async function convertPathViaBackend(path: string, language?: string): Promise<string> {
   if (!backendApiBase) {
     console.warn('[fnos] convertPathViaBackend: 请先调用 setBackendApiBase() 设置 API 地址')
     return path
   }
   try {
+    const lang = language || 'zh-CN'
     const response = await fetch(`${backendApiBase}/api/utils/convert-path`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ path, language: lang }),
       credentials: 'include'
     })
     if (response.ok) {
@@ -618,11 +622,14 @@ export async function convertPathViaBackend(path: string): Promise<string> {
 
 /**
  * 批量路径转换（通过后端代理）。
+ *
+ * @param paths - 内部路径数组
+ * @param language - 展示语言，如 'zh-CN'、'en-US'，默认取当前界面语言（zh-CN）
  */
-export async function convertPathsViaBackend(paths: string[]): Promise<Map<string, string>> {
+export async function convertPathsViaBackend(paths: string[], language?: string): Promise<Map<string, string>> {
   const result = new Map<string, string>()
   for (const p of paths) {
-    result.set(p, await convertPathViaBackend(p))
+    result.set(p, await convertPathViaBackend(p, language))
   }
   return result
 }
@@ -636,6 +643,7 @@ export const API_SCOPES = {
   USER_ACL: 'trim.file.userAcl',
   PATH: 'trim.file.path',
   SHARED_ACCESS: 'trim.file.sharedAccess',
+  SYSTEM_PLATFORM_CONFIG: 'trim.system.getPlatformConfig',
 } as const
 
 export type APIScope = (typeof API_SCOPES)[keyof typeof API_SCOPES]

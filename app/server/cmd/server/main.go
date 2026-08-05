@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,6 +56,22 @@ func main() {
 	slog.Info("ACL 权限检查已启用",
 		"socket", trimClient.GetBaseURL(),
 		"hasToken", os.Getenv("TRIM_API_TOKEN") != "")
+
+	// P0: Check fnOS system version and log capability status.
+	// trim.system.getPlatformConfig requires the matching api-scope declaration.
+	const minSupportedVersion = "1.2.0401"
+	if pc, err := trimClient.GetPlatformConfig(); err == nil {
+		slog.Info("fnOS 平台配置",
+			"systemLanguage", pc.SystemLanguage,
+			"systemVersion", pc.SystemVersion)
+		if !isVersionAtLeast(pc.SystemVersion, minSupportedVersion) {
+			slog.Warn("fnOS 系统版本低于最低支持版本，部分开放平台能力可能不可用",
+				"systemVersion", pc.SystemVersion,
+				"minSupported", minSupportedVersion)
+		}
+	} else {
+		slog.Warn("读取平台配置失败（开放平台 API 不可用，相关能力将降级）", "error", err)
+	}
 
 	// Initialize service directories
 	initServiceDirs(cfg.DataDir)
@@ -183,6 +201,40 @@ func main() {
 	}
 
 	slog.Info("服务已关闭")
+}
+
+// isVersionAtLeast reports whether version >= min.
+// Handles dotted numeric versions like "1.2.0401".
+func isVersionAtLeast(version, min string) bool {
+	parse := func(s string) []int {
+		parts := strings.Split(s, ".")
+		out := make([]int, 0, len(parts))
+		for _, p := range parts {
+			n, err := strconv.Atoi(p)
+			if err != nil {
+				n = 0
+			}
+			out = append(out, n)
+		}
+		return out
+	}
+	v, m := parse(version), parse(min)
+	for i := 0; i < len(v) || i < len(m); i++ {
+		vi, mi := 0, 0
+		if i < len(v) {
+			vi = v[i]
+		}
+		if i < len(m) {
+			mi = m[i]
+		}
+		if vi < mi {
+			return false
+		}
+		if vi > mi {
+			return true
+		}
+	}
+	return true
 }
 
 func initServiceDirs(dataDir string) {

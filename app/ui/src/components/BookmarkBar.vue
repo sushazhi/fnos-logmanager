@@ -101,7 +101,7 @@ defineExpose({
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
-  margin-top: var(--spacing-sm);
+  margin: var(--spacing-sm) 0;
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));

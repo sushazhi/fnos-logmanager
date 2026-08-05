@@ -66,6 +66,12 @@ func RegisterLogRoutes(rg *gin.RouterGroup) {
 
 	// Dirs
 	rg.POST("/dirs/clean-empty", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanEmptyDirsHandler)
+	rg.POST("/dirs/unauthorize", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), unauthorizeDirHandler)
+
+	// P2: Shared (app-level) directory authorization management
+	// Shared folders are managed by an admin and visible to all users.
+	rg.GET("/dirs/shared", middleware.ValidateToken, middleware.APIRateLimit(60, 60000), getSharedDirsHandler)
+	rg.POST("/dirs/shared-unauthorize", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), unauthorizeSharedDirHandler)
 
 	// Auto-clean rules
 	rg.GET("/auto-clean/rules", middleware.ValidateToken, listCleanRulesHandler)
@@ -135,18 +141,47 @@ func getDirsHandler(c *gin.Context) {
 		return
 	}
 
-	// P0: Filter directories by ACL permission
+	// P0: Identify the current user (gateway or standalone session)
 	gatewayUID, _ := c.Get("gatewayUID")
 	sessionToken, _ := c.Get("sessionToken")
 	uid := utils.GetUserIDFromContext(
 		gatewayUIDToString(gatewayUID),
 		sessionTokenToString(sessionToken),
 	)
+
+	// P0: Merge user-authorized folders (trim.file.getUserAccessibleFolders).
+	// Keeps custom dirs added via the file picker visible after page refresh
+	// and service restart.
+	var userPaths []string
 	if uid != "" {
+		if userDirs := services.GetUserDirsInfo(uid); len(userDirs) > 0 {
+			seen := make(map[string]bool, len(dirs))
+			for _, d := range dirs {
+				seen[d.Path] = true
+			}
+			for _, ud := range userDirs {
+				if !seen[ud.Path] {
+					dirs = append(dirs, ud)
+					seen[ud.Path] = true
+				}
+				userPaths = append(userPaths, ud.Path)
+			}
+		}
+	}
+
+	// P0: Filter directories by ACL permission.
+	// The allowed set is config LogDirs ∪ user-authorized folders, so custom
+	// dirs outside the default config remain accessible while still being
+	// validated against the trim.file.checkUserACL result.
+	if uid != "" {
+		allowedDirs := config.Get().LogDirs
+		if len(userPaths) > 0 {
+			allowedDirs = append(allowedDirs, userPaths...)
+		}
 		filtered := make([]types.DirInfo, 0, len(dirs))
 		for _, dir := range dirs {
 			if dir.Path != "" {
-				allowed, _ := utils.CheckUserFileACL(uid, dir.Path, config.Get().LogDirs, "readable")
+				allowed, _ := utils.CheckUserFileACL(uid, dir.Path, allowedDirs, "readable")
 				if allowed {
 					filtered = append(filtered, dir)
 				}
@@ -193,6 +228,135 @@ func getAppNamesHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, names)
+}
+
+// ---------------------------------------------------------------------------
+// Directory authorization management
+// ---------------------------------------------------------------------------
+
+type unauthorizeDirBody struct {
+	Path string `json:"path"`
+}
+
+// unauthorizeDirHandler removes the current user's fnOS authorization for a
+// custom log directory (trim.file.delUserAccessibleFolder).
+func unauthorizeDirHandler(c *gin.Context) {
+	var body unauthorizeDirBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的参数"})
+		return
+	}
+	if body.Path == "" || len(body.Path) > maxPathLength {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少路径参数"})
+		return
+	}
+
+	gatewayUID, _ := c.Get("gatewayUID")
+	sessionToken, _ := c.Get("sessionToken")
+	uid := utils.GetUserIDFromContext(
+		gatewayUIDToString(gatewayUID),
+		sessionTokenToString(sessionToken),
+	)
+	if uid == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无法识别当前用户"})
+		return
+	}
+
+	// Security: only allow removing authorization for paths the user actually
+	// authorized (trim.file.getUserAccessibleFolders) or default config dirs.
+	folders, err := services.GetTrimClient().GetUserAccessibleFolders(uid)
+	authorized := false
+	if err == nil {
+		for _, f := range folders {
+			if f == body.Path {
+				authorized = true
+				break
+			}
+		}
+	}
+	if !authorized && !utils.IsAllowedPath(body.Path, config.Get().LogDirs) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "路径不在允许范围内"})
+		return
+	}
+
+	if err := services.DelUserDir(uid, body.Path); err != nil {
+		slog.Warn("unauthorize dir failed", "uid", uid, "path", body.Path, "error", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "移除授权失败"})
+		return
+	}
+
+	services.AddAuditLog("dir_unauthorize", map[string]interface{}{
+		"path": body.Path,
+	}, c)
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// getSharedDirsHandler returns the app-level shared folders
+// (trim.file.getSharedAccessibleFolders) as DirInfo entries.
+// Shared folders are configured by an admin via pickSharedFile and are
+// visible to all users of the app.
+func getSharedDirsHandler(c *gin.Context) {
+	shared, err := services.GetTrimClient().GetSharedAccessibleFolders()
+	if err != nil {
+		// The shared-access scope may be unavailable; degrade gracefully.
+		slog.Debug("get shared folders failed", "error", err)
+		c.JSON(http.StatusOK, gin.H{"dirs": []types.DirInfo{}})
+		return
+	}
+
+	dirs := make([]types.DirInfo, 0, len(shared))
+	for _, p := range shared {
+		info := services.GetDirInfo(p)
+		info.IsShared = true
+		info.DisplayPath = convertPathToDisplay(p)
+		dirs = append(dirs, info)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"dirs": dirs})
+}
+
+// unauthorizeSharedDirHandler removes an admin-configured shared folder
+// (trim.file.delSharedAccessibleFolder). Admin only.
+func unauthorizeSharedDirHandler(c *gin.Context) {
+	var body unauthorizeDirBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的参数"})
+		return
+	}
+	if body.Path == "" || len(body.Path) > maxPathLength {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少路径参数"})
+		return
+	}
+
+	// Security: only allow removing shared folders that actually exist in the
+	// app's shared folder list.
+	shared, err := services.GetTrimClient().GetSharedAccessibleFolders()
+	authorized := false
+	if err == nil {
+		for _, f := range shared {
+			if f == body.Path {
+				authorized = true
+				break
+			}
+		}
+	}
+	if !authorized {
+		c.JSON(http.StatusForbidden, gin.H{"error": "路径不在共享授权范围内"})
+		return
+	}
+
+	if _, err := services.GetTrimClient().DelSharedAccessibleFolder(body.Path); err != nil {
+		slog.Warn("unauthorize shared dir failed", "path", body.Path, "error", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "移除共享授权失败"})
+		return
+	}
+
+	services.AddAuditLog("dir_shared_unauthorize", map[string]interface{}{
+		"path": body.Path,
+	}, c)
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 // ---------------------------------------------------------------------------
@@ -1660,7 +1824,7 @@ func checkFileACL(c *gin.Context, filePath string, action string) bool {
 // P2: Uses trim.file.convertPath to make paths more readable.
 func convertPathToDisplay(path string) string {
 	client := services.GetTrimClient()
-	display, err := client.ConvertPath(path)
+	display, err := client.ConvertPath(path, "")
 	if err != nil || display == "" {
 		return path
 	}

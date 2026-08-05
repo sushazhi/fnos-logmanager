@@ -383,15 +383,15 @@ function fallbackCopy() {
   }
 
   .hm-footer {
-    flex-direction: column;
-    gap: var(--spacing-xs);
+    flex-direction: row;
+    gap: var(--spacing-sm);
   }
 
   .hm-btn {
-    width: 100%;
-    height: 44px;
+    flex: 1;
+    height: 48px;
     justify-content: center;
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-lg);
   }
 }
 </style>

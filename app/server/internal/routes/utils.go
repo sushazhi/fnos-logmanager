@@ -16,7 +16,8 @@ func RegisterUtilRoutes(rg *gin.RouterGroup) {
 }
 
 type convertPathBody struct {
-	Path string `json:"path"`
+	Path     string `json:"path"`
+	Language string `json:"language"`
 }
 
 func convertPathHandler(c *gin.Context) {
@@ -32,7 +33,7 @@ func convertPathHandler(c *gin.Context) {
 	}
 
 	client := services.GetTrimClient()
-	semanticPath, err := client.ConvertPath(body.Path)
+	semanticPath, err := client.ConvertPath(body.Path, body.Language)
 	if err != nil {
 		slog.Warn("convertPath failed", "path", body.Path, "error", err)
 		// Fallback: return original path

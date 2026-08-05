@@ -249,15 +249,20 @@ type convertPathResultItem struct {
 
 // convertPathResponseData 响应 data 字段
 type convertPathResponseData struct {
-	Status int                       `json:"status"`
-	Result []convertPathResultItem   `json:"result"`
+	Status int                     `json:"status"`
+	Result []convertPathResultItem `json:"result"`
 }
 
 // ConvertPath 将内部路径转换为语义化路径。
-func (c *TrimAPIClient) ConvertPath(path string) (string, error) {
+// language 可选，默认 zh-CN（文档要求必传，此处做容错）。
+func (c *TrimAPIClient) ConvertPath(path, language string) (string, error) {
+	if language == "" {
+		language = "zh-CN"
+	}
+
 	reqData := convertPathRequest{
 		Path:     path,
-		Language: "zh-CN",
+		Language: language,
 	}
 
 	data, err := c.call("trim.file.convertPath", reqData)
@@ -285,15 +290,20 @@ func (c *TrimAPIClient) ConvertPath(path string) (string, error) {
 }
 
 // ConvertPaths 批量转换路径。
-func (c *TrimAPIClient) ConvertPaths(paths []string) map[string]string {
+// language 可选，默认 zh-CN。
+func (c *TrimAPIClient) ConvertPaths(paths []string, language string) map[string]string {
 	result := make(map[string]string, len(paths))
 	if len(paths) == 0 {
 		return result
 	}
 
+	if language == "" {
+		language = "zh-CN"
+	}
+
 	reqData := convertPathRequest{
 		Path:     paths,
-		Language: "zh-CN",
+		Language: language,
 	}
 
 	data, err := c.call("trim.file.convertPath", reqData)
@@ -450,6 +460,34 @@ func (c *TrimAPIClient) DelSharedAccessibleFolder(path string) (bool, error) {
 	}
 
 	return resp.Suc, nil
+}
+
+// ---------------------------------------------------------------------------
+// trim.system.getPlatformConfig
+// Scope: trim.system.getPlatformConfig
+// 参考: https://developer.fnnas.com/api/platform-config/
+// ---------------------------------------------------------------------------
+
+// getPlatformConfigResponse 响应 data
+type getPlatformConfigResponse struct {
+	SystemLanguage string `json:"systemLanguage"`
+	SystemVersion  string `json:"systemVersion"`
+}
+
+// GetPlatformConfig 读取 fnOS 系统语言和系统版本。
+// 该接口不需要额外 data 字段。
+func (c *TrimAPIClient) GetPlatformConfig() (getPlatformConfigResponse, error) {
+	data, err := c.call("trim.system.getPlatformConfig", struct{}{})
+	if err != nil {
+		return getPlatformConfigResponse{}, err
+	}
+
+	var resp getPlatformConfigResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return resp, fmt.Errorf("parse response: %w", err)
+	}
+
+	return resp, nil
 }
 
 // ---------------------------------------------------------------------------

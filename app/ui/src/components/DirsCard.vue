@@ -36,8 +36,31 @@
         <p class="config-hint">自定义目录：</p>
         <div v-for="cd in customDirs" :key="cd.path" class="custom-dir-item">
           <span class="custom-dir-path">{{ cd.displayPath || cd.path }}</span>
-          <button class="custom-dir-remove" @click="removeCustomDir(cd.path)" title="移除">×</button>
+          <span class="custom-dir-actions" v-if="isFnosEnv">
+            <button class="custom-dir-act" @click="handleOpenManager(cd.path)" title="在文件管理器中定位">📁</button>
+            <button class="custom-dir-act" @click="handleShowDetails(cd.path)" title="查看目录详情">ℹ️</button>
+            <button class="custom-dir-remove" @click="removeCustomDir(cd.path)" title="移除授权">×</button>
+          </span>
+          <button v-else class="custom-dir-remove" @click="removeCustomDir(cd.path)" title="移除">×</button>
         </div>
+      </div>
+      <!-- P2: Shared (app-level) directories -->
+      <div v-if="sharedDirs.length > 0" class="custom-dirs-section">
+        <p class="config-hint">共享目录（所有用户可见）：</p>
+        <div v-for="sd in sharedDirs" :key="sd.path" class="custom-dir-item">
+          <span class="custom-dir-path">{{ sd.displayPath || sd.path }}</span>
+          <span class="custom-dir-actions" v-if="isFnosEnv">
+            <button class="custom-dir-act" @click="handleOpenManager(sd.path)" title="在文件管理器中定位">📁</button>
+            <button class="custom-dir-act" @click="handleShowDetails(sd.path)" title="查看目录详情">ℹ️</button>
+            <button class="custom-dir-remove" @click="removeSharedDir(sd.path)" title="移除共享授权">×</button>
+          </span>
+        </div>
+      </div>
+      <!-- P2: Add shared directory (admin) -->
+      <div v-if="isFnosEnv" class="custom-dir-input-row">
+        <button class="config-btn btn-add-shared" @click="handlePickSharedDir" title="通过 fnOS 文件选择器添加共享目录（所有用户可见）">
+          +共享目录
+        </button>
       </div>
       <!-- Manual custom dir input -->
       <div v-if="showCustomDirInput" class="custom-dir-input-row">
@@ -84,7 +107,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { Dir } from '../types'
-import { pickUserFile, isFnosEnvironment, convertPathViaBackend } from '../services/fnos'
+import { pickUserFile, pickSharedFile, authorizeUserFile, isFnosEnvironment, convertPathViaBackend, openFileManager, showFileDetails } from '../services/fnos'
+import api from '../services/api'
 
 interface Props {
   dirs: Dir[]
@@ -112,6 +136,9 @@ interface CustomDir {
 }
 const customDirs = ref<CustomDir[]>([])
 
+// P2: Shared (app-level) directories
+const sharedDirs = ref<Dir[]>([])
+
 onMounted(async () => {
   isFnosEnv.value = isFnosEnvironment()
   loadCustomDirs()
@@ -125,6 +152,12 @@ onMounted(async () => {
       }
     }
   }
+  // P2: Load shared directories
+  loadSharedDirs()
+  // P2: Attempt to restore authorization for previously saved custom dirs
+  // that are no longer in the user's accessible folders (e.g. after a
+  // service restart, the SDK-side authorization may need re-confirmation).
+  restoreCustomDirAuth()
 })
 
 // P1: Open fnOS file picker or prompt to add custom directory
@@ -171,6 +204,82 @@ function addCustomDir(path: string): void {
 function removeCustomDir(path: string): void {
   customDirs.value = customDirs.value.filter(d => d.path !== path)
   saveCustomDirs()
+  // P1: Revoke fnOS user authorization for the removed directory
+  if (isFnosEnvironment()) {
+    api.post<{ success: boolean }>('/api/dirs/unauthorize', { path }).catch(err => {
+      console.warn('移除目录授权失败:', err)
+    })
+  }
+}
+
+// P1: Open the host file manager at the given directory
+function handleOpenManager(path: string): void {
+  openFileManager(path).catch(() => {})
+}
+
+// P1: Show host file details panel for the given directory
+function handleShowDetails(path: string): void {
+  showFileDetails([path]).catch(() => {})
+}
+
+// P2: Load app-level shared directories from backend
+async function loadSharedDirs(): Promise<void> {
+  try {
+    const data = await api.get<{ dirs: Dir[] }>('/api/dirs/shared')
+    sharedDirs.value = data.dirs || []
+  } catch {
+    sharedDirs.value = []
+  }
+}
+
+// P2: Open the shared-file picker to authorize a shared directory
+async function handlePickSharedDir(): Promise<void> {
+  if (!isFnosEnvironment()) return
+  try {
+    const result = await pickSharedFile({ title: '选择共享日志目录' })
+    if (result && result.code === 0 && result.data && result.data.length > 0) {
+      const dirPath = result.data[0]
+      // The folder is now authorized at the app level; refresh the list
+      await loadSharedDirs()
+      emit('selectDir', dirPath)
+    }
+  } catch (e) {
+    console.error('添加共享目录失败:', e)
+  }
+}
+
+// P2: Remove an app-level shared directory (admin)
+async function removeSharedDir(path: string): Promise<void> {
+  sharedDirs.value = sharedDirs.value.filter(d => d.path !== path)
+  try {
+    await api.post<{ success: boolean }>('/api/dirs/shared-unauthorize', { path })
+  } catch (err) {
+    console.warn('移除共享授权失败:', err)
+    // Revert optimistic removal on failure
+    loadSharedDirs()
+  }
+}
+
+// P2: Re-request fnOS authorization for custom dirs whose authorization was
+// lost (they still exist locally but the host no longer grants access).
+async function restoreCustomDirAuth(): Promise<void> {
+  if (!isFnosEnvironment() || customDirs.value.length === 0) return
+  // Determine which custom dirs are still authorized by the host.
+  let authorized = new Set<string>()
+  try {
+    const data = await api.get<{ dirs: Array<{ path: string }> }>('/api/dirs')
+    for (const d of data.dirs || []) authorized.add(d.path)
+  } catch {
+    return
+  }
+  for (const cd of customDirs.value) {
+    if (authorized.has(cd.path)) continue
+    try {
+      await authorizeUserFile(cd.path)
+    } catch {
+      // Ignore: the host may legitimately refuse (e.g. path no longer exists)
+    }
+  }
 }
 
 function saveCustomDirs(): void {
@@ -365,6 +474,36 @@ loadVisibleDirs()
 
 .custom-dir-remove:hover {
   color: var(--error-color);
+}
+
+.custom-dir-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.custom-dir-act {
+  background: none;
+  border: none;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  padding: 0 3px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.custom-dir-act:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.btn-add-shared {
+  margin-top: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  padding: 4px 10px;
 }
 
 .custom-dir-input-row {

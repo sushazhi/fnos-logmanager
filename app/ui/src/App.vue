@@ -149,7 +149,7 @@ import { useStore, setConfirmFn } from './composables/useStore'
 import { useLogsStore } from './stores/useLogsStore'
 import { applyThemeColor } from './composables/useThemeColor'
 import api, { bookmarkApi, API_BASE } from './services/api'
-import { setTitle, onThemeChange, onLanguageChange, waitForReady, getHostSnapshot, setBackendApiBase } from './services/fnos'
+import { setTitle, onThemeChange, onLanguageChange, waitForReady, getHostSnapshot, getPlatformConfig, setBackendApiBase } from './services/fnos'
 import AppHeader from './components/AppHeader.vue'
 import StatsCard from './components/StatsCard.vue'
 import BookmarkBar from './components/BookmarkBar.vue'
@@ -411,6 +411,20 @@ onMounted(async () => {
     if (snapshot) {
       console.log('[fnOS] 用户:', snapshot.username, '会话数:', snapshot.sessions?.length)
     }
+  }).catch(() => {})
+
+  // P0: 初始化时读取平台配置（主题/语言/系统版本），避免首屏主题闪烁
+  getPlatformConfig().then(config => {
+    if (!config) return
+    const root = document.documentElement
+    if (config.theme === 'dark') {
+      root.classList.add('dark-theme')
+    } else {
+      root.classList.remove('dark-theme')
+    }
+    try {
+      localStorage.setItem('logmanager_lang', config.language || 'zh-CN')
+    } catch { /* ignore */ }
   }).catch(() => {})
   
   checkAuth()

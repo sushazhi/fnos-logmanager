@@ -93,9 +93,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { autoCleanApi } from '../services/api'
+import { autoCleanApi, type AutoCleanRule as CleanRuleDTO, type AutoCleanRuleInput } from '../services/api'
 import { useStore } from '../composables/useStore'
 
+// UI 展示模型（前后端字段名不同，通过下方映射函数互转）
 interface AutoCleanRule {
   id: string
   name: string
@@ -105,6 +106,96 @@ interface AutoCleanRule {
   days?: number
   schedule: string
   lastRun?: string
+}
+
+// ============ 前后端契约映射 ============
+// UI type -> 后端 action
+const typeToAction: Record<AutoCleanRule['type'], string> = {
+  truncateLarge: 'truncate',
+  deleteOld: 'delete',
+  deleteUninstalled: 'deleteUninstalled'
+}
+// 后端 action -> UI type
+const actionToType: Record<string, AutoCleanRule['type']> = {
+  truncate: 'truncateLarge',
+  delete: 'deleteOld',
+  deleteUninstalled: 'deleteUninstalled'
+}
+
+// 阈值 量化字符串 -> 字节数，如 "100M" -> 104857600
+function parseSizeToBytes(size: string): number {
+  const m = /^(\d+(?:\.\d+)?)\s*([KMGT]?)$/i.exec(size.trim())
+  if (!m) return 0
+  const n = parseFloat(m[1])
+  const unit = (m[2] || '').toUpperCase()
+  const mult: Record<string, number> = { K: 1024, M: 1024 ** 2, G: 1024 ** 3, T: 1024 ** 4 }
+  return Math.round(n * (mult[unit] || 1))
+}
+
+// 字节数 -> 量化字符串
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return ''
+  const units: Array<[number, string]> = [
+    [1024 ** 4, 'T'],
+    [1024 ** 3, 'G'],
+    [1024 ** 2, 'M'],
+    [1024, 'K']
+  ]
+  for (const [v, u] of units) {
+    if (bytes >= v) {
+      const n = bytes / v
+      return `${n % 1 === 0 ? n : n.toFixed(1)}${u}`
+    }
+  }
+  return String(bytes)
+}
+
+// 后端 schedule 只接受 cron 表达式或 "Ns" 秒级间隔，UI 的选择需转换为后端格式
+function scheduleToBackend(sched: string, customInterval: number, cronExpr: string): string {
+  switch (sched) {
+    case 'hourly': return '0 * * * *'
+    case 'daily': return '0 3 * * *'
+    case 'weekly': return '0 3 * * 0'
+    case 'custom': return `${customInterval}s`
+    case 'cron': return cronExpr.trim()
+    default: return sched
+  }
+}
+
+// 后端 schedule 表达式 -> UI 调度选择
+function scheduleFromBackend(sched: string): { schedule: string; customInterval: number; cronExpression: string } {
+  switch (sched) {
+    case '0 * * * *': return { schedule: 'hourly', customInterval: 3600, cronExpression: '0 3 * * *' }
+    case '0 3 * * *': return { schedule: 'daily', customInterval: 3600, cronExpression: '0 3 * * *' }
+    case '0 3 * * 0': return { schedule: 'weekly', customInterval: 3600, cronExpression: '0 3 * * *' }
+    default: {
+      const secMatch = /^(\d+)s$/.exec(sched)
+      if (secMatch) {
+        const secs = parseInt(secMatch[1], 10)
+        return { schedule: 'custom', customInterval: secs || 3600, cronExpression: '0 3 * * *' }
+      }
+      return { schedule: 'cron', customInterval: 3600, cronExpression: sched && sched.trim().split(/\s+/).length === 5 ? sched : '0 3 * * *' }
+    }
+  }
+}
+
+// 后端 CleanRule DTO -> UI 展示模型
+function toDisplayRule(r: CleanRuleDTO): AutoCleanRule {
+  const type: AutoCleanRule['type'] = actionToType[r.action] || 'truncateLarge'
+  const sched = scheduleFromBackend(r.schedule || '')
+  let uiSchedule = sched.schedule
+  if (sched.schedule === 'custom') uiSchedule = String(sched.customInterval)
+  else if (sched.schedule === 'cron') uiSchedule = sched.cronExpression
+  return {
+    id: r.id,
+    name: r.name,
+    enabled: r.enabled,
+    type,
+    threshold: type === 'truncateLarge' && r.minSizeBytes > 0 ? formatBytes(r.minSizeBytes) : undefined,
+    days: type === 'deleteOld' && r.retentionDays > 0 ? r.retentionDays : undefined,
+    schedule: uiSchedule,
+    lastRun: r.lastRun || undefined
+  }
 }
 
 const emit = defineEmits<{
@@ -181,9 +272,10 @@ async function loadRules(): Promise<void> {
   loading.value = true
   try {
     const data = await autoCleanApi.getRules()
-    rules.value = data.rules
+    rules.value = (data.rules || []).map(toDisplayRule)
   } catch (e) {
-    console.error('加载自动清理规则失败:', e)
+    statusMsg.value = getErrorMessage(e, '加载自动清理规则失败')
+    statusType.value = 'error'
   } finally {
     loading.value = false
   }
@@ -191,23 +283,15 @@ async function loadRules(): Promise<void> {
 
 async function addRule(): Promise<void> {
   try {
-    let schedule: string
-    if (newRule.value.schedule === 'custom') {
-      schedule = String(newRule.value.customInterval)
-    } else if (newRule.value.schedule === 'cron') {
-      schedule = newRule.value.cronExpression.trim()
-    } else {
-      schedule = newRule.value.schedule
-    }
-
-    await autoCleanApi.addRule({
+    const payload: AutoCleanRuleInput = {
       name: newRule.value.name,
       enabled: true,
-      type: newRule.value.type,
-      threshold: newRule.value.type === 'truncateLarge' ? newRule.value.threshold : undefined,
-      days: newRule.value.type === 'deleteOld' ? newRule.value.days : undefined,
-      schedule
-    })
+      action: typeToAction[newRule.value.type],
+      schedule: scheduleToBackend(newRule.value.schedule, newRule.value.customInterval, newRule.value.cronExpression),
+      minSizeBytes: newRule.value.type === 'truncateLarge' ? parseSizeToBytes(newRule.value.threshold || '') : 0,
+      retentionDays: newRule.value.type === 'deleteOld' ? (newRule.value.days || 0) : 0
+    }
+    await autoCleanApi.addRule(payload)
     showAddForm.value = false
     newRule.value = {
       name: '',
@@ -218,9 +302,12 @@ async function addRule(): Promise<void> {
       customInterval: 3600,
       cronExpression: '0 3 * * *'
     }
+    statusMsg.value = '添加规则成功'
+    statusType.value = 'success'
     await loadRules()
   } catch (e) {
-    console.error('添加规则失败:', e)
+    statusMsg.value = getErrorMessage(e, '添加规则失败')
+    statusType.value = 'error'
   }
 }
 
@@ -229,11 +316,16 @@ async function toggleRule(id: string): Promise<void> {
     const result = await autoCleanApi.toggleRule(id)
     const index = rules.value.findIndex(r => r.id === id)
     if (index !== -1 && result.rule) {
-      rules.value[index] = result.rule
+      rules.value[index] = toDisplayRule(result.rule)
     }
   } catch (e) {
-    console.error('切换规则失败:', e)
+    statusMsg.value = getErrorMessage(e, '切换规则失败')
+    statusType.value = 'error'
   }
+}
+
+function getErrorMessage(e: unknown, fallback: string): string {
+  return e instanceof Error && e.message ? e.message : fallback
 }
 
 async function executeRule(id: string): Promise<void> {

@@ -32,6 +32,8 @@ export interface Dir {
   totalSize?: string
   exists?: boolean
   archiveCount?: number
+  displayPath?: string
+  isShared?: boolean
 }
 
 // ==================== 日志类型 ====================

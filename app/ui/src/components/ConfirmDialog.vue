@@ -368,13 +368,14 @@ defineExpose({ show })
   }
 
   .hm-actions {
-    flex-direction: column;
-    gap: var(--spacing-xs);
+    flex-direction: row;
+    gap: var(--spacing-sm);
   }
 
   .hm-btn {
-    height: 44px;
-    font-size: var(--font-size-base);
+    flex: 1;
+    height: 48px;
+    font-size: var(--font-size-lg);
   }
 }
 </style>

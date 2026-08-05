@@ -17,7 +17,7 @@ const CLOSE_DURATION = 24 * 60 * 60 * 1000
  */
 async function loadVersion(): Promise<string> {
   try {
-    const resp = await api.get('/api/update/version')
+    const resp = await api.get<{ version: string }>('/api/update/version')
     if (resp?.version) {
       return resp.version
     }

@@ -74,6 +74,16 @@
             <span class="action-icon">{{ isBookmarked ? '★' : '☆' }}</span>
             <span class="action-text">书签</span>
           </button>
+          <template v-if="isFnosEnv && !isDocker && isNavigablePath">
+            <button class="action-btn" @click="handleOpenFileManager" title="在文件管理器中定位该日志文件">
+              <span class="action-icon">📁</span>
+              <span class="action-text">定位</span>
+            </button>
+            <button class="action-btn" @click="handleShowFileDetails" title="查看该日志文件详情">
+              <span class="action-icon">ℹ️</span>
+              <span class="action-text">详情</span>
+            </button>
+          </template>
           <button class="action-btn back-btn" @click="$emit('back')" title="返回主页">
             <span class="action-icon">↩</span>
             <span class="action-text">主页</span>
@@ -152,6 +162,7 @@ import { useLogSearch } from '../composables/useLogSearch'
 import { useLogStream } from '../composables/useLogStream'
 import { useDockerLogStream } from '../composables/useDockerLogStream'
 import { useLogsStore } from '../stores/useLogsStore'
+import { isFnosEnvironment, openFileManager, showFileDetails, setExitPageTips } from '../services/fnos'
 import type { Bookmark } from '../services/api'
 interface Props {
   title?: string
@@ -202,6 +213,31 @@ const emit = defineEmits<{
   toggleBookmark: []
   truncate: []
 }>()
+
+const isFnosEnv = isFnosEnvironment()
+
+// 文件管理器可访问的目录前缀
+const NAVIGABLE_DIRS = ['/vol1/', '/vol2/', '/vol3/', '/vol4/']
+
+const isNavigablePath = computed(() => {
+  const fp = props.filePath || ''
+  return NAVIGABLE_DIRS.some(d => fp.startsWith(d))
+})
+
+// P1: Open the host file manager at the directory containing the active log file
+function handleOpenFileManager(): void {
+  const filePath = props.filePath
+  if (!filePath) return
+  const dirPath = filePath.substring(0, filePath.lastIndexOf('/')) || filePath
+  openFileManager(dirPath).catch(() => {})
+}
+
+// P1: Show the host file details panel for the active log file
+function handleShowFileDetails(): void {
+  const filePath = props.filePath
+  if (!filePath) return
+  showFileDetails([path]).catch(() => {})
+}
 
 const isBookmarked = computed(() => {
   const path = props.filePath
@@ -663,6 +699,14 @@ function toggleTail(): void {
   isTailing.value = true
   scrollToBottom()
 
+  // P2: Warn before leaving the page while tailing live logs
+  if (isFnosEnvironment()) {
+    setExitPageTips({
+      title: '日志追踪进行中',
+      content: '实时追踪仍在运行，离开页面将中断日志推送。'
+    }).catch(() => {})
+  }
+
   if (props.isDocker) {
     dockerLogStream.subscribe(filePathToSend)
   } else {
@@ -690,6 +734,10 @@ function stopTail(): void {
   autoScrollToBottom = false
   logStream.unsubscribe()
   dockerLogStream.unsubscribe()
+  // P2: Clear the exit-page warning once tailing stops
+  if (isFnosEnvironment()) {
+    setExitPageTips().catch(() => {})
+  }
 }
 
 // WebSocket 推送新内容时自动滚到底部

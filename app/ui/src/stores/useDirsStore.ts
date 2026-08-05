@@ -19,13 +19,27 @@ export const useDirsStore = defineStore('dirs', () => {
 
   async function loadDirs(): Promise<void> {
     try {
-      const data = await api.get<{ dirs: Array<{ path: string; logCount?: number; totalSize?: string }> }>('/api/dirs')
+      const data = await api.get<{ dirs: Array<{ path: string; logCount?: number; totalSize?: string; displayPath?: string; isShared?: boolean }> }>('/api/dirs')
       dirs.value = (data.dirs || []).map(dir => ({
         ...dir,
         displayName: DIR_NAMES[dir.path] || dir.path
       }))
     } catch (e) {
       console.error('加载目录失败:', e)
+    }
+  }
+
+  async function loadSharedDirs(): Promise<Dir[]> {
+    try {
+      const data = await api.get<{ dirs: Array<{ path: string; logCount?: number; totalSize?: string; displayPath?: string; isShared?: boolean }> }>('/api/dirs/shared')
+      return (data.dirs || []).map(dir => ({
+        ...dir,
+        displayName: DIR_NAMES[dir.path] || dir.path,
+        isShared: true
+      }))
+    } catch (e) {
+      console.warn('加载共享目录失败:', e)
+      return []
     }
   }
 
@@ -52,6 +66,7 @@ export const useDirsStore = defineStore('dirs', () => {
     dirs,
     selectedDir,
     loadDirs,
+    loadSharedDirs,
     selectDir
   }
 })
