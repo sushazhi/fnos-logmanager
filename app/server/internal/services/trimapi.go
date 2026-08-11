@@ -43,6 +43,18 @@ const (
 	trimRequestTimeout = 10 * time.Second
 )
 
+// codeOf extracts the "code" field from a trim API error response body for
+// diagnostics. It returns an empty string if the body is not JSON or lacks code.
+func codeOf(body []byte) string {
+	var parsed struct {
+		Code json.Number `json:"code"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return ""
+	}
+	return parsed.Code.String()
+}
+
 // GetTrimClient returns the singleton TrimAPIClient.
 func GetTrimClient() *TrimAPIClient {
 	trimClientOnce.Do(func() {
@@ -153,6 +165,20 @@ func (c *TrimAPIClient) call(apiMethod string, data interface{}) (json.RawMessag
 	}
 
 	if resp.StatusCode >= 400 {
+		// 403/401 均为已知的开放平台能力降级场景，不影响核心日志管理功能。
+		// 使用 Debug 级别记录（含 appName/socket/token 状态）便于按需排查，避免每次启动打印 WARN。
+		if resp.StatusCode == http.StatusForbidden {
+			slog.Debug("trim API 403 Forbidden",
+				"api", apiMethod,
+				"code", codeOf(respData),
+				"appName", appName,
+				"socket", c.socketPath,
+				"hasToken", token != "")
+		} else if resp.StatusCode == http.StatusUnauthorized && token == "" {
+			slog.Debug("trim API 401: TRIM_API_TOKEN 未注入", "api", apiMethod)
+		} else if resp.StatusCode == http.StatusUnauthorized {
+			slog.Debug("trim API 401 Unauthorized", "api", apiMethod, "hasToken", token != "")
+		}
 		return nil, fmt.Errorf("trim API error (status %d): %s", resp.StatusCode, string(respData))
 	}
 
@@ -247,10 +273,30 @@ type convertPathResultItem struct {
 	SemanticPath string `json:"semanticPath"`
 }
 
-// convertPathResponseData 响应 data 字段
+// convertPathResponseData 文档描述的响应 data 字段（兼容对象格式）
 type convertPathResponseData struct {
 	Status int                     `json:"status"`
 	Result []convertPathResultItem `json:"result"`
+}
+
+// parseConvertPathResult 解析 trim.file.convertPath 响应的 data 字段。
+// 实际网关返回的是数组格式 [ {path, semanticPath}, ... ]，
+// 部分版本返回文档描述的 { status, result: [...] } 对象格式。
+// 这里同时兼容两种格式，取最稳妥的解析结果。
+func parseConvertPathResult(data []byte) []convertPathResultItem {
+	// 1. 数组格式：直接是 []convertPathResultItem
+	var arr []convertPathResultItem
+	if err := json.Unmarshal(data, &arr); err == nil {
+		return arr
+	}
+
+	// 2. 对象格式：{ status, result: [...] }
+	var obj convertPathResponseData
+	if err := json.Unmarshal(data, &obj); err == nil {
+		return obj.Result
+	}
+
+	return nil
 }
 
 // ConvertPath 将内部路径转换为语义化路径。
@@ -267,23 +313,27 @@ func (c *TrimAPIClient) ConvertPath(path, language string) (string, error) {
 
 	data, err := c.call("trim.file.convertPath", reqData)
 	if err != nil {
-		slog.Warn("trim.file.convertPath failed, using original path",
+		// convertPath 失败时静默降级为原始路径，属正常兜底，用 Debug 级别避免刷屏。
+		slog.Debug("trim.file.convertPath failed, using original path",
 			"path", path, "error", err)
 		return path, nil
 	}
 
-	var resp convertPathResponseData
-	if err := json.Unmarshal(data, &resp); err != nil {
-		slog.Warn("trim.file.convertPath parse error", "path", path, "error", err)
+	items := parseConvertPathResult(data)
+	if len(items) == 0 {
+		slog.Debug("trim.file.convertPath parse error, using original path", "path", path)
 		return path, nil
 	}
 
-	if resp.Status != 0 {
-		return path, fmt.Errorf("convertPath status %d", resp.Status)
+	for _, item := range items {
+		if item.Path == path && item.SemanticPath != "" {
+			return item.SemanticPath, nil
+		}
 	}
 
-	if len(resp.Result) > 0 && resp.Result[0].SemanticPath != "" {
-		return resp.Result[0].SemanticPath, nil
+	// 未匹配到该 path 时，退而返回第一条结果（兼容网关只回传一条的情况）
+	if items[0].SemanticPath != "" {
+		return items[0].SemanticPath, nil
 	}
 
 	return path, nil
@@ -308,29 +358,15 @@ func (c *TrimAPIClient) ConvertPaths(paths []string, language string) map[string
 
 	data, err := c.call("trim.file.convertPath", reqData)
 	if err != nil {
-		slog.Warn("trim.file.convertPath batch failed", "count", len(paths), "error", err)
+		slog.Debug("trim.file.convertPath batch failed", "count", len(paths), "error", err)
 		for _, p := range paths {
 			result[p] = p
 		}
 		return result
 	}
 
-	var resp convertPathResponseData
-	if err := json.Unmarshal(data, &resp); err != nil {
-		for _, p := range paths {
-			result[p] = p
-		}
-		return result
-	}
-
-	if resp.Status != 0 {
-		for _, p := range paths {
-			result[p] = p
-		}
-		return result
-	}
-
-	for _, item := range resp.Result {
+	items := parseConvertPathResult(data)
+	for _, item := range items {
 		if item.SemanticPath != "" {
 			result[item.Path] = item.SemanticPath
 		} else {
@@ -460,34 +496,6 @@ func (c *TrimAPIClient) DelSharedAccessibleFolder(path string) (bool, error) {
 	}
 
 	return resp.Suc, nil
-}
-
-// ---------------------------------------------------------------------------
-// trim.system.getPlatformConfig
-// Scope: trim.system.getPlatformConfig
-// 参考: https://developer.fnnas.com/api/platform-config/
-// ---------------------------------------------------------------------------
-
-// getPlatformConfigResponse 响应 data
-type getPlatformConfigResponse struct {
-	SystemLanguage string `json:"systemLanguage"`
-	SystemVersion  string `json:"systemVersion"`
-}
-
-// GetPlatformConfig 读取 fnOS 系统语言和系统版本。
-// 该接口不需要额外 data 字段。
-func (c *TrimAPIClient) GetPlatformConfig() (getPlatformConfigResponse, error) {
-	data, err := c.call("trim.system.getPlatformConfig", struct{}{})
-	if err != nil {
-		return getPlatformConfigResponse{}, err
-	}
-
-	var resp getPlatformConfigResponse
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return resp, fmt.Errorf("parse response: %w", err)
-	}
-
-	return resp, nil
 }
 
 // ---------------------------------------------------------------------------

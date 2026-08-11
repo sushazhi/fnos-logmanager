@@ -31,6 +31,25 @@ type Config struct {
 	GatewaySocket string `json:"-"`
 	GatewayPrefix string `json:"-"`
 	AuditLogFile string `json:"auditLogFile"`
+	MCP MCPConfig `json:"mcp"`
+}
+
+// MCPConfig holds the Model Context Protocol (Streamable HTTP) server settings.
+type MCPConfig struct {
+	// Enabled toggles the MCP endpoint (/mcp).
+	Enabled bool `json:"enabled"`
+	// APIKey is the bearer token required to call the MCP endpoint. When empty,
+	// only loopback connections are allowed (local trusted access).
+	APIKey string `json:"apiKey"`
+	// AppName is reported to MCP clients via initialize/serverInfo.
+	AppName string `json:"appName"`
+	// Port, when > 0, exposes the MCP endpoint on a dedicated listener bound to
+	// MCPBindAddr. This is required for external AI agents (QwenPAW, OpenClaw,
+	// Hermes) that cannot authenticate against the fnOS gateway.
+	Port int `json:"port"`
+	// BindAddr for the dedicated MCP listener. Defaults to "0.0.0.0" so agents
+	// on the LAN can connect; protected by APIKey.
+	BindAddr string `json:"bindAddr"`
 }
 
 type RateLimitConfig struct {
@@ -280,6 +299,7 @@ func loadConfig() *Config {
 			`-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----`,
 			`eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_.+/]*`,
 		},
+		MCP: LoadMCPConfig(),
 	}
 
 	// Apply JSON config file overrides

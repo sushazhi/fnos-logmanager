@@ -19,11 +19,5 @@ if ! mkdir -p "$BACKUP_DIR"; then
     exit 1
 fi
 
-NODE_PATH="/var/apps/nodejs_v24/target/bin/node"
-if [ ! -f "$NODE_PATH" ]; then
-    echo "Error: 未找到 Node.js 环境，请先安装 Node.js v24" > "$TRIM_TEMP_LOGFILE"
-    exit 1
-fi
-
 echo "安装初始化完成"
 exit 0

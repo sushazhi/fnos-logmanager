@@ -83,6 +83,12 @@
   - 多级别事件过滤
   - 事件统计与历史记录
 
+- **MCP 服务器 (AI Agent 接入)** 
+  - 标准 Model Context Protocol (Streamable HTTP) 服务端
+  - 支持 QwenPAW、OpenClaw、Hermes 等 AI Agent 远程接入
+  - 开放全部能力为 MCP 工具（日志读取/清理、备份、Docker、事件日志、内核管理、审计等）
+  - API Key 鉴权（Authorization Bearer / X-API-Key），支持 SSE 流式响应
+
 - **安全特性**
   - 统一网关认证（X-Trim-* Header）
   - 文件权限检查（trim.file.checkUserACL，按用户过滤日志目录和文件）
@@ -214,6 +220,60 @@
 - 更改主题色
 - 查看审计日志
 
+## MCP 服务器接入 (AI Agent)
+
+本应用内置标准 **Model Context Protocol (Streamable HTTP)** 服务器，可将全部日志管理能力开放给
+QwenPAW、OpenClaw、Hermes 等 AI Agent。
+
+### 端点
+
+```
+http://<NAS-IP>/app/logmanager/mcp
+```
+
+> 若在独立模式并设置了 `LOGMANAGER_BIND_ADDR`，可直接访问 `http://<NAS-IP>:<端口>/mcp`。
+
+### 配置 API Key
+
+通过环境变量启用鉴权（推荐，可防止未授权访问）：
+
+```
+MCP_ENABLED=true          # 默认 true
+MCP_API_KEY=你的强密钥     # 不设置则仅允许本机回环访问
+MCP_APP_NAME=fnos-logmanager  # 可选，展示给 Agent 的名称
+```
+
+### 客户端配置示例
+
+在 QwenPAW / OpenClaw / Hermes 的 MCP 客户端配置中添加：
+
+```json
+{
+  "mcpServers": {
+    "logmanager": {
+      "type": "http",
+      "url": "http://<NAS-IP>/app/logmanager/mcp",
+      "headers": { "Authorization": "Bearer 你的强密钥" }
+    }
+  }
+}
+```
+
+### 可用工具
+
+| 分类 | 工具 |
+|------|------|
+| 日志目录/列表 | `list_dirs` `list_logs` `search_logs` `get_app_names` `get_log_stats` |
+| 日志读取 | `read_log` `tail_log` `read_archive` |
+| 日志管理 | `truncate_log` `delete_log` `clean_logs` `clean_empty_dirs` |
+| 备份/归档 | `backup_logs` `list_backups` `delete_backup` `clean_backups` `list_archives` |
+| Docker | `list_docker_containers` `get_docker_logs` |
+| 事件日志 | `get_event_logs` `get_event_sources` `event_logger_status` |
+| 内核管理 | `list_kernels` `remove_kernel` `cleanup_kernels` |
+| 系统信息 | `get_system_info` `convert_path` `get_audit_logs` `get_app_version` |
+
+> 所有破坏性操作（清空/删除/清理/卸载内核）均写入安全审计日志。
+
 ## 本地构建
 
 ### 前置要求
@@ -246,6 +306,7 @@ git push --tags
 │   │   │   ├── config/             # 配置管理
 │   │   │   ├── errors/             # 错误类型定义
 │   │   │   ├── middleware/         # 中间件（认证/CSRF/CSP/速率限制/错误处理）
+│   │   │   ├── mcp/               # MCP 服务器（Streamable HTTP + 全部能力工具）
 │   │   │   ├── notify/            # 通知模块（23种渠道 + SSRF防护）
 │   │   │   ├── routes/            # 路由（日志/Docker/通知/事件/更新）
 │   │   │   ├── services/          # 服务（日志流/WebSocket/自动清理/监控/书签）

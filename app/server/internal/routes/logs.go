@@ -173,13 +173,34 @@ func getDirsHandler(c *gin.Context) {
 	// The allowed set is config LogDirs ∪ user-authorized folders, so custom
 	// dirs outside the default config remain accessible while still being
 	// validated against the trim.file.checkUserACL result.
-	if uid != "" {
+	//
+	// IMPORTANT: Default system directories (config.LogDirs, e.g. @appdata,
+	// @appconf, @appshare, ...) are always shown — they are the app's base set
+	// and are visible to all users. ACL filtering applies only to custom /
+	// user-authorized folders, otherwise system dirs like @appshare would
+	// disappear when the trim ACL returns no "readable" grant for the base dir.
+	// Admins see all directories (default + custom) without ACL filtering, so
+	// they can manage system log dirs. Non-admins still get ACL filtering for
+	// custom/user dirs.
+	isAdmin := c.GetHeader("x-trim-isadmin") == "true"
+	if uid != "" && !isAdmin {
+		// Build the set of default dirs that must always remain visible.
+		defaultSet := make(map[string]bool, len(config.Get().LogDirs))
+		for _, d := range config.Get().LogDirs {
+			defaultSet[utils.SafePath(d)] = true
+		}
+
 		allowedDirs := config.Get().LogDirs
 		if len(userPaths) > 0 {
 			allowedDirs = append(allowedDirs, userPaths...)
 		}
 		filtered := make([]types.DirInfo, 0, len(dirs))
 		for _, dir := range dirs {
+			if defaultSet[utils.SafePath(dir.Path)] {
+				// Default system dir: always keep visible.
+				filtered = append(filtered, dir)
+				continue
+			}
 			if dir.Path != "" {
 				allowed, _ := utils.CheckUserFileACL(uid, dir.Path, allowedDirs, "readable")
 				if allowed {
@@ -197,7 +218,10 @@ func getDirsHandler(c *gin.Context) {
 		dirs[i].DisplayPath = convertPathToDisplay(dirs[i].Path)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"dirs": dirs})
+	c.JSON(http.StatusOK, gin.H{
+		"dirs":    dirs,
+		"isAdmin": c.GetHeader("x-trim-isadmin") == "true",
+	})
 }
 
 func gatewayUIDToString(v interface{}) string {
@@ -1802,7 +1826,16 @@ func parseInt64OrZero(s string) int64 {
 // checkFileACL is a centralized helper that performs path whitelist + ACL check.
 // It extracts user info from gin.Context and returns true if access is allowed.
 // P0: Integrated ACL permission check via fnOS trim API.
+//
+// Admins (x-trim-isadmin=true) bypass the trim ACL so they can manage system
+// log directories under @appdata/@appconf/etc. The path whitelist (IsAllowedPath)
+// is still enforced to prevent access outside the configured log dirs.
 func checkFileACL(c *gin.Context, filePath string, action string) bool {
+	// Admins have full access to system log directories.
+	if c.GetHeader("x-trim-isadmin") == "true" {
+		return utils.IsAllowedPath(filePath, config.Get().LogDirs)
+	}
+
 	gatewayUID, _ := c.Get("gatewayUID")
 	sessionToken, _ := c.Get("sessionToken")
 	uid := utils.GetUserIDFromContext(
@@ -1822,6 +1855,8 @@ func checkFileACL(c *gin.Context, filePath string, action string) bool {
 
 // convertPathToDisplay converts an internal path to a user-friendly display path.
 // P2: Uses trim.file.convertPath to make paths more readable.
+// Falls back to the raw path when the trim API is unavailable (e.g. 403 on
+// installs without open-platform api-scope permission).
 func convertPathToDisplay(path string) string {
 	client := services.GetTrimClient()
 	display, err := client.ConvertPath(path, "")

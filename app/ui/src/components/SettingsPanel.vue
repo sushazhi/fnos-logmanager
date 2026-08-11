@@ -71,13 +71,87 @@
           <span v-if="checkResult.type === 'success' && updateInfo" class="result-update-btn" @click="startUpdate">立即更新</span>
         </div>
       </div>
+
+      <div class="divider"></div>
+
+      <div class="setting-item">
+        <div class="mcp-header">
+          <label>MCP 服务器 (AI Agent 接入)</label>
+          <label class="switch">
+            <input type="checkbox" v-model="mcp.enabled" :disabled="savingMCP">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+        <p class="mcp-desc">通过标准 Model Context Protocol (Streamable HTTP) 将日志管理能力开放给 QwenPAW、OpenClaw、Hermes 等 AI Agent。</p>
+
+        <template v-if="mcp.enabled">
+          <div class="mcp-field">
+            <label class="mcp-label">API Key</label>
+            <div class="mcp-key-row">
+              <input
+                class="mcp-input"
+                type="text"
+                v-model="mcp.apiKey"
+                :placeholder="mcp.hasKey ? '已设置（留空保持不变）' : '输入访问密钥'"
+                :disabled="savingMCP"
+              >
+              <button v-if="mcp.hasKey" class="mcp-gen-btn" type="button" :disabled="savingMCP" @click="generateKey" title="生成随机密钥">生成</button>
+            </div>
+            <p class="mcp-hint">Agent 通过 <code>Authorization: Bearer &lt;key&gt;</code> 访问。留空仅允许本机访问。</p>
+          </div>
+
+          <div class="mcp-field">
+            <label class="mcp-label">独立监听端口</label>
+            <div class="mcp-key-row">
+              <input
+                class="mcp-input"
+                type="number"
+                v-model.number="mcp.port"
+                min="0"
+                max="65535"
+                placeholder="0 = 不启用独立端口"
+                :disabled="savingMCP"
+              >
+            </div>
+            <p class="mcp-hint">设为 0 时 Agent 只能通过网关路径访问（需本机/登录态）。设置端口后外部 Agent 可直连，修改端口需重启应用生效。</p>
+          </div>
+
+          <div class="mcp-field" v-if="mcp.port > 0">
+            <label class="mcp-label">绑定地址</label>
+            <input
+              class="mcp-input"
+              type="text"
+              v-model="mcp.bindAddr"
+              placeholder="0.0.0.0"
+              :disabled="savingMCP"
+            >
+            <p class="mcp-hint">默认为 <code>0.0.0.0</code>（允许局域网访问，受 API Key 保护）。</p>
+          </div>
+
+          <div class="mcp-field">
+            <label class="mcp-label">接入地址</label>
+            <div class="mcp-endpoint">{{ endpointLabel }}</div>
+            <button class="action-btn" :disabled="savingMCP || savingKey" @click="copyEndpoint">
+              {{ copied ? '已复制' : '复制接入地址' }}
+            </button>
+          </div>
+
+          <button class="action-btn mcp-save-btn" :disabled="savingMCP" @click="saveMCPConfig">
+            <span v-if="savingMCP" class="checking-spinner"></span>
+            {{ savingMCP ? '保存中...' : '保存 MCP 配置' }}
+          </button>
+          <div v-if="mcpMessage" class="check-result" :class="mcpMessage.type">
+            {{ mcpMessage.message }}
+          </div>
+        </template>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import api from '../services/api'
+import { ref, computed, onMounted } from 'vue'
+import { mcpApi } from '../services/api'
 import { applyThemeColor } from '../composables/useThemeColor'
 import { useUpdate } from '../composables/useUpdate'
 
@@ -228,8 +302,129 @@ function loadSettings(): void {
   applyAll()
 }
 
+// ==================== MCP 配置 ====================
+
+const savingMCP = ref(false)
+const savingKey = ref(false)
+const copied = ref(false)
+const mcpMessage = ref<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
+
+const mcp = ref({
+  enabled: false,
+  apiKey: '',
+  hasKey: false,
+  appName: 'fnos-logmanager',
+  port: 0,
+  bindAddr: '0.0.0.0',
+  endpoint: '',
+  hostIp: ''
+})
+
+async function loadMCPConfig(): Promise<void> {
+  try {
+    const cfg = await mcpApi.getConfig()
+    mcp.value.enabled = cfg.enabled
+    mcp.value.hasKey = !!cfg.apiKey
+    mcp.value.apiKey = ''
+    mcp.value.appName = cfg.appName || 'fnos-logmanager'
+    mcp.value.port = cfg.port || 0
+    mcp.value.bindAddr = cfg.bindAddr || '0.0.0.0'
+    mcp.value.endpoint = cfg.endpoint || ''
+    mcp.value.hostIp = cfg.hostIp || ''
+  } catch {
+    // 读取失败时保持默认，静默处理
+  }
+}
+
+const endpointLabel = computed<string>(() => {
+  if (mcp.value.port > 0) {
+    // 使用后端返回的本机局域网 IP 替换 <NAS-IP> 占位符；无法获取时才显示占位符
+    const host = mcp.value.bindAddr !== '0.0.0.0' && mcp.value.bindAddr !== '::'
+      ? mcp.value.bindAddr
+      : (mcp.value.hostIp || '<NAS-IP>')
+    return `http://${host}:${mcp.value.port}/mcp`
+  }
+  // 网关路径已被移除/不可用（fnOS 网关拦截），必须配置独立端口才能接入
+  return '请配置独立端口后获取接入地址'
+})
+
+async function saveMCPConfig(): Promise<void> {
+  if (savingMCP.value) return
+  savingMCP.value = true
+  mcpMessage.value = null
+  try {
+    const res = await mcpApi.updateConfig({
+      enabled: mcp.value.enabled,
+      apiKey: mcp.value.apiKey.trim(),
+      appName: mcp.value.appName || 'fnos-logmanager',
+      port: mcp.value.port || 0,
+      bindAddr: mcp.value.bindAddr || '0.0.0.0'
+    })
+    // 保存成功后清空密钥输入
+    if (mcp.value.apiKey.trim()) {
+      mcp.value.hasKey = true
+      mcp.value.apiKey = ''
+    }
+    mcpMessage.value = {
+      type: 'success',
+      message: res.requiresRestart
+        ? '配置已保存，端口变更需重启应用后生效'
+        : '配置已保存'
+    }
+  } catch (e) {
+    mcpMessage.value = {
+      type: 'error',
+      message: (e instanceof Error ? e.message : '保存失败') as string
+    }
+  } finally {
+    savingMCP.value = false
+  }
+}
+
+function generateKey(): void {
+  const arr = new Uint8Array(24)
+  crypto.getRandomValues(arr)
+  mcp.value.apiKey = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function copyEndpoint(): Promise<void> {
+  const text = endpointLabel.value
+  // navigator.clipboard 需要安全上下文（HTTPS 或 localhost）。通过 HTTP 内网
+  // 访问（如 http://192.168.0.2:8666）时该 API 不可用，需回退到
+  // document.execCommand('copy') 方案。
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      copied.value = true
+      setTimeout(() => { copied.value = false }, 2000)
+      return
+    }
+    throw new Error('clipboard API unavailable')
+  } catch {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      if (ok) {
+        copied.value = true
+        setTimeout(() => { copied.value = false }, 2000)
+        return
+      }
+      throw new Error('execCommand copy failed')
+    } catch {
+      mcpMessage.value = { type: 'error', message: '复制失败，请手动复制' }
+    }
+  }
+}
+
 onMounted(() => {
   loadSettings()
+  loadMCPConfig()
   
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (theme.value === 'auto') {
@@ -543,6 +738,113 @@ onMounted(() => {
 
 .notification-btn:active {
   transform: scale(0.98);
+}
+
+.mcp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.mcp-header label:first-child {
+  margin-bottom: 0;
+}
+
+.mcp-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-2);
+  margin: 0 0 var(--spacing-md);
+  line-height: 1.5;
+}
+
+.mcp-field {
+  margin-bottom: var(--spacing-md);
+}
+
+.mcp-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-2);
+  margin-bottom: var(--spacing-xs);
+}
+
+.mcp-input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-color-2);
+  color: var(--text-color-1);
+  font-size: var(--font-size-md);
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast);
+}
+
+.mcp-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.mcp-key-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.mcp-key-row .mcp-input {
+  flex: 1;
+}
+
+.mcp-gen-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-color-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--text-color-1);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.mcp-gen-btn:hover:not(:disabled) {
+  background: var(--primary-color);
+  color: var(--text-color-on-primary);
+  border-color: var(--primary-color);
+}
+
+.mcp-gen-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mcp-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-3);
+  margin: var(--spacing-xs) 0 0;
+  line-height: 1.5;
+}
+
+.mcp-hint code {
+  background: var(--bg-color-3);
+  padding: 1px 4px;
+  border-radius: var(--radius-2xs);
+  font-size: var(--font-size-xs);
+}
+
+.mcp-endpoint {
+  padding: var(--spacing-sm);
+  background: var(--bg-color-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: monospace;
+  color: var(--primary-color);
+  word-break: break-all;
+  margin-bottom: var(--spacing-sm);
+}
+
+.mcp-save-btn {
+  margin-top: var(--spacing-xs);
 }
 
 @media (max-width: 768px) {

@@ -414,4 +414,34 @@ export const kernelApi = {
     api.post<KernelRemoveResponse>(`/api/kernel/versions/${encodeURIComponent(version)}/remove`)
 }
 
+// ==================== MCP 服务器 API ====================
+
+export interface MCPConfig {
+  enabled: boolean
+  apiKey: string
+  appName: string
+  port: number
+  bindAddr: string
+  endpoint: string
+  hostIp?: string
+}
+
+export interface MCPSaveResponse {
+  ok: boolean
+  portChanged: boolean
+  requiresRestart: boolean
+}
+
+export const mcpApi = {
+  getConfig: () => api.get<MCPConfig>('/api/mcp/config'),
+
+  updateConfig: (config: {
+    enabled: boolean
+    apiKey: string
+    appName: string
+    port: number
+    bindAddr: string
+  }) => api.put<MCPSaveResponse>('/api/mcp/config', config)
+}
+
 export default api

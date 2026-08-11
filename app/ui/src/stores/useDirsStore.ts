@@ -22,7 +22,9 @@ export const useDirsStore = defineStore('dirs', () => {
       const data = await api.get<{ dirs: Array<{ path: string; logCount?: number; totalSize?: string; displayPath?: string; isShared?: boolean }> }>('/api/dirs')
       dirs.value = (data.dirs || []).map(dir => ({
         ...dir,
-        displayName: DIR_NAMES[dir.path] || dir.path
+        // P2: 优先使用后端返回的语义化 displayPath；无则回退到固定映射/原始路径。
+        // displayPath 可能形如 "存储空间1/admin 的文件/xxx"（语义化）或等于原始路径（转换失败降级）。
+        displayName: dir.displayPath || DIR_NAMES[dir.path] || dir.path
       }))
     } catch (e) {
       console.error('加载目录失败:', e)

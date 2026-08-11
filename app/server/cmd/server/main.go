@@ -9,8 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -57,21 +55,9 @@ func main() {
 		"socket", trimClient.GetBaseURL(),
 		"hasToken", os.Getenv("TRIM_API_TOKEN") != "")
 
-	// P0: Check fnOS system version and log capability status.
-	// trim.system.getPlatformConfig requires the matching api-scope declaration.
-	const minSupportedVersion = "1.2.0401"
-	if pc, err := trimClient.GetPlatformConfig(); err == nil {
-		slog.Info("fnOS 平台配置",
-			"systemLanguage", pc.SystemLanguage,
-			"systemVersion", pc.SystemVersion)
-		if !isVersionAtLeast(pc.SystemVersion, minSupportedVersion) {
-			slog.Warn("fnOS 系统版本低于最低支持版本，部分开放平台能力可能不可用",
-				"systemVersion", pc.SystemVersion,
-				"minSupported", minSupportedVersion)
-		}
-	} else {
-		slog.Warn("读取平台配置失败（开放平台 API 不可用，相关能力将降级）", "error", err)
-	}
+	// 说明：fnOS 系统语言/版本/主题等信息已由前端 JS SDK 的 getPlatformConfig()
+	// 获取（无需开放平台 scope，见 app/ui/src/App.vue）。后端不再调用
+	// trim.system.getPlatformConfig（该 scope 在部分安装下返回 403，且非核心功能所需）。
 
 	// Initialize service directories
 	initServiceDirs(cfg.DataDir)
@@ -179,6 +165,16 @@ func main() {
 		}
 	}()
 
+	// Start a dedicated MCP listener if configured. External AI agents
+	// (QwenPAW, OpenClaw, Hermes) cannot authenticate against the fnOS gateway,
+	// so a dedicated TCP listener (protected by MCP_API_KEY) is the reliable way
+	// to expose the MCP endpoint on the LAN.
+	//
+	// 动态管理：周期读取 MCP 配置的 Port/BindAddr，保存端口配置后自动启停监听器，
+	// 无需重启进程（前端在设置里配置独立端口后即可生效）。
+	mcpStop := make(chan struct{})
+	go manageMCPListener(handler, mcpStop)
+
 	// Wait for shutdown signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -199,42 +195,76 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		slog.Error("服务关闭异常", "error", err)
 	}
+	// 通知 MCP 独立监听器管理器优雅停止
+	close(mcpStop)
 
 	slog.Info("服务已关闭")
 }
 
-// isVersionAtLeast reports whether version >= min.
-// Handles dotted numeric versions like "1.2.0401".
-func isVersionAtLeast(version, min string) bool {
-	parse := func(s string) []int {
-		parts := strings.Split(s, ".")
-		out := make([]int, 0, len(parts))
-		for _, p := range parts {
-			n, err := strconv.Atoi(p)
-			if err != nil {
-				n = 0
+// manageMCPListener 动态管理 MCP 独立监听器。
+// 周期读取 MCP 配置（LoadMCPConfig），当 Port 变化时自动启停监听器，
+// 使前端保存独立端口配置后无需重启进程即可生效。
+// 在收到 stop 通道关闭信号时优雅停止所有监听器。
+func manageMCPListener(handler http.Handler, stop <-chan struct{}) {
+	var current *http.Server
+	currentPort := -1
+
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	stopMCP := func() {
+		if current != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = current.Shutdown(ctx)
+			current = nil
+		}
+		currentPort = -1
+	}
+
+	for {
+		select {
+		case <-stop:
+			stopMCP()
+			return
+		case <-ticker.C:
+			live := config.LoadMCPConfig()
+			port := live.Port
+			if port == currentPort {
+				continue
 			}
-			out = append(out, n)
+			// 端口变化：先停止旧监听器
+			stopMCP()
+			currentPort = port
+			// 再按需启动新监听器
+			if port <= 0 {
+				continue
+			}
+			mcpSrv := routes.GetMCPServer()
+			if mcpSrv == nil {
+				continue
+			}
+			bind := live.BindAddr
+			if bind == "" {
+				bind = "0.0.0.0"
+			}
+			addr := fmt.Sprintf("%s:%d", bind, port)
+			current = &http.Server{
+				Addr:         addr,
+				Handler:      mcpSrv.Handler(),
+				ReadTimeout:  30 * time.Second,
+				WriteTimeout: 120 * time.Second,
+				IdleTimeout:  65 * time.Second,
+			}
+			srv := current
+			go func() {
+				slog.Info("MCP 独立监听已启动（供外部 AI Agent 接入）", "addr", addr)
+				if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					slog.Error("MCP 独立监听启动失败", "error", err)
+				}
+			}()
 		}
-		return out
 	}
-	v, m := parse(version), parse(min)
-	for i := 0; i < len(v) || i < len(m); i++ {
-		vi, mi := 0, 0
-		if i < len(v) {
-			vi = v[i]
-		}
-		if i < len(m) {
-			mi = m[i]
-		}
-		if vi < mi {
-			return false
-		}
-		if vi > mi {
-			return true
-		}
-	}
-	return true
 }
 
 func initServiceDirs(dataDir string) {

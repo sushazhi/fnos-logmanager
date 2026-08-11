@@ -1,12 +1,26 @@
 package routes
 
 import (
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sushazhi/fnos-logmanager/internal/config"
+	"github.com/sushazhi/fnos-logmanager/internal/mcp"
 	"github.com/sushazhi/fnos-logmanager/internal/middleware"
+	"github.com/sushazhi/fnos-logmanager/internal/services"
 )
+
+// mcpServer is the global MCP Streamable HTTP server instance, initialized in
+// SetupRouter from configuration.
+var mcpServer *mcp.Server
+
+// GetMCPServer returns the MCP Streamable HTTP server instance (may be nil if
+// MCP is disabled). Used by main to optionally expose the endpoint on a
+// dedicated listener for external AI agents.
+func GetMCPServer() *mcp.Server {
+	return mcpServer
+}
 
 // SetupRouter configures all routes and middleware on the Gin engine.
 func SetupRouter(uiDir string) *gin.Engine {
@@ -43,8 +57,16 @@ func SetupRouter(uiDir string) *gin.Engine {
 	// Global error handler
 	r.Use(middleware.ErrorHandler)
 
+	// MCP (Model Context Protocol) Streamable HTTP server.
+	// 仅初始化全局 MCP server 实例，供独立端口监听器使用（外部 AI Agent 通过
+	// 独立端口访问，绕过 fnOS 网关认证）。网关路径的 /mcp 路由已移除。
+	registerMCPRoute(r)
+
 	// API routes
 	api := r.Group("/api")
+
+	// MCP configuration management (frontend settings panel).
+	registerMCPConfigRoutes(api)
 	{
 		// Auth routes (no auth needed for login)
 		auth := api.Group("/auth")
@@ -86,4 +108,30 @@ func SetupRouter(uiDir string) *gin.Engine {
 	})
 
 	return r
+}
+
+// registerMCPRoute initializes the MCP Streamable HTTP server.
+// It reads its configuration from the shared config and environment.
+// 仅创建全局 MCP server 实例供独立端口监听器使用，不再注册网关路径的 /mcp 路由：
+// fnOS 统一网关会拦截该路径（返回 "invalid token"，外部 AI Agent 无 fnOS 登录态
+// 连不上），该网关入口形同虚设。外部 AI Agent（QwenPAW/OpenClaw/Hermes）统一通过
+// 独立端口访问（受 MCP_API_KEY 保护），因此移除多余的网关 MCP 路由。
+func registerMCPRoute(_ *gin.Engine) {
+	version := os.Getenv("TRIM_APPVER")
+	if version == "" {
+		version = "0.0.0"
+	}
+	// 实时读取 MCP 配置（mcp-config.json），使 apiKey / enabled 保存后立即生效。
+	// enabled / apiKey 由 isAuthorized 每次请求实时读取（LoadMCPConfig），
+	// 因此在设置界面"启用 MCP 服务器"后立即生效，无需重启进程。
+	liveCfg := config.LoadMCPConfig()
+	appName := liveCfg.AppName
+	if appName == "" {
+		appName = "fnos-logmanager"
+	}
+
+	mcpServer = mcp.New(appName, version, liveCfg.APIKey)
+
+	// Initialize the trim API client early so MCP tools that rely on it are ready.
+	services.GetTrimClient()
 }

@@ -24,9 +24,12 @@ type kernelVersion struct {
 	BootSizeFormatted string `json:"bootSizeFormatted"`
 	ModulesSize int64  `json:"modulesSize"`
 	ModulesSizeFormatted string `json:"modulesSizeFormatted"`
+	SrcSize    int64  `json:"srcSize"`
+	SrcSizeFormatted string `json:"srcSizeFormatted"`
 	TotalSize  int64  `json:"totalSize"`
 	TotalSizeFormatted string `json:"totalSizeFormatted"`
 	HasModules bool   `json:"hasModules"`
+	HasSrc     bool   `json:"hasSrc"`
 }
 
 // RegisterKernelRoutes registers kernel-related routes under the given router group.
@@ -209,6 +212,30 @@ func getInstalledKernels(currentKernel string) ([]kernelVersion, error) {
 		}
 	}
 
+	// Scan /usr/src/ for kernel header directories (e.g. linux-headers-6.12.41)
+	srcEntries, err := os.ReadDir("/usr/src")
+	if err == nil {
+		for _, entry := range srcEntries {
+			if !entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			// Match common kernel header patterns:
+			//   linux-headers-6.12.41, linux-headers-6.12.41-common
+			//   c790, c821 (fnOS custom naming)
+			for _, prefix := range []string{"linux-headers-", "linux-kbuild-", "linux-hwe-"} {
+				if rest, ok := strings.CutPrefix(name, prefix); ok {
+					versionSet[rest] = true
+					break
+				}
+			}
+			// Also add the directory name itself (handles c790, c821 etc.)
+			if name != "." && name != ".." && !strings.HasPrefix(name, "linux-headers-") {
+				versionSet[name] = true
+			}
+		}
+	}
+
 	if len(versionSet) == 0 {
 		return nil, fmt.Errorf("未发现已安装的内核")
 	}
@@ -230,6 +257,11 @@ func getInstalledKernels(currentKernel string) ([]kernelVersion, error) {
 			}
 		}
 
+		// Calculate /usr/src/ header size
+		srcSize := calcSrcSize(ver)
+		hasSrc := srcSize > 0
+		totalSize := bootSize + modulesSize + srcSize
+
 		versions = append(versions, kernelVersion{
 			Version:    ver,
 			IsCurrent:  isCurrent,
@@ -237,9 +269,12 @@ func getInstalledKernels(currentKernel string) ([]kernelVersion, error) {
 			BootSizeFormatted: formatBytes(bootSize),
 			ModulesSize: modulesSize,
 			ModulesSizeFormatted: formatBytes(modulesSize),
-			TotalSize:  bootSize + modulesSize,
-			TotalSizeFormatted: formatBytes(bootSize + modulesSize),
+			SrcSize:    srcSize,
+			SrcSizeFormatted: formatBytes(srcSize),
+			TotalSize:  totalSize,
+			TotalSizeFormatted: formatBytes(totalSize),
 			HasModules: hasModules,
+			HasSrc:     hasSrc,
 		})
 	}
 
@@ -269,6 +304,33 @@ func calcBootSize(version string) int64 {
 				}
 				break
 			}
+		}
+	}
+	return total
+}
+
+// calcSrcSize calculates the total size of /usr/src headers for a kernel version.
+// Looks for directories named after the version, e.g.:
+//   /usr/src/linux-headers-6.12.41
+//   /usr/src/c790
+func calcSrcSize(version string) int64 {
+	srcEntries, err := os.ReadDir("/usr/src")
+	if err != nil {
+		return 0
+	}
+	var total int64
+	for _, entry := range srcEntries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		// Match linux-headers-<version> or exact version directory
+		if name == version ||
+			strings.HasSuffix(name, "-"+version) ||
+			strings.HasSuffix(name, "-"+version+"-common") ||
+			strings.HasPrefix(name, "linux-headers-"+version) ||
+			strings.HasPrefix(name, "linux-kbuild-"+version) {
+			total += calcDirSize(filepath.Join("/usr/src", name))
 		}
 	}
 	return total
@@ -336,6 +398,28 @@ func removeKernelVersion(version string) error {
 	if fi, err := os.Lstat(modPath); err == nil && fi.IsDir() {
 		if err := os.RemoveAll(modPath); err != nil {
 			errs = append(errs, fmt.Sprintf("删除 %s 失败: %s", modPath, err.Error()))
+		}
+	}
+
+	// Remove /usr/src/ headers for this version
+	srcEntries, err := os.ReadDir("/usr/src")
+	if err == nil {
+		for _, entry := range srcEntries {
+			if !entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			match := name == version ||
+				strings.HasSuffix(name, "-"+version) ||
+				strings.HasSuffix(name, "-"+version+"-common") ||
+				strings.HasPrefix(name, "linux-headers-"+version) ||
+				strings.HasPrefix(name, "linux-kbuild-"+version)
+			if match {
+				srcPath := filepath.Join("/usr/src", name)
+				if err := os.RemoveAll(srcPath); err != nil {
+					errs = append(errs, fmt.Sprintf("删除 %s 失败: %s", srcPath, err.Error()))
+				}
+			}
 		}
 	}
 

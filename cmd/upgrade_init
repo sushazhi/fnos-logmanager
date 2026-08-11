@@ -1,6 +1,10 @@
 #!/bin/bash
 
 # 飞牛日志管理升级初始化脚本
+#
+# 在升级前将应用数据目录 (TRIM_PKGVAR) 备份到独立的升级备份目录，作为
+# fnOS wizard_data_action=keep 之外的兜底保障。备份成功才允许继续升级；
+# 若备份失败则中止升级，避免新版本安装后数据丢失。
 
 echo "正在准备升级..."
 
@@ -17,18 +21,30 @@ if [ -f "$MAIN_SCRIPT" ]; then
     fi
 fi
 
-# 备份数据（如果用户选择）
+# 备份数据（如果用户选择保留配置）
 BACKUP_ACTION="${wizard_backup_before_upgrade:-yes}"
-if [ "$BACKUP_ACTION" = "yes" ] && [ -d "$DATA_DIR" ]; then
+if [ "$BACKUP_ACTION" = "yes" ] && [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
     if ! mkdir -p "$BACKUP_DIR"; then
         echo "Error: 无法创建备份目录 $BACKUP_DIR" > "$TRIM_TEMP_LOGFILE"
         exit 1
     fi
-    
-    if ! cp -a "$DATA_DIR"/* "$BACKUP_DIR/" 2>/dev/null; then
-        echo "Error: 数据备份失败" > "$TRIM_TEMP_LOGFILE"
+
+    # 清除上一次可能残留的备份，避免脏数据混入
+    rm -rf "${BACKUP_DIR:?}/" 2>/dev/null
+
+    # 复制整个数据目录（含隐藏文件）。使用 "$DATA_DIR"/. 而非 "$DATA_DIR"/*，
+    # 防止通配符漏掉以 "." 开头的文件。
+    if ! cp -a "$DATA_DIR"/. "$BACKUP_DIR/"; then
+        echo "Error: 数据备份失败，已中止升级以避免数据丢失" > "$TRIM_TEMP_LOGFILE"
         exit 1
     fi
+
+    # 校验备份目录非空，防止静默失败导致恢复时无数据可用
+    if ! ls -A "$BACKUP_DIR" >/dev/null 2>&1; then
+        echo "Error: 备份内容为空，已中止升级" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    fi
+
     echo "数据已备份到 $BACKUP_DIR"
 fi
 

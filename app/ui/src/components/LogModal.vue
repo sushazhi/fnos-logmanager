@@ -236,7 +236,7 @@ function handleOpenFileManager(): void {
 function handleShowFileDetails(): void {
   const filePath = props.filePath
   if (!filePath) return
-  showFileDetails([path]).catch(() => {})
+  showFileDetails([filePath]).catch(() => {})
 }
 
 const isBookmarked = computed(() => {

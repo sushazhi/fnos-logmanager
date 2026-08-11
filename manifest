@@ -28,4 +28,4 @@ desktop_applaunchname = logmanager.Application
 # 启用前端 JS SDK 支持
 micro_app = true
 
-changelog = v0.8.0<br>1. 接入 fnOS 开放平台 API（7/31 更新），新增路径友好显示<br>2. 新增自定义日志目录（支持系统文件选择器或手动输入路径）<br>3. 新增 Linux 内核版本管理功能<br>4. 通知规则支持 IP 白名单(白名单来源登录事件跳过推送)<br>5. 后端迁移至Go
+changelog = v0.8.0<br>1. 新增 Linux 内核版本管理功能<br>2. 通知规则支持 IP 白名单(白名单来源登录事件跳过推送)<br>3. 后端迁移至Go<br>4. 新增 MCP 服务器，支持AI Agent 接入管理日志

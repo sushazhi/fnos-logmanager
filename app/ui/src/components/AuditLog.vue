@@ -93,12 +93,13 @@ onMounted(async () => {
 
 function getLogClass(action) {
   if (action.includes('failed') || action.includes('locked')) return 'danger'
-  if (action.includes('delete')) return 'warning'
+  if (action.includes('delete') || action.includes('truncate') || action.includes('clean') || action.includes('remov')) return 'warning'
   if (action.includes('success')) return 'success'
   return 'info'
 }
 
 function getActionText(action) {
+  // 后端 AddSecurityAuditLog 会给 action 加 SECURITY_ 前缀，MCP/系统类审计均带此前缀
   const actionMap = {
     'login_success': '登录成功',
     'login_failed': '登录失败',
@@ -124,7 +125,21 @@ function getActionText(action) {
     'autoclean_update': '更新清理规则',
     'autoclean_trigger': '触发自动清理',
     'dirs_clean_empty': '清理空文件夹',
-    'log_export': '日志导出'
+    'log_export': '日志导出',
+    // 安全审计（带 SECURITY_ 前缀）
+    'SECURITY_MCP_CONFIG_UPDATE': '更新 MCP 配置',
+    'SECURITY_MCP_LOG_TRUNCATE': 'MCP 清空日志',
+    'SECURITY_MCP_LOG_DELETE': 'MCP 删除日志文件',
+    'SECURITY_MCP_LOGS_CLEAN': 'MCP 批量清理日志',
+    'SECURITY_MCP_DIRS_CLEAN_EMPTY': 'MCP 清理空文件夹',
+    'SECURITY_MCP_LOGS_BACKUP': 'MCP 备份日志',
+    'SECURITY_MCP_BACKUP_DELETE': 'MCP 删除备份',
+    'SECURITY_MCP_BACKUPS_CLEAN': 'MCP 清理旧备份',
+    'SECURITY_MCP_KERNEL_REMOVE': 'MCP 删除内核',
+    'SECURITY_MCP_KERNEL_CLEANUP': 'MCP 清理旧内核',
+    'SECURITY_SENSITIVE_INFO_SCAN': '敏感信息扫描',
+    'SECURITY_APP_UPDATED': '应用升级',
+    'SECURITY_UPDATE_FAILED': '应用升级失败'
   }
   return actionMap[action] || action
 }

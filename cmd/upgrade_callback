@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # 飞牛日志管理升级回调脚本
+#
+# 将升级前备份的数据恢复到应用数据目录。恢复前确保目录存在，恢复成功才
+# 删除备份；若恢复失败则保留备份并中止，绝不删除唯一的数据副本。
 
 echo "正在完成升级..."
 
@@ -9,13 +12,20 @@ DATA_DIR="${TRIM_PKGVAR}"
 BACKUP_DIR="/vol1/@appshare/logmanager/backup/.upgrade-backup"
 MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
 
-# 恢复数据
-if [ -d "$BACKUP_DIR" ]; then
-    if ! cp -a "$BACKUP_DIR"/* "$DATA_DIR/" 2>/dev/null; then
-        echo "Error: 数据恢复失败，请检查备份目录" > "$TRIM_TEMP_LOGFILE"
+# 恢复数据（如果存在升级备份）
+if [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ]; then
+    if ! mkdir -p "$DATA_DIR"; then
+        echo "Error: 无法创建数据目录 $DATA_DIR" > "$TRIM_TEMP_LOGFILE"
         exit 1
     fi
-    
+
+    # 恢复全部内容（含隐藏文件）。使用 "$BACKUP_DIR"/. 确保点文件也被复制。
+    if ! cp -a "$BACKUP_DIR"/. "$DATA_DIR/"; then
+        echo "Error: 数据恢复失败，备份已保留在 $BACKUP_DIR，请勿手动删除" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    fi
+
+    # 恢复成功后删除备份
     rm -rf "$BACKUP_DIR" 2>/dev/null
     echo "数据已恢复"
 fi

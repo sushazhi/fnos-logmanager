@@ -3,67 +3,60 @@
     <div class="header-row">
       <h2>日志目录</h2>
       <div class="header-actions-row">
-        <button 
-          class="config-btn btn-add-dir" 
-          @click="handlePickDir" 
-          title="添加自定义日志目录"
-        >
-          +目录
-        </button>
-        <button class="config-btn btn-primary" @click="showConfig = !showConfig" title="配置">
+        <button class="config-btn btn-primary" @click="showConfig = !showConfig" title="配置日志目录">
           设置
         </button>
       </div>
     </div>
-    
+
     <div class="config-panel" v-if="showConfig">
-      <p class="config-hint">选择要展示的目录：</p>
-      <div class="dir-checkboxes">
-        <label v-for="dir in allDirs" :key="dir.path" class="dir-checkbox">
-          <input 
-            type="checkbox" 
-            :checked="visibleDirs.includes(dir.path)"
-            @change="toggleDir(dir.path)"
-          >
-          <span>{{ dir.displayName }}</span>
-          <span class="dir-status" :class="{ exists: dir.exists, 'not-exists': !dir.exists }">
-            {{ dir.exists ? '√' : '×' }}
-          </span>
-        </label>
-      </div>
-      <!-- P1: Custom directories added via file picker -->
-      <div v-if="customDirs.length > 0" class="custom-dirs-section">
-        <p class="config-hint">自定义目录：</p>
-        <div v-for="cd in customDirs" :key="cd.path" class="custom-dir-item">
-          <span class="custom-dir-path">{{ cd.displayPath || cd.path }}</span>
-          <span class="custom-dir-actions" v-if="isFnosEnv">
-            <button class="custom-dir-act" @click="handleOpenManager(cd.path)" title="在文件管理器中定位">📁</button>
-            <button class="custom-dir-act" @click="handleShowDetails(cd.path)" title="查看目录详情">ℹ️</button>
-            <button class="custom-dir-remove" @click="removeCustomDir(cd.path)" title="移除授权">×</button>
-          </span>
-          <button v-else class="custom-dir-remove" @click="removeCustomDir(cd.path)" title="移除">×</button>
+      <div class="config-section">
+        <div class="config-section-head">
+          <span class="config-section-title">系统目录</span>
+          <span class="config-section-count">{{ allDirs.length }}</span>
+        </div>
+        <div class="dir-checkboxes">
+          <label v-for="dir in allDirs" :key="dir.path" class="dir-checkbox">
+            <input
+              type="checkbox"
+              :checked="visibleDirs.includes(dir.path)"
+              @change="toggleDir(dir.path)"
+            >
+            <span>{{ dir.displayName }}</span>
+            <span class="dir-status" :class="{ exists: dir.exists, 'not-exists': !dir.exists }" :title="dir.exists ? '存在' : '不存在'">
+              {{ dir.exists ? '√' : '×' }}
+            </span>
+          </label>
         </div>
       </div>
-      <!-- P2: Shared (app-level) directories -->
-      <div v-if="sharedDirs.length > 0" class="custom-dirs-section">
-        <p class="config-hint">共享目录（所有用户可见）：</p>
-        <div v-for="sd in sharedDirs" :key="sd.path" class="custom-dir-item">
-          <span class="custom-dir-path">{{ sd.displayPath || sd.path }}</span>
-          <span class="custom-dir-actions" v-if="isFnosEnv">
-            <button class="custom-dir-act" @click="handleOpenManager(sd.path)" title="在文件管理器中定位">📁</button>
-            <button class="custom-dir-act" @click="handleShowDetails(sd.path)" title="查看目录详情">ℹ️</button>
-            <button class="custom-dir-remove" @click="removeSharedDir(sd.path)" title="移除共享授权">×</button>
+
+      <!-- 自定义目录展示 -->
+      <div v-if="mergedDirs.length > 0" class="config-section">
+        <div class="config-section-head">
+          <span class="config-section-title">已添加目录</span>
+          <span class="config-section-count">{{ mergedDirs.length }}</span>
+        </div>
+        <div v-for="item in mergedDirs" :key="item.path" class="dir-entry">
+          <button class="dir-entry-copy" :title="'复制路径: ' + item.path" @click="copyPath(item.path)">
+            <span class="dir-entry-path">{{ item.displayPath || item.path }}</span>
+          </button>
+          <span class="dir-entry-actions">
+            <button v-if="isFnosEnv" class="dir-entry-act" title="在文件管理器中定位" @click="handleOpenManager(item.path)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </button>
+            <button v-if="isFnosEnv" class="dir-entry-act" title="查看目录详情" @click="handleShowDetails(item.path)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            </button>
+            <button class="dir-entry-act dir-entry-remove" title="移除目录" @click="confirmRemoveDir(item)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
           </span>
         </div>
+        <div v-if="copiedPath" class="copy-tip">已复制: {{ copiedPath }}</div>
       </div>
-      <!-- P2: Add shared directory (admin) -->
-      <div v-if="isFnosEnv" class="custom-dir-input-row">
-        <button class="config-btn btn-add-shared" @click="handlePickSharedDir" title="通过 fnOS 文件选择器添加共享目录（所有用户可见）">
-          +共享目录
-        </button>
-      </div>
-      <!-- Manual custom dir input -->
-      <div v-if="showCustomDirInput" class="custom-dir-input-row">
+
+      <!-- 手动自定义目录输入 -->
+      <div class="custom-dir-input-row">
         <input
           type="text"
           v-model="customDirInput"
@@ -71,8 +64,7 @@
           class="custom-dir-input"
           @keyup.enter="confirmCustomDir"
         >
-        <button class="config-btn btn-primary" @click="confirmCustomDir">确认</button>
-        <button class="config-btn" @click="showCustomDirInput = false">取消</button>
+        <button class="config-btn btn-primary" @click="confirmCustomDir">添加</button>
       </div>
     </div>
     
@@ -101,14 +93,16 @@
         </div>
       </div>
     </div>
+    <ConfirmDialog ref="confirmDialog" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { Dir } from '../types'
-import { pickUserFile, pickSharedFile, authorizeUserFile, isFnosEnvironment, convertPathViaBackend, openFileManager, showFileDetails } from '../services/fnos'
+import { authorizeUserFile, isFnosEnvironment, openFileManager, showFileDetails } from '../services/fnos'
 import api from '../services/api'
+import ConfirmDialog from './ConfirmDialog.vue'
 
 interface Props {
   dirs: Dir[]
@@ -125,9 +119,15 @@ const emit = defineEmits<{
 const STORAGE_KEY = 'logmanager_visible_dirs'
 const CUSTOM_DIRS_KEY = 'logmanager_custom_dirs'
 
+interface ConfirmDialogExpose {
+  show(options?: { title?: string; message?: string; type?: string; confirmText?: string }): Promise<boolean>
+}
+
 const showConfig = ref(false)
 const visibleDirs = ref<string[]>([])
 const isFnosEnv = ref(false)
+const copiedPath = ref('')
+const confirmDialog = ref<ConfirmDialogExpose | null>(null)
 
 // P1: Custom directories
 interface CustomDir {
@@ -136,55 +136,59 @@ interface CustomDir {
 }
 const customDirs = ref<CustomDir[]>([])
 
-// P2: Shared (app-level) directories
-const sharedDirs = ref<Dir[]>([])
-
 onMounted(async () => {
   isFnosEnv.value = isFnosEnvironment()
   loadCustomDirs()
-  // P2: Convert paths for display
-  if (isFnosEnv.value && customDirs.value.length > 0) {
-    for (const cd of customDirs.value) {
-      try {
-        cd.displayPath = await convertPathViaBackend(cd.path)
-      } catch {
-        cd.displayPath = cd.path
-      }
-    }
-  }
-  // P2: Load shared directories
-  loadSharedDirs()
   // P2: Attempt to restore authorization for previously saved custom dirs
   // that are no longer in the user's accessible folders (e.g. after a
   // service restart, the SDK-side authorization may need re-confirmation).
   restoreCustomDirAuth()
 })
 
-// P1: Open fnOS file picker or prompt to add custom directory
-const showCustomDirInput = ref(false)
-const customDirInput = ref('')
-
-async function handlePickDir(): Promise<void> {
-  // Try fnOS file picker first
-  if (isFnosEnvironment()) {
+// ---- 复制路径 ----
+async function copyPath(path: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(path)
+    copiedPath.value = path
+    setTimeout(() => { copiedPath.value = '' }, 2000)
+  } catch {
+    // fallback
     try {
-      const result = await pickUserFile({
-        directory: true,
-        title: '选择日志目录'
-      })
-      if (result && result.code === 0 && result.data && result.data.length > 0) {
-        const dirPath = result.data[0]
-        addCustomDir(dirPath)
-        emit('selectDir', dirPath)
-        return
-      }
-    } catch (e) {
-      console.error('选择目录失败:', e)
+      const ta = document.createElement('textarea')
+      ta.value = path
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      copiedPath.value = path
+      setTimeout(() => { copiedPath.value = '' }, 2000)
+    } catch {
+      // ignore
     }
   }
-  // Fallback: show manual input
-  showCustomDirInput.value = !showCustomDirInput.value
 }
+
+// ---- 移除目录（二次确认） ----
+async function confirmRemoveDir(item: { path: string }): Promise<void> {
+  const ok = await confirmDialog.value?.show({
+    title: '移除目录',
+    message: `确定要移除该目录吗？\n${item.path}`,
+    type: 'warning',
+    confirmText: '移除'
+  })
+  if (!ok) return
+  removeCustomDir(item.path)
+}
+
+// P1: 手动输入自定义目录
+const customDirInput = ref('')
+
+// 自定义目录统一渲染
+const mergedDirs = computed<Array<{ path: string; displayPath?: string }>>(() =>
+  customDirs.value.map(d => ({ path: d.path, displayPath: d.displayPath }))
+)
+
+
 
 function confirmCustomDir(): void {
   const path = customDirInput.value.trim()
@@ -192,7 +196,6 @@ function confirmCustomDir(): void {
   addCustomDir(path)
   emit('selectDir', path)
   customDirInput.value = ''
-  showCustomDirInput.value = false
 }
 
 function addCustomDir(path: string): void {
@@ -220,44 +223,6 @@ function handleOpenManager(path: string): void {
 // P1: Show host file details panel for the given directory
 function handleShowDetails(path: string): void {
   showFileDetails([path]).catch(() => {})
-}
-
-// P2: Load app-level shared directories from backend
-async function loadSharedDirs(): Promise<void> {
-  try {
-    const data = await api.get<{ dirs: Dir[] }>('/api/dirs/shared')
-    sharedDirs.value = data.dirs || []
-  } catch {
-    sharedDirs.value = []
-  }
-}
-
-// P2: Open the shared-file picker to authorize a shared directory
-async function handlePickSharedDir(): Promise<void> {
-  if (!isFnosEnvironment()) return
-  try {
-    const result = await pickSharedFile({ title: '选择共享日志目录' })
-    if (result && result.code === 0 && result.data && result.data.length > 0) {
-      const dirPath = result.data[0]
-      // The folder is now authorized at the app level; refresh the list
-      await loadSharedDirs()
-      emit('selectDir', dirPath)
-    }
-  } catch (e) {
-    console.error('添加共享目录失败:', e)
-  }
-}
-
-// P2: Remove an app-level shared directory (admin)
-async function removeSharedDir(path: string): Promise<void> {
-  sharedDirs.value = sharedDirs.value.filter(d => d.path !== path)
-  try {
-    await api.post<{ success: boolean }>('/api/dirs/shared-unauthorize', { path })
-  } catch (err) {
-    console.warn('移除共享授权失败:', err)
-    // Revert optimistic removal on failure
-    loadSharedDirs()
-  }
 }
 
 // P2: Re-request fnOS authorization for custom dirs whose authorization was
@@ -319,7 +284,8 @@ const allDirs = computed(() => {
   if (!props.dirs || !Array.isArray(props.dirs)) return []
   return props.dirs.map(dir => ({
     ...dir,
-    displayName: dirNames[dir.path] || dir.path
+    // P2: 优先使用后端语义化 displayPath；无则回退到固定映射/原始路径
+    displayName: (dir as Dir).displayPath || dirNames[dir.path] || dir.path
   }))
 })
 
@@ -432,78 +398,123 @@ loadVisibleDirs()
   transform: scale(0.95);
 }
 
-/* P1: Custom directory styles */
-.custom-dirs-section {
-  margin-top: var(--spacing-md);
-  padding-top: var(--spacing-sm);
-  border-top: 1px solid var(--glass-border);
+/* ===== 配置面板分组 ===== */
+.config-section {
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--glass-border);
 }
 
-.custom-dir-item {
+.config-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.config-section-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  background: var(--card-bg);
-  border-radius: var(--radius-xs);
-  margin-bottom: var(--spacing-xs);
-  border: 1px solid var(--primary-color);
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
 }
 
-.custom-dir-path {
+.config-section-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-color-1);
+}
+
+.config-section-count {
+  font-size: var(--font-size-xs);
+  color: var(--text-color-3);
+  background: var(--bg-color-2);
+  padding: 1px var(--spacing-xs);
+  border-radius: var(--radius-full);
+  min-width: 18px;
+  text-align: center;
+}
+
+/* ===== 目录条目（卡片式） ===== */
+.dir-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--card-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-xs);
+  transition: all var(--transition-fast);
+}
+
+.dir-entry:hover {
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--depth-1);
+}
+
+.dir-entry-copy {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: monospace;
   font-size: var(--font-size-sm);
   color: var(--primary-color);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
-  font-family: monospace;
-}
-
-.custom-dir-remove {
-  background: none;
-  border: none;
-  color: var(--text-color-3);
-  font-size: var(--font-size-lg);
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
   transition: color var(--transition-fast);
-  flex-shrink: 0;
 }
 
-.custom-dir-remove:hover {
-  color: var(--error-color);
+.dir-entry-copy:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
 }
 
-.custom-dir-actions {
+.dir-entry-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-entry-actions {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
 }
 
-.custom-dir-act {
+.dir-entry-act {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   background: none;
   border: none;
-  font-size: var(--font-size-sm);
+  border-radius: var(--radius-xs);
+  color: var(--text-color-3);
   cursor: pointer;
-  padding: 0 3px;
-  line-height: 1;
-  opacity: 0.7;
   transition: all var(--transition-fast);
-  flex-shrink: 0;
 }
 
-.custom-dir-act:hover {
-  opacity: 1;
-  transform: scale(1.15);
+.dir-entry-act:hover {
+  background: var(--bg-color-2);
+  color: var(--primary-color);
 }
 
-.btn-add-shared {
+.dir-entry-remove:hover {
+  background: var(--error-bg);
+  color: var(--error-color);
+}
+
+.copy-tip {
   margin-top: var(--spacing-xs);
-  font-size: var(--font-size-sm);
-  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+  color: var(--success-color);
 }
 
 .custom-dir-input-row {
@@ -720,6 +731,28 @@ loadVisibleDirs()
   .dir-checkboxes {
     flex-direction: column;
     gap: var(--spacing-xs);
+  }
+
+  .dir-entry {
+    flex-wrap: wrap;
+  }
+
+  .dir-entry-copy {
+    width: 100%;
+    flex: none;
+  }
+
+  .dir-entry-actions {
+    margin-left: auto;
+  }
+
+  .custom-dir-input-row {
+    flex-wrap: wrap;
+  }
+
+  .custom-dir-input-row .config-btn {
+    flex: 1;
+    text-align: center;
   }
 }
 
