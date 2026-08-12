@@ -71,6 +71,39 @@ export interface DockerContainersResponse {
   error?: string
 }
 
+// ==================== 进程类型 ====================
+
+export interface Process {
+  pid: number
+  ppid: number
+  user: string
+  name: string
+  state: string
+  cpu: number
+  memory: string
+  memBytes: number
+  startTime: string
+  command: string
+  exePath: string
+  ports: number[]
+  protect: boolean
+  system: boolean
+}
+
+export interface ProcessesResponse {
+  total: number
+  processes: Process[]
+  error?: string
+}
+
+export interface KillProcessResult {
+  success: boolean
+  pid: number
+  command: string
+  signal: string
+  terminated?: boolean
+}
+
 // ==================== 归档类型 ====================
 
 export interface Archive {

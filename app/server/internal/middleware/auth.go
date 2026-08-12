@@ -139,17 +139,25 @@ func resolveToken(c *gin.Context) string {
 }
 
 // RequireAdmin middleware ensures the request is made by an administrator.
-// In gateway mode the fnOS gateway injects x-trim-isadmin for admin users;
-// in standalone (single-user) mode every authenticated session is an admin.
+// In gateway mode the fnOS gateway injects x-trim-isadmin for admin users. The
+// admin flag header is only trusted when the request genuinely comes from the
+// local gateway proxy (loopback); a remote client must not be able to forge it
+// to escalate privileges.
+// In standalone (single-user) mode every authenticated session is an admin.
 func RequireAdmin(c *gin.Context) {
-	if config.IsGatewayMode() && c.GetHeader("x-trim-isadmin") != "true" {
-		services.AddAuditLog("admin_required", map[string]interface{}{
-			"path": c.Request.URL.Path,
-		}, c)
+	if config.IsGatewayMode() {
+		isAdminHeader := c.GetHeader("x-trim-isadmin") == "true"
+		// Only trust the admin flag from the local gateway (loopback).
+		trustedAdmin := isAdminHeader && utils.IsLoopbackAddr(c.Request.RemoteAddr)
+		if !trustedAdmin {
+			services.AddAuditLog("admin_required", map[string]interface{}{
+				"path": c.Request.URL.Path,
+			}, c)
 
-		c.Error(apperrors.NewAppError("需要管理员权限", 403, "FORBIDDEN"))
-		c.Abort()
-		return
+			c.Error(apperrors.NewAppError("需要管理员权限", 403, "FORBIDDEN"))
+			c.Abort()
+			return
+		}
 	}
 	c.Next()
 }

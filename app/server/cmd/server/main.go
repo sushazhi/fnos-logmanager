@@ -75,6 +75,11 @@ func main() {
 		slog.Error("自动清理服务初始化失败", "error", err)
 	}
 
+	// Initialize recycle-bin cleaner (24h auto-purge for moved app leftovers)
+	if err := services.InitRecycleCleaner(cfg.DataDir); err != nil {
+		slog.Error("回收站清理服务初始化失败", "error", err)
+	}
+
 	// Initialize event logger (always try — handles upgrades where DB exists but config wasn't persisted)
 	if err := services.InitEventLogger(cfg.EventLogger.DBPath); err != nil {
 		slog.Warn("事件日志服务初始化失败（非致命）", "error", err)
@@ -125,6 +130,11 @@ func main() {
 	// Start auto-clean scheduler
 	if err := services.StartAutoClean(); err != nil {
 		slog.Warn("自动清理调度启动失败", "error", err)
+	}
+
+	// Start recycle-bin auto-purge scheduler (24h retention)
+	if err := services.StartRecycleCleaner(); err != nil {
+		slog.Warn("回收站自动清空调度启动失败", "error", err)
 	}
 
 	// Create HTTP server.
@@ -187,6 +197,7 @@ func main() {
 
 	// Stop services
 	_ = services.StopAutoClean()
+	_ = services.StopRecycleCleaner()
 	_ = services.StopMonitor()
 	services.CloseLogStreamWS()
 	services.CloseDockerStreamWS()
@@ -246,7 +257,13 @@ func manageMCPListener(handler http.Handler, stop <-chan struct{}) {
 			}
 			bind := live.BindAddr
 			if bind == "" {
-				bind = "0.0.0.0"
+				// Default to loopback: if MCP_API_KEY is not configured, only
+				// loopback callers are authorized anyway. Listening on 0.0.0.0
+				// by default would expose destructive tools (delete_log,
+				// remove_kernel, cleanup_kernels) to the whole LAN. Operators
+				// who intentionally expose MCP must set an explicit bind addr
+				// together with an API key.
+				bind = "127.0.0.1"
 			}
 			addr := fmt.Sprintf("%s:%d", bind, port)
 			current = &http.Server{

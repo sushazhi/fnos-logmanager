@@ -79,6 +79,9 @@ func SetupRouter(uiDir string) *gin.Engine {
 		// Docker routes
 		RegisterDockerRoutes(api)
 
+		// Process management routes (list & kill processes)
+		RegisterProcessRoutes(api)
+
 		// Update routes
 		update := api.Group("/update")
 		RegisterUpdateRoutes(update)

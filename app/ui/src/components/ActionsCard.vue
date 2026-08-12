@@ -24,8 +24,8 @@
       <button class="warning" @click="$emit('showAutoClean')" title="配置定时自动清理策略">
         自动清理
       </button>
-      <button class="warning" @click="$emit('cleanEmptyDirs')" title="删除已卸载应用的空文件夹">
-        清理空文件夹
+      <button class="warning" @click="$emit('showUninstalledClean')" title="清理已卸载应用的残留：空文件夹直接删除，非空残留目录移入回收站（24小时后自动清空）">
+        清理已卸载应用
       </button>
       <button class="btn-primary" @click="$emit('backup')" title="备份日志到指定目录">
         备份
@@ -41,6 +41,9 @@
       </button>
       <button class="btn-primary" @click="$emit('showKernelModules')" title="查看已安装的 Linux 内核版本">
         内核版本
+      </button>
+      <button class="btn-primary" @click="$emit('showProcesses')" title="查看系统中运行的进程并支持结束进程">
+        进程管理
       </button>
       <button class="btn-primary" @click="$emit('openSettings')" title="显示设置">
         设置
@@ -83,7 +86,7 @@ defineEmits<{
   showSearch: []
   showClean: []
   showAutoClean: []
-  cleanEmptyDirs: []
+  showUninstalledClean: []
   backup: []
   listArchives: []
   listDocker: []
@@ -92,6 +95,7 @@ defineEmits<{
   showNotification: []
   showEventLogger: []
   showKernelModules: []
+  showProcesses: []
 }>()
 
 const statusIcons: Record<StatusType, string> = {

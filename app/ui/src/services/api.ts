@@ -414,6 +414,89 @@ export const kernelApi = {
     api.post<KernelRemoveResponse>(`/api/kernel/versions/${encodeURIComponent(version)}/remove`)
 }
 
+// ==================== 进程管理 API ====================
+
+export interface ProcessItem {
+  pid: number
+  ppid: number
+  user: string
+  name: string
+  state: string
+  cpu: number
+  memory: string
+  memBytes: number
+  startTime: string
+  command: string
+  exePath: string
+  ports: number[]
+  protect: boolean
+  system: boolean
+}
+
+export interface ProcessesResponse {
+  total: number
+  processes: ProcessItem[]
+  error?: string
+}
+
+export interface KillProcessResult {
+  success: boolean
+  pid: number
+  command: string
+  signal: string
+  terminated?: boolean
+}
+
+export type ProcessSortKey = 'pid' | 'name' | 'cpu' | 'mem'
+
+export interface ProcessFile {
+  path: string
+  name: string
+  isLog: boolean
+  size: number
+  sizeText: string
+}
+
+export interface ProcessLogResult {
+  content: string
+  totalLines: number
+  size: number
+  sizeFormatted: string
+  truncated: boolean
+  hasMore: boolean
+}
+
+export const processApi = {
+  getProcesses: (params: {
+    q?: string
+    scope?: 'user' | 'all'
+    sort?: ProcessSortKey
+    order?: 'asc' | 'desc'
+  } = {}) => {
+    const search = new URLSearchParams()
+    if (params.q) search.set('q', params.q)
+    if (params.scope && params.scope !== 'user') search.set('scope', params.scope)
+    if (params.sort && params.sort !== 'pid') search.set('sort', params.sort)
+    if (params.order && params.order !== 'asc') search.set('order', params.order)
+    const qs = search.toString()
+    return api.get<ProcessesResponse>(`/api/processes${qs ? '?' + qs : ''}`)
+  },
+
+  killProcess: (pid: number, signal: 'term' | 'kill' = 'term') =>
+    api.post<KillProcessResult>('/api/processes/kill', { pid, signal }),
+
+  getProcessFiles: (pid: number) =>
+    api.get<{ pid: number; files: ProcessFile[] }>(`/api/processes/${pid}/files`),
+
+  readProcessLog: (pid: number, path: string, maxLines = 500, tail = false) => {
+    const search = new URLSearchParams()
+    search.set('path', path)
+    search.set('maxLines', String(maxLines))
+    if (tail) search.set('tail', 'true')
+    return api.get<ProcessLogResult>(`/api/processes/${pid}/log?${search.toString()}`)
+  }
+}
+
 // ==================== MCP 服务器 API ====================
 
 export interface MCPConfig {

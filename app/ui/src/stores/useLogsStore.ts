@@ -22,6 +22,7 @@ export const useLogsStore = defineStore('logs', () => {
   const listType = ref<ListType>('logs')
   const showLogModal = ref(false)
   const showCleanModal = ref(false)
+  const showUninstalledCleanModal = ref(false)
   const showSearchModal = ref(false)
   const logContent = ref('')
   const logTitle = ref('')
@@ -238,6 +239,7 @@ export const useLogsStore = defineStore('logs', () => {
 
   async function cleanEmptyDirs(): Promise<void> {
     const { setStatus, confirm } = useStatusStore()
+    showUninstalledCleanModal.value = false
     const confirmed = await confirm({
       title: '清理空文件夹',
       message: '确定要删除已卸载应用的空文件夹吗？\n\n将检查以下目录：\n/vol1/@appcenter\n/vol1/@appconf\n/vol1/@appdata\n/vol1/@apphome\n/vol1/@appmeta\n/vol1/@apptemp\n/vol1/@appshare',
@@ -255,6 +257,32 @@ export const useLogsStore = defineStore('logs', () => {
         setStatus('没有找到需要清理的空文件夹', 'success')
       } else {
         setStatus(`清理完成，共删除 ${data.cleaned} 个空文件夹`, 'success')
+      }
+    } catch (e) {
+      setStatus('清理失败: ' + safeErrorMessage(e), 'error')
+    }
+  }
+
+  async function cleanUninstalledDirs(): Promise<void> {
+    const { setStatus, confirm } = useStatusStore()
+    showUninstalledCleanModal.value = false
+    const confirmed = await confirm({
+      title: '清理已卸载应用残留文件',
+      message: '将把已卸载应用的非空残留目录移入回收站（可恢复），24小时后自动清空。\n\n只会处理已卸载应用，不会影响已安装应用。',
+      type: 'danger',
+      confirmText: '移入回收站'
+    })
+    if (!confirmed) return
+
+    setStatus('正在将已卸载应用残留目录移入回收站...', 'loading')
+    try {
+      const data = await api.post<{ moved: number; dirs: string[]; errors: string[]; message: string }>('/api/dirs/clean-uninstalled-trash')
+      if (data.errors && data.errors.length > 0) {
+        setStatus(`已移动 ${data.moved} 个目录到回收站，但有 ${data.errors.length} 个错误：${data.errors.join('；')}`, 'warning')
+      } else if (data.moved === 0) {
+        setStatus('没有找到已卸载应用的非空残留目录', 'success')
+      } else {
+        setStatus(data.message || `已将 ${data.moved} 个残留目录移入回收站，24小时后自动清空`, 'success')
       }
     } catch (e) {
       setStatus('清理失败: ' + safeErrorMessage(e), 'error')
@@ -385,6 +413,7 @@ export const useLogsStore = defineStore('logs', () => {
     listType,
     showLogModal,
     showCleanModal,
+    showUninstalledCleanModal,
     showSearchModal,
     logContent,
     logTitle,
@@ -407,6 +436,7 @@ export const useLogsStore = defineStore('logs', () => {
     deleteLog,
     executeClean,
     cleanEmptyDirs,
+    cleanUninstalledDirs,
     exportLog,
     clearList,
     addTab,

@@ -26,7 +26,7 @@ export function useStore() {
   const { status } = storeToRefs(statusStore)
   const { stats } = storeToRefs(statsStore)
   const { dirs, selectedDir } = storeToRefs(dirsStore)
-  const { logList, listType, showLogModal, showCleanModal, showSearchModal, logContent, logTitle, filterEnabled, logTruncated, logHasMore, logTotalLines, logCurrentPath, logIsDocker } = storeToRefs(logsStore)
+  const { logList, listType, showLogModal, showCleanModal, showUninstalledCleanModal, showSearchModal, logContent, logTitle, filterEnabled, logTruncated, logHasMore, logTotalLines, logCurrentPath, logIsDocker } = storeToRefs(logsStore)
   const logTabs = computed(() => logsStore.logTabs)
   const activeTabId = computed(() => logsStore.activeTabId)
   const activeTab = computed(() => logsStore.activeTab)
@@ -36,7 +36,7 @@ export function useStore() {
   const { setStatus, confirm } = statusStore
   const { loadStats } = statsStore
   const { loadDirs, selectDir } = dirsStore
-  const { listLogs, searchLogs, viewLog, loadAllLines, truncateLog, deleteLog, executeClean, cleanEmptyDirs, exportLog, clearList, loadFilterStatus, toggleFilter, addTab, removeTab, switchTab } = logsStore
+  const { listLogs, searchLogs, viewLog, loadAllLines, truncateLog, deleteLog, executeClean, cleanEmptyDirs, cleanUninstalledDirs, exportLog, clearList, loadFilterStatus, toggleFilter, addTab, removeTab, switchTab } = logsStore
   const { listDockerContainers, viewDockerLogs } = dockerStore
   const { checkForUpdates } = updateStore
 
@@ -170,6 +170,7 @@ export function useStore() {
     filterEnabled,
     showLogModal,
     showCleanModal,
+    showUninstalledCleanModal,
     showSearchModal,
     logContent,
     logTitle,
@@ -203,6 +204,7 @@ export function useStore() {
     backupLogs: handleBackupLogs,
     executeClean,
     cleanEmptyDirs,
+    cleanUninstalledDirs,
     exportLog,
     saveCSRFToken,
     fetchCSRFToken,

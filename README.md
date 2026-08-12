@@ -53,6 +53,19 @@
   - 批量清理旧归档
   - 清理已卸载应用的空文件夹
 
+- **进程管理**
+  - 列出系统中运行的进程（名称/PID/用户/状态/CPU/内存/监听端口/命令行）
+  - 支持关键字过滤（进程名/命令行/PID/端口）与排序
+  - 查看进程打开的文件（日志优先）
+  - 查看进程日志
+  - 结束进程（SIGTERM 优雅退出，超时自动升级 SIGKILL）
+  - 受保护进程（PID 1、本应用自身）禁止结束
+
+- **回收站机制**
+  - 清理已卸载应用残留目录时移入系统回收站（而非直接删除）
+  - 支持还原到原始位置，跨文件系统自动复制+删除还原
+  - 回收站项目 24 小时自动清空
+
 - **自动清理** 
   - 定时自动清理策略
   - 支持 cron 表达式和秒级自定义间隔
@@ -187,7 +200,9 @@
 | 清空日志 | 查看日志时可点击"清空"按钮 |
 | 查看归档 | 点击"归档日志"查看压缩的日志文件 |
 | Docker日志 | 点击"Docker日志"查看容器日志 |
-| 清理空文件夹 | 点击"清理空文件夹"删除已卸载应用的空目录 |
+| 进程管理 | 查看运行进程、进程日志，支持结束进程 |
+| 清理残留 | 清理已卸载应用的残留目录（移入回收站，可还原） |
+| 回收站还原 | 查看回收站项目并还原到原始位置 |
 | 自动清理 | 配置定时清理规则，按大小/天数/模式自动清理 |
 | 通知设置 | 点击"通知设置"配置监控规则和通知渠道 |
 | 系统日志 | 点击"系统日志"监控系统事件 |
@@ -266,6 +281,8 @@ MCP_APP_NAME=fnos-logmanager  # 可选，展示给 Agent 的名称
 | 日志目录/列表 | `list_dirs` `list_logs` `search_logs` `get_app_names` `get_log_stats` |
 | 日志读取 | `read_log` `tail_log` `read_archive` |
 | 日志管理 | `truncate_log` `delete_log` `clean_logs` `clean_empty_dirs` |
+| 残留清理/回收站 | `clean_uninstalled_dirs` `list_recycle_items` `restore_recycle_item` |
+| 进程管理 | `list_processes` `kill_process` |
 | 备份/归档 | `backup_logs` `list_backups` `delete_backup` `clean_backups` `list_archives` |
 | Docker | `list_docker_containers` `get_docker_logs` |
 | 事件日志 | `get_event_logs` `get_event_sources` `event_logger_status` |

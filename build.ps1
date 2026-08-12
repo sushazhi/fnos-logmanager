@@ -193,7 +193,7 @@ $manifestContent = Get-Content $MANIFEST_FILE -Raw -Encoding UTF8
 $manifestContent = $manifestContent -replace "(?m)^version\s*=.*", "version = $APP_VERSION"
 [System.IO.File]::WriteAllText("$BUILD_DIR\manifest", $manifestContent, [System.Text.Encoding]::UTF8)
 
-@("LICENSE", "ICON.PNG", "ICON_256.PNG") | ForEach-Object {
+@("ICON.PNG", "ICON_256.PNG") | ForEach-Object {
     if (Test-Path "$PROJECT_DIR\$_") { Copy-Item "$PROJECT_DIR\$_" "$BUILD_DIR\" -Force }
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/sushazhi/fnos-logmanager/internal/config"
 )
+
+// rateLimitEntry is a simple fixed-window counter keyed by client IP.
+type rateLimitEntry struct {
+	count     int
+	resetTime time.Time
+}
 
 // Server is the MCP (Model Context Protocol) Streamable HTTP server for
 // fnos-logmanager. It exposes the app's full capability set as MCP tools so
@@ -24,7 +31,21 @@ type Server struct {
 	appName     string
 	appVersion  string
 	serverInfo  map[string]interface{}
+
+	toolCallsMu     sync.Mutex
+	toolCallsWindow time.Duration
+	toolCallsMax    int
+	toolCalls       map[string]*rateLimitEntry
 }
+
+// toolCallRateLimit defines the per-IP budget for MCP tools/call invocations.
+// AI agents can make bursts of calls, so this is deliberately generous yet still
+// bounds runaway/abusive clients that hammer destructive tools (delete_log,
+// remove_kernel, cleanup_kernels).
+const (
+	toolCallRateLimitMax    = 120
+	toolCallRateLimitWindow = 60 * time.Second
+)
 
 // sessionState tracks the initialization state of an MCP client session.
 type sessionState struct {
@@ -36,11 +57,48 @@ type sessionState struct {
 // New creates a new MCP Server.
 func New(appName, appVersion, apiKey string) *Server {
 	return &Server{
-		sessions:   make(map[string]*sessionState),
-		apiKey:     apiKey,
-		appName:    appName,
-		appVersion: appVersion,
+		sessions:         make(map[string]*sessionState),
+		apiKey:           apiKey,
+		appName:          appName,
+		appVersion:       appVersion,
+		toolCallsWindow:  toolCallRateLimitWindow,
+		toolCallsMax:     toolCallRateLimitMax,
+		toolCalls:        make(map[string]*rateLimitEntry),
 	}
+}
+
+// allowToolCall applies a fixed-window per-IP rate limit to tools/call requests
+// and returns true when the call may proceed. It returns false (and triggers a
+// cleanup of expired entries) when the client has exceeded the budget.
+func (s *Server) allowToolCall(remoteAddr string) bool {
+	ip := remoteAddr
+	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		ip = host
+	}
+
+	s.toolCallsMu.Lock()
+	defer s.toolCallsMu.Unlock()
+
+	now := time.Now()
+	// Opportunistic cleanup to bound memory usage.
+	if len(s.toolCalls) > 256 {
+		for k, e := range s.toolCalls {
+			if now.Sub(e.resetTime) >= s.toolCallsWindow {
+				delete(s.toolCalls, k)
+			}
+		}
+	}
+
+	entry := s.toolCalls[ip]
+	if entry == nil || now.Sub(entry.resetTime) >= s.toolCallsWindow {
+		s.toolCalls[ip] = &rateLimitEntry{count: 1, resetTime: now.Add(s.toolCallsWindow)}
+		return true
+	}
+	if entry.count >= s.toolCallsMax {
+		return false
+	}
+	entry.count++
+	return true
 }
 
 // Handler returns an http.Handler that serves the MCP endpoint.

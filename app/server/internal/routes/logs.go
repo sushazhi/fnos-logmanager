@@ -66,6 +66,9 @@ func RegisterLogRoutes(rg *gin.RouterGroup) {
 
 	// Dirs
 	rg.POST("/dirs/clean-empty", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanEmptyDirsHandler)
+	rg.POST("/dirs/clean-uninstalled-trash", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanUninstalledTrashHandler)
+	rg.GET("/dirs/recycle-list", middleware.ValidateToken, listRecycleItemsHandler)
+	rg.POST("/dirs/recycle-restore", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), restoreRecycleItemsHandler)
 	rg.POST("/dirs/unauthorize", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), unauthorizeDirHandler)
 
 	// P2: Shared (app-level) directory authorization management
@@ -1429,6 +1432,77 @@ func cleanEmptyDirsHandler(c *gin.Context) {
 }
 
 // ---------------------------------------------------------------------------
+// Clean uninstalled-app leftovers into the recycle bin
+// ---------------------------------------------------------------------------
+
+func cleanUninstalledTrashHandler(c *gin.Context) {
+	gatewayUID, _ := c.Get("gatewayUID")
+	sessionToken, _ := c.Get("sessionToken")
+	uid := utils.GetUserIDFromContext(
+		gatewayUIDToString(gatewayUID),
+		sessionTokenToString(sessionToken),
+	)
+
+	result, err := services.CleanUninstalledAppDirsToTrash(uid)
+	if err != nil {
+		slog.Error("failed to clean uninstalled app dirs into trash", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "清理已卸载应用残余目录失败"})
+		return
+	}
+
+	services.AddAuditLog("dirs_clean_uninstalled_trash", map[string]interface{}{
+		"moved": result.Moved,
+		"dirs":  result.Dirs,
+	}, c)
+
+	message := fmt.Sprintf("已将 %d 个已卸载应用残留目录移入回收站，24小时后自动清空", result.Moved)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"moved":   result.Moved,
+		"dirs":    result.Dirs,
+		"errors":  result.Errors,
+		"message": message,
+	})
+}
+
+// listRecycleItemsHandler returns the current recycle-bin contents with each
+// item's original location, so users can find and manually restore them.
+func listRecycleItemsHandler(c *gin.Context) {
+	items := services.ListRecycleItems()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"items":   items,
+	})
+}
+
+// restoreRecycleItemsHandler restores one or more recycle items back to their
+// original locations.
+func restoreRecycleItemsHandler(c *gin.Context) {
+	var req struct {
+		Root string   `json:"root"`
+		Rels []string `json:"rels"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Rels) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	restored, errs := services.RestoreRecycleItems(req.Root, req.Rels)
+
+	services.AddAuditLog("dirs_clean_uninstalled_restore", map[string]interface{}{
+		"restored": restored,
+		"rels":     req.Rels,
+	}, c)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"restored": restored,
+		"errors":   errs,
+		"message":  fmt.Sprintf("已还原 %d 个项目", restored),
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Auto-clean rules
 // ---------------------------------------------------------------------------
 
@@ -1831,8 +1905,12 @@ func parseInt64OrZero(s string) int64 {
 // log directories under @appdata/@appconf/etc. The path whitelist (IsAllowedPath)
 // is still enforced to prevent access outside the configured log dirs.
 func checkFileACL(c *gin.Context, filePath string, action string) bool {
-	// Admins have full access to system log directories.
-	if c.GetHeader("x-trim-isadmin") == "true" {
+	// Admins have full access to system log directories. The x-trim-isadmin
+	// header is only trusted when it was injected by the trusted gateway, i.e.
+	// when the request genuinely arrived via the loopback unix-socket proxy.
+	// Trusting this header on a directly-reachable connection would let a
+	// remote client forge it and bypass the per-user ACL.
+	if config.IsGatewayMode() && c.GetHeader("x-trim-isadmin") == "true" && utils.IsLoopbackAddr(c.Request.RemoteAddr) {
 		return utils.IsAllowedPath(filePath, config.Get().LogDirs)
 	}
 

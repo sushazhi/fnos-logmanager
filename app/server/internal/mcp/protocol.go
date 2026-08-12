@@ -166,6 +166,19 @@ func (s *Server) handlePOST(w http.ResponseWriter, r *http.Request) {
 
 	sessionID := r.Header.Get(headerMcpSessionID)
 
+	// Rate-limit tool invocations per client IP so that a compromised or
+	// misbehaving agent cannot hammer destructive tools (delete_log,
+	// remove_kernel, cleanup_kernels) without bound.
+	if msg.Method == methodToolsCall && !s.allowToolCall(r.RemoteAddr) {
+		slog.Warn("mcp tools/call rate limit exceeded", "remote", r.RemoteAddr)
+		s.writeJSON(w, r, http.StatusTooManyRequests, jsonRPCErrorResponse{
+			JSONRPC: "2.0",
+			ID:      msg.ID,
+			Error:   &jsonRPCError{Code: -32029, Message: "too many tool calls"},
+		})
+		return
+	}
+
 	// Process and capture the response (single JSON-RPC message or nil for
 	// notifications). Streamable responses (tools/call with SSE) are handled
 	// inside callTool.

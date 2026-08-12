@@ -1,10 +1,14 @@
 package routes
 
 import (
+	"bytes"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -13,10 +17,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	qrgen "github.com/skip2/go-qrcode"
+	"github.com/sushazhi/fnos-logmanager/internal/config"
 	"github.com/sushazhi/fnos-logmanager/internal/middleware"
 	"github.com/sushazhi/fnos-logmanager/internal/notify"
 	"github.com/sushazhi/fnos-logmanager/internal/notify/channels"
 	"github.com/sushazhi/fnos-logmanager/internal/services"
+	"github.com/sushazhi/fnos-logmanager/internal/utils"
 )
 
 // Supported notification channel types (23 in total).
@@ -153,8 +159,8 @@ func RegisterNotificationRoutes(rg *gin.RouterGroup) {
 
 	// ==================== WeChat Claw ====================
 	rg.GET("/wechat-claw/qrcode", middleware.ValidateToken, middleware.APIRateLimit(30, 60000), wechatClawQRCode)
-	rg.GET("/wechat-claw/status", middleware.ValidateToken, middleware.APIRateLimit(60, 60000), wechatClawStatus)
-	rg.GET("/wechat-claw/captured", middleware.ValidateToken, middleware.APIRateLimit(120, 60000), wechatClawCaptured)
+	rg.GET("/wechat-claw/status", middleware.ValidateToken, middleware.RequireAdmin, middleware.APIRateLimit(60, 60000), wechatClawStatus)
+	rg.GET("/wechat-claw/captured", middleware.ValidateToken, middleware.RequireAdmin, middleware.APIRateLimit(120, 60000), wechatClawCaptured)
 	rg.GET("/wechat-claw/updates", middleware.ValidateToken, wechatClawUpdates)
 
 	// ==================== WebSocket (no ValidateToken - WS handler authenticates internally) ====================
@@ -216,8 +222,53 @@ func updateNotificationSettings(c *gin.Context) {
 
 // ==================== Channel Handlers ====================
 
+// secretConfigKeys are channel config keys holding credentials/secrets that must
+// never be returned to a non-admin client. They are masked with a redacted
+// sentinel in API responses, mirroring the sentinel the frontend uses when
+// saving so unchanged secrets are not overwritten.
+var secretConfigKeys = map[string]bool{
+	"BARK_PUSH":                true,
+	"DINGTALK_TOKEN":           true,
+	"DINGTALK_SECRET":          true,
+	"FEISHU_SECRET":            true,
+	"WECOM_KEY":                true,
+	"WECOM_QYDX_SECRET":        true,
+	"WECHAT_BOT_KEY":           true,
+	"TG_BOT_TOKEN":             true,
+	"SERVERCHAN_KEY":           true,
+	"PUSHPLUS_TOKEN":           true,
+	"NTFY_TOKEN":               true,
+	"NTFY_PASSWORD":            true,
+	"GOTIFY_TOKEN":             true,
+	"PUSHDEER_KEY":             true,
+	"QQ_APP_SECRET":            true,
+	"WECHAT_CLAWBOT_BOT_TOKEN": true,
+	"IGOT_PUSH_KEY":            true,
+	"CHAT_TOKEN":               true,
+	"QMSG_KEY":                 true,
+	"PUSHME_KEY":               true,
+	"WXPUSHER_APP_TOKEN":       true,
+	"AIBOTK_KEY":               true,
+	"WE_PLUS_BOT_TOKEN":        true,
+}
+
+// isAdminRequest reports whether the request is authenticated as an admin.
+// It only trusts the gateway-injected x-trim-isadmin header when the request
+// genuinely arrived from the trusted loopback proxy (never from a direct
+// connection, to prevent header spoofing). In standalone (single-user) mode
+// every authenticated session is considered admin.
+func isAdminRequest(c *gin.Context) bool {
+	if !config.IsGatewayMode() {
+		return true
+	}
+	return c.GetHeader("x-trim-isadmin") == "true" && utils.IsLoopbackAddr(c.Request.RemoteAddr)
+}
+
 // channelConfigToMap converts a NotificationChannelConfig to map for JSON response.
-func channelConfigToMap(ch services.NotificationChannelConfig) map[string]interface{} {
+// Secret keys are masked with the redacted sentinel unless the caller is an admin.
+func channelConfigToMap(c *gin.Context, ch services.NotificationChannelConfig) map[string]interface{} {
+	admin := isAdminRequest(c)
+	const redactedSentinel = "••••••••"
 	m := map[string]interface{}{
 		"id":      ch.ID,
 		"name":    ch.Name,
@@ -225,6 +276,10 @@ func channelConfigToMap(ch services.NotificationChannelConfig) map[string]interf
 		"enabled": ch.Enabled,
 	}
 	for k, v := range ch.Config {
+		if !admin && secretConfigKeys[k] {
+			m[k] = redactedSentinel
+			continue
+		}
 		m[k] = v
 	}
 	return m
@@ -234,7 +289,7 @@ func listChannels(c *gin.Context) {
 	channels := notifStore.GetChannels()
 	result := make([]map[string]interface{}, len(channels))
 	for i, ch := range channels {
-		result[i] = channelConfigToMap(ch)
+		result[i] = channelConfigToMap(c, ch)
 	}
 	c.JSON(http.StatusOK, gin.H{"channels": result})
 }
@@ -284,7 +339,7 @@ func addChannel(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "channel": channelConfigToMap(ch)})
+	c.JSON(http.StatusOK, gin.H{"success": true, "channel": channelConfigToMap(c, ch)})
 }
 
 func updateChannel(c *gin.Context) {
@@ -975,6 +1030,15 @@ func triggerMonitorCheck(c *gin.Context) {
 // ==================== QQ Bot Handlers ====================
 
 func qqBotEventHandler(c *gin.Context) {
+	// Verify the QQ official webhook signature before accepting the event.
+	// The QQ open platform signs the raw request body with HMAC-SHA256 using the
+	// configured App Secret and sends it in the X-Signature header. Without
+	// verification, any reachable client could forge bot events.
+	if !verifyQQBotSignature(c) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 1, "message": "invalid signature"})
+		return
+	}
+
 	var body map[string]interface{}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "invalid event"})
@@ -986,6 +1050,38 @@ func qqBotEventHandler(c *gin.Context) {
 	}
 	services.HandleQQBotEvent(body)
 	c.JSON(http.StatusOK, gin.H{"code": 0})
+}
+
+// verifyQQBotSignature authenticates the QQ open platform webhook callback.
+//   - If an X-Signature header is present, it is validated against the raw body
+//     using HMAC-SHA256 with the configured QQ_APP_SECRET. A mismatch is rejected.
+//   - If no signature is present (e.g. older integrations or local tooling), the
+//     request is only accepted when it originates from the loopback interface.
+func verifyQQBotSignature(c *gin.Context) bool {
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return false
+	}
+	// Restore the body so ShouldBindJSON can read it afterwards.
+	c.Request.Body = io.NopCloser(bytes.NewReader(raw))
+
+	sig := c.GetHeader("X-Signature")
+	if sig != "" {
+		secret := notify.GetConfig("QQ_APP_SECRET")
+		if secret == "" {
+			return false
+		}
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(raw)
+		expected := hex.EncodeToString(mac.Sum(nil))
+		if !strings.EqualFold(sig, expected) {
+			return false
+		}
+		return true
+	}
+
+	// No signature: only accept loopback-originated requests.
+	return utils.IsLoopbackAddr(c.Request.RemoteAddr)
 }
 
 func getQQBotCaptured(c *gin.Context) {
@@ -1066,6 +1162,9 @@ func wechatClawStatus(c *gin.Context) {
 	}
 
 	success, status, token, accountID, scannerID, message := services.CheckClawBotQRCodeStatus(qrcode)
+	if !isAdminRequest(c) && token != "" {
+		token = "••••••••"
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success":   success,
 		"status":    status,
@@ -1079,6 +1178,9 @@ func wechatClawStatus(c *gin.Context) {
 
 func wechatClawCaptured(c *gin.Context) {
 	botToken, accountID, baseURL := services.GetClawBotCaptured()
+	if !isAdminRequest(c) && botToken != "" {
+		botToken = "••••••••"
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"botToken":  botToken,
 		"accountId": accountID,

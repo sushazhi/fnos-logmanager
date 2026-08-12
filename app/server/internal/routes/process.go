@@ -1,0 +1,919 @@
+package routes
+
+import (
+	"bufio"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sushazhi/fnos-logmanager/internal/middleware"
+	"github.com/sushazhi/fnos-logmanager/internal/services"
+	"github.com/sushazhi/fnos-logmanager/internal/types"
+	"github.com/sushazhi/fnos-logmanager/internal/utils"
+)
+
+// processInfo represents a running system process.
+type processInfo struct {
+	PID         int      `json:"pid"`
+	PPID        int      `json:"ppid"`
+	User        string   `json:"user"`
+	Name        string   `json:"name"`
+	State       string   `json:"state"`
+	CPU         float64  `json:"cpu"`      // CPU 占用率（%），基于两次采样
+	Memory      string   `json:"memory"`   // 内存占用（格式化）
+	MemBytes    int64    `json:"memBytes"` // 内存占用（字节，用于排序）
+	StartTime   string   `json:"startTime"`
+	Command     string   `json:"command"`
+	ExePath     string   `json:"exePath"`
+	Ports       []int    `json:"ports"` // 监听端口
+	Protect     bool     `json:"protect"` // 受保护进程，禁止结束
+	System      bool     `json:"system"`  // 系统级进程（内核线程/无用户态命令行）
+}
+
+// RegisterProcessRoutes registers process-management routes.
+// 进程管理（参考 Supervisor 的进程管理理念）：列出系统中运行的进程，并支持结束（kill）进程。
+func RegisterProcessRoutes(rg *gin.RouterGroup) {
+	rg.GET("/processes", middleware.ValidateToken, listProcessesHandler)
+	// 列出进程打开的文件、读取进程日志、结束进程均涉及敏感系统信息，仅限管理员
+	rg.GET("/processes/:pid/files", middleware.ValidateToken, middleware.RequireAdmin, listProcessFilesHandler)
+	rg.GET("/processes/:pid/log", middleware.ValidateToken, middleware.RequireAdmin, readProcessLogHandler)
+	rg.POST("/processes/kill", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 60000), killProcessHandler)
+}
+
+// protectedPIDs 是禁止结束的系统关键进程（PID 1 = init/systemd）。
+// 同时禁止结束自身（logmanager 进程），避免管理员误杀导致应用崩溃。
+var protectedPIDs = map[int]bool{
+	1: true, // init / systemd
+}
+
+// isProtectedPID 判断进程是否受保护（关键系统进程或本应用自身）。
+func isProtectedPID(pid int) bool {
+	if pid <= 0 || protectedPIDs[pid] {
+		return true
+	}
+	// 自身进程（当前二进制）不可结束
+	if pid == os.Getpid() {
+		return true
+	}
+	// 找到 logmanager 服务器二进制路径，若目标进程为其自身则受保护
+	selfExe, err := os.Readlink("/proc/self/exe")
+	if err == nil {
+		targetExe, err2 := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+		if err2 == nil && targetExe == selfExe {
+			return true
+		}
+	}
+	return false
+}
+
+// listProcessesHandler 列出系统中运行的进程。
+// 支持参数：
+//   scope: user(默认，仅用户态服务进程) / all(全部)
+//   q:     按进程名/命令行/PID/端口关键字过滤
+//   sort:  pid(默认) / name / cpu / mem
+//   order: asc(默认) / desc
+func listProcessesHandler(c *gin.Context) {
+	procs, err := readProcesses()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取进程列表失败: " + err.Error()})
+		return
+	}
+
+	// 过滤系统进程（默认只看用户进程/服务）
+	scope := c.DefaultQuery("scope", "user")
+	if scope != "all" {
+		filtered := procs[:0]
+		for _, p := range procs {
+			if !p.System {
+				filtered = append(filtered, p)
+			}
+		}
+		procs = filtered
+	}
+
+	// 关键字过滤：进程名 / 命令行 / 可执行路径 / PID / 端口
+	if q := strings.TrimSpace(c.Query("q")); q != "" {
+		query := strings.ToLower(q)
+		queryInt := 0
+		if n, err := strconv.Atoi(q); err == nil {
+			queryInt = n
+		}
+		filtered := make([]processInfo, 0, len(procs))
+		for _, p := range procs {
+			if matchesProcessQuery(p, query, queryInt) {
+				filtered = append(filtered, p)
+			}
+		}
+		procs = filtered
+	}
+
+	// 排序
+	sortProcesses(procs, c.DefaultQuery("sort", "pid"), c.DefaultQuery("order", "asc"))
+
+	c.JSON(http.StatusOK, gin.H{"total": len(procs), "processes": procs})
+}
+
+// matchesProcessQuery 判断进程是否匹配搜索关键词（进程名/命令行/可执行路径/PID/端口）。
+func matchesProcessQuery(p processInfo, query string, queryInt int) bool {
+	if query == "" {
+		return true
+	}
+	// 精确 PID 匹配（或 PID 子串）
+	if p.PID == queryInt {
+		return true
+	}
+	if strconv.Itoa(p.PID) == query || strings.Contains(strconv.Itoa(p.PID), query) {
+		return true
+	}
+	// 端口匹配：query 为纯数字时匹配监听端口
+	if queryInt > 0 {
+		for _, port := range p.Ports {
+			if port == queryInt {
+				return true
+			}
+		}
+	}
+	// 进程名 / 命令行 / 可执行路径包含关键词
+	return strings.Contains(strings.ToLower(p.Name), query) ||
+		strings.Contains(strings.ToLower(p.Command), query) ||
+		strings.Contains(strings.ToLower(p.ExePath), query)
+}
+
+// sortProcesses 按指定字段对进程排序（desc 时降序，相等时保持稳定顺序）。
+func sortProcesses(procs []processInfo, sortKey, order string) {
+	desc := order == "desc"
+	less := func(i, j int) bool {
+		a, b := procs[i], procs[j]
+		var lt bool
+		switch sortKey {
+		case "name":
+			lt = a.Name < b.Name
+		case "cpu":
+			lt = a.CPU < b.CPU
+		case "mem":
+			lt = a.MemBytes < b.MemBytes
+		default: // pid
+			lt = a.PID < b.PID
+		}
+		if lt {
+			return !desc
+		}
+		if a.PID == b.PID && a.Name == b.Name && a.CPU == b.CPU && a.MemBytes == b.MemBytes {
+			return false // 视为相等，保持稳定
+		}
+		return desc
+	}
+	sort.SliceStable(procs, less)
+}
+
+// killProcessHandler 结束指定 PID 的进程。
+// 先发送 SIGTERM 请求优雅退出，超时后升级为 SIGKILL。
+func killProcessHandler(c *gin.Context) {
+	var req struct {
+		PID int    `json:"pid"`
+		Sig string `json:"signal"` // 可选：term(默认) / kill
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+	if req.PID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 PID"})
+		return
+	}
+
+	// 受保护进程禁止结束
+	if isProtectedPID(req.PID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "该进程受保护，不允许结束"})
+		return
+	}
+
+	// 确认进程存在
+	if _, err := os.Stat(fmt.Sprintf("/proc/%d", req.PID)); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "进程不存在或已退出"})
+		return
+	}
+
+	sig := syscall.SIGTERM
+	force := false
+	switch req.Sig {
+	case "kill":
+		sig = syscall.SIGKILL
+		force = true
+	case "", "term":
+		// default SIGTERM
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的信号类型，仅支持 term 或 kill"})
+		return
+	}
+
+	cmdName := readProcessCommand(req.PID)
+
+	// 发送信号（使用 os.FindProcess + Signal，保证 Linux 目标可用且可跨平台编译）
+	if err := sendSignal(req.PID, sig); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "结束进程失败: " + err.Error()})
+		return
+	}
+
+	// 优雅退出：等待进程退出，超时后强制结束
+	terminated := false
+	if !force {
+		for i := 0; i < 20; i++ {
+			time.Sleep(150 * time.Millisecond)
+			if _, err := os.Stat(fmt.Sprintf("/proc/%d", req.PID)); os.IsNotExist(err) {
+				terminated = true
+				break
+			}
+		}
+		if !terminated {
+			// 未在超时时间内退出，升级为 SIGKILL
+			sendSignal(req.PID, syscall.SIGKILL)
+		}
+	} else {
+		terminated = true
+	}
+
+	// 记录审计日志（结束进程是高危操作）
+	services.AddSecurityAuditLog("PROCESS_KILL", map[string]interface{}{
+		"pid":      req.PID,
+		"command":  cmdName,
+		"signal":   req.Sig,
+		"force":    force,
+		"outcome":  map[bool]string{true: "terminated", false: "killed"}[terminated],
+	}, c)
+
+	slog.Info("结束进程", "pid", req.PID, "command", cmdName, "signal", req.Sig)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"pid":        req.PID,
+		"command":    cmdName,
+		"signal":     req.Sig,
+		"terminated": terminated,
+	})
+}
+
+// ---------------------------------------------------------------------------
+// 进程信息读取（解析 /proc）
+// ---------------------------------------------------------------------------
+
+func readProcesses() ([]processInfo, error) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil, err
+	}
+
+	// 一次性构建：监听端口映射、UID->用户名映射、系统 CPU 总 jiffies
+	portByInode := readListenPorts()
+	uidMap := loadUIDMap()
+	sysJiffies := readSystemJiffies()
+
+	procs := make([]processInfo, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil || pid <= 0 {
+			continue
+		}
+
+		// 一次读取 /proc/pid/stat，解析出 PPID/state/utime/stime/starttime
+		comm := readFileString(fmt.Sprintf("/proc/%d/comm", pid))
+		st := readProcStatFields(pid)
+		cmdline := readProcessCommand(pid)
+		// 系统进程：内核线程（comm 以 [ 开头）或无用户态命令行（cmdline 为空）
+		isKernelThread := strings.HasPrefix(comm, "[")
+		isSystem := isKernelThread || (cmdline == "" && pid > 1)
+
+		p := processInfo{
+			PID:       pid,
+			PPID:      st.ppid,
+			User:      lookupUserName(uidMap, pid),
+			Name:      processName(comm, cmdline),
+			State:     mapState(st.state),
+			Command:   cmdline,
+			StartTime: readProcStartTime(st.startTicks),
+			CPU:       computeCPUUsage(pid, comm, st.utime, st.stime, sysJiffies),
+			Protect:   isProtectedPID(pid),
+			System:    isSystem,
+		}
+
+		p.Memory, p.MemBytes = readProcMemory(pid)
+
+		// 仅对用户态进程解析 exe 与监听端口，内核线程无这些信息，跳过以省去系统调用
+		if !isKernelThread {
+			p.ExePath = readProcExe(pid)
+			p.Ports = resolvePorts(pid, portByInode)
+		}
+
+		procs = append(procs, p)
+	}
+
+	return procs, nil
+}
+
+// procStatFields 为单次读取 /proc/pid/stat 的解析结果。
+type procStatFields struct {
+	ppid       int
+	state      string
+	utime      int64
+	stime      int64
+	startTicks int64
+}
+
+// readProcStatFields 一次性读取 /proc/pid/stat 并解析出 PPID、状态、CPU 时间、启动时间。
+// 相比逐字段多次读取文件，大幅减少系统调用次数。
+func readProcStatFields(pid int) procStatFields {
+	var res procStatFields
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return res
+	}
+	s := string(data)
+	start := strings.IndexByte(s, '(')
+	end := strings.LastIndexByte(s, ')')
+	if start < 0 || end < 0 || end >= len(s) {
+		return res
+	}
+	// 括号后字段：state ppid pgrp session tty_nr tpgid flags minflt ...
+	// index: state=0, ppid=1, ..., utime=11, stime=12, ..., starttime=21
+	fields := strings.Fields(s[end+1:])
+	if len(fields) > 0 {
+		res.state = fields[0]
+	}
+	if len(fields) > 1 {
+		res.ppid, _ = strconv.Atoi(fields[1])
+	}
+	if len(fields) > 12 {
+		res.utime, _ = strconv.ParseInt(fields[11], 10, 64)
+		res.stime, _ = strconv.ParseInt(fields[12], 10, 64)
+	}
+	if len(fields) > 21 {
+		res.startTicks, _ = strconv.ParseInt(fields[21], 10, 64)
+	}
+	return res
+}
+
+// loadUIDMap 一次性读取 /etc/passwd，构建 UID -> 用户名 映射。
+// 避免为每个进程都打开并扫描 /etc/passwd（这是进程列表性能瓶颈之一）。
+func loadUIDMap() map[int]string {
+	m := map[int]string{}
+	f, err := os.Open("/etc/passwd")
+	if err != nil {
+		return m
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 4)
+		if len(parts) >= 3 {
+			if uid, err := strconv.Atoi(parts[2]); err == nil {
+				m[uid] = parts[0]
+			}
+		}
+	}
+	return m
+}
+
+// lookupUserName 解析进程 UID 对应的用户名（使用一次性构建的 UID 映射）。
+func lookupUserName(uidMap map[int]string, pid int) string {
+	uid := -1
+	scanner := bufio.NewScanner(strings.NewReader(readFileString(fmt.Sprintf("/proc/%d/status", pid))))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "Uid:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				uid, _ = strconv.Atoi(fields[1])
+			}
+			break
+		}
+	}
+	if uid < 0 {
+		return ""
+	}
+	if name, ok := uidMap[uid]; ok {
+		return name
+	}
+	return strconv.Itoa(uid)
+}
+
+// processName 计算进程名：优先用 comm，若 comm 为空则用命令行第一个 token。
+func processName(comm, cmdline string) string {
+	name := strings.TrimSpace(comm)
+	if name == "" {
+		if idx := strings.IndexAny(cmdline, " \t"); idx > 0 {
+			name = cmdline[:idx]
+		} else if cmdline != "" {
+			name = cmdline
+		}
+	}
+	// 去掉路径前缀（取 basename）
+	name = filepath.Base(name)
+	return name
+}
+
+// ---------------------------------------------------------------------------
+// CPU 占用率（两次采样）
+// ---------------------------------------------------------------------------
+
+type cpuSample struct {
+	procJiffies int64 // 进程累计 CPU jiffies
+	sysJiffies  int64 // 系统总 CPU jiffies
+	valid       bool
+}
+
+var (
+	cpuSampleMu sync.Mutex
+	cpuSamples  = map[int]cpuSample{}
+)
+
+// computeCPUUsage 计算进程 CPU 占用率。返回百分比（0-100+，可大于 100 多核）。
+// 基于前后两次请求的采样增量，首次采样返回 0。
+// utime/stime 已由调用方从单次 stat 读取传入，sysJiffies 为本次请求的系统总 jiffies。
+func computeCPUUsage(pid int, comm string, utime, stime, sysJiffies int64) float64 {
+	if strings.HasPrefix(comm, "[") {
+		return 0
+	}
+	procJiffies := utime + stime
+	if procJiffies < 0 || sysJiffies <= 0 {
+		return 0
+	}
+
+	cpuSampleMu.Lock()
+	defer cpuSampleMu.Unlock()
+
+	prev, ok := cpuSamples[pid]
+	cpuSamples[pid] = cpuSample{procJiffies: procJiffies, sysJiffies: sysJiffies, valid: true}
+
+	if !ok || !prev.valid {
+		return 0 // 首次采样，无增量
+	}
+	dp := procJiffies - prev.procJiffies
+	ds := sysJiffies - prev.sysJiffies
+	if ds <= 0 || dp < 0 {
+		return 0
+	}
+	// 占用率 = dp / ds * 100（ds 为总 CPU 时间增量，对应单核 100%）
+	return float64(dp) / float64(ds) * 100.0
+}
+
+// readSystemJiffies 读取系统总 CPU jiffies（/proc/stat 所有 CPU 行求和）。
+func readSystemJiffies() int64 {
+	data, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return 0
+	}
+	var total int64
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "cpu") {
+			continue
+		}
+		// 跳过 "cpu" 汇总行（以 "cpu " 开头），只累加 "cpu0", "cpu1"... 或直接累加汇总行
+		fields := strings.Fields(line)
+		if len(fields) < 5 {
+			continue
+		}
+		for _, f := range fields[1:] {
+			v, err := strconv.ParseInt(f, 10, 64)
+			if err == nil {
+				total += v
+			}
+		}
+	}
+	return total
+}
+
+// ---------------------------------------------------------------------------
+// 内存占用
+// ---------------------------------------------------------------------------
+
+// readProcMemory 读取进程内存占用（VmRSS），返回格式化字符串和字节数。
+func readProcMemory(pid int) (string, int64) {
+	vmRSS := int64(0)
+	scanner := bufio.NewScanner(strings.NewReader(readFileString(fmt.Sprintf("/proc/%d/status", pid))))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "VmRSS:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				vmRSS, _ = strconv.ParseInt(fields[1], 10, 64)
+			}
+			break
+		}
+	}
+	bytes := vmRSS * 1024
+	if bytes <= 0 {
+		return "-", 0
+	}
+	return formatProcessBytes(bytes), bytes
+}
+
+// ---------------------------------------------------------------------------
+// 监听端口解析
+// ---------------------------------------------------------------------------
+
+// 监听端口映射缓存（短 TTL）。/proc/net/tcp 可能很大，且监听状态变化不频繁，
+// 短时间复用可避免每次请求都重复解析大文件。这不属于进程预加载，仅缓存系统级低频信息。
+var (
+	listenPortMu     sync.Mutex
+	listenPortCache  map[string]int
+	listenPortCached time.Time
+	listenPortTTL    = 3 * time.Second
+)
+
+// readListenPorts 读取 /proc/net/tcp 和 tcp6，构建 "socket inode -> 端口" 映射（仅 LISTEN）。
+// 带短 TTL 缓存，避免每次请求都重新解析系统网络表。
+func readListenPorts() map[string]int {
+	listenPortMu.Lock()
+	defer listenPortMu.Unlock()
+	if listenPortCache != nil && time.Since(listenPortCached) < listenPortTTL {
+		return listenPortCache
+	}
+	ports := map[string]int{}
+	parseTCPFile("/proc/net/tcp", ports)
+	parseTCPFile("/proc/net/tcp6", ports)
+	listenPortCache = ports
+	listenPortCached = time.Now()
+	return ports
+}
+
+func parseTCPFile(path string, ports map[string]int) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	first := true
+	for scanner.Scan() {
+		line := scanner.Text()
+		if first {
+			first = false
+			continue // 跳过表头
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 10 {
+			continue
+		}
+		// fields[1]=local_address(hex), fields[3]=st, fields[9]=inode
+		if fields[3] != "0A" { // 0A = LISTEN
+			continue
+		}
+		port := hexPort(fields[1])
+		inode := fields[9]
+		if port > 0 && inode != "" && inode != "0" {
+			ports[inode] = port
+		}
+	}
+}
+
+// hexPort 从 "0100007F:1F90" 形式的 local_address 提取十进制端口。
+func hexPort(localAddr string) int {
+	idx := strings.IndexByte(localAddr, ':')
+	if idx < 0 {
+		return 0
+	}
+	hex := localAddr[idx+1:]
+	v, err := strconv.ParseUint(hex, 16, 16)
+	if err != nil {
+		return 0
+	}
+	return int(v)
+}
+
+// resolvePorts 解析指定 PID 的监听端口：读取 /proc/pid/fd 中的 socket inode，与端口映射匹配。
+func resolvePorts(pid int, portByInode map[string]int) []int {
+	if len(portByInode) == 0 {
+		return nil
+	}
+	fdDir := fmt.Sprintf("/proc/%d/fd", pid)
+	entries, err := os.ReadDir(fdDir)
+	if err != nil {
+		return nil
+	}
+	var ports []int
+	seen := map[int]bool{}
+	for _, e := range entries {
+		link, err := os.Readlink(fdDir + "/" + e.Name())
+		if err != nil {
+			continue
+		}
+		// 形如 "socket:[12345]"
+		if !strings.HasPrefix(link, "socket:[") || !strings.HasSuffix(link, "]") {
+			continue
+		}
+		inode := strings.TrimSuffix(strings.TrimPrefix(link, "socket:["), "]")
+		if port, ok := portByInode[inode]; ok && !seen[port] {
+			seen[port] = true
+			ports = append(ports, port)
+		}
+	}
+	sort.Ints(ports)
+	return ports
+}
+
+// ---------------------------------------------------------------------------
+// 进程日志查看（借鉴 Supervisor 的子进程日志管理理念）
+// ---------------------------------------------------------------------------
+
+// processFileInfo 描述进程打开的一个文件。
+type processFileInfo struct {
+	Path     string `json:"path"`
+	Name     string `json:"name"`
+	IsLog    bool   `json:"isLog"`    // 是否为日志文件
+	Size     int64  `json:"size"`
+	SizeText string `json:"sizeText"`
+}
+
+// listProcessFilesHandler 列出指定进程通过 fd 打开的常规文件（排除 socket/pipe/dev/proc/sys 等）。
+func listProcessFilesHandler(c *gin.Context) {
+	pid, err := strconv.Atoi(c.Param("pid"))
+	if err != nil || pid <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 PID"})
+		return
+	}
+
+	files, err := readProcessFiles(pid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"pid": pid, "files": files})
+}
+
+// readProcessLogHandler 读取指定进程打开的日志文件内容。
+// 安全模型：路径必须是该进程当前通过 fd 打开的常规文件，且为日志文件，
+// 并通过符号链接与常规文件校验。仅在用户态进程中开放。
+func readProcessLogHandler(c *gin.Context) {
+	pid, err := strconv.Atoi(c.Param("pid"))
+	if err != nil || pid <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 PID"})
+		return
+	}
+	path := c.Query("path")
+	if path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 path 参数"})
+		return
+	}
+
+	// 校验该路径确实是此进程打开的常规日志文件
+	if err := validateProcessLogFile(pid, path); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
+	maxLines := 200
+	if v := c.Query("maxLines"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 5000 {
+			maxLines = n
+		}
+	}
+	tail := c.Query("tail") == "true"
+
+	result, err := services.ReadLogFileAt(path, types.ReadLogOptions{
+		MaxLines: maxLines,
+		Tail:     tail,
+	})
+	if err != nil {
+		slog.Error("failed to read process log", "pid", pid, "path", path, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取进程日志失败: " + err.Error()})
+		return
+	}
+
+	// 记录审计
+	services.AddSecurityAuditLog("PROCESS_LOG_READ", map[string]interface{}{
+		"pid":  pid,
+		"path": path,
+	}, c)
+
+	c.JSON(http.StatusOK, result)
+}
+
+// readProcessFiles 读取进程通过 fd 打开的常规文件，过滤出日志相关文件。
+func readProcessFiles(pid int) ([]processFileInfo, error) {
+	if isKernelPID(pid) {
+		return nil, fmt.Errorf("内核线程无用户态文件")
+	}
+	fdDir := fmt.Sprintf("/proc/%d/fd", pid)
+	entries, err := os.ReadDir(fdDir)
+	if err != nil {
+		return nil, fmt.Errorf("无法读取进程文件描述符（进程可能不存在或无权限）")
+	}
+
+	var files []processFileInfo
+	seen := map[string]bool{}
+	for _, e := range entries {
+		link, err := os.Readlink(fdDir + "/" + e.Name())
+		if err != nil {
+			continue
+		}
+		// 只保留常规文件路径
+		if !isSafeRegularFileLink(link) {
+			continue
+		}
+		path := link
+		if seen[path] {
+			continue
+		}
+		info, err := os.Stat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		seen[path] = true
+		files = append(files, processFileInfo{
+			Path:     path,
+			Name:     filepath.Base(path),
+			IsLog:    isLogFileLike(path),
+			Size:     info.Size(),
+			SizeText: formatProcessBytes(info.Size()),
+		})
+	}
+
+	// 日志文件优先，再按名称排序
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].IsLog != files[j].IsLog {
+			return files[i].IsLog
+		}
+		return files[i].Path < files[j].Path
+	})
+	return files, nil
+}
+
+// isKernelPID 判断是否为内核线程 PID（无用户态 fd 信息）。
+func isKernelPID(pid int) bool {
+	comm := readFileString(fmt.Sprintf("/proc/%d/comm", pid))
+	return strings.HasPrefix(comm, "[")
+}
+
+// isSafeRegularFileLink 判断 fd 链接是否为可安全访问的常规文件路径。
+// 排除 socket、pipe、anon_inode、/proc、/dev、/sys、/run 等伪文件或敏感目录。
+func isSafeRegularFileLink(link string) bool {
+	if !strings.HasPrefix(link, "/") {
+		return false // socket:[...], pipe:[...], anon_inode:[...] 等非路径链接
+	}
+	for _, prefix := range []string{"/proc/", "/dev/", "/sys/", "/run/", "/var/run/", "/tmp/", "/var/tmp/"} {
+		if strings.HasPrefix(link, prefix) {
+			return false
+		}
+	}
+	return true
+}
+
+// validateProcessLogFile 校验 path 是否为指定进程当前打开的常规日志文件。
+func validateProcessLogFile(pid int, path string) error {
+	normalized := utils.SafePath(path)
+	if normalized == "" {
+		return fmt.Errorf("非法路径")
+	}
+	if !isLogFileLike(normalized) {
+		return fmt.Errorf("仅允许读取日志文件")
+	}
+	// 必须是该进程 fd 打开的常规文件
+	files, err := readProcessFiles(pid)
+	if err != nil {
+		return fmt.Errorf("无法验证进程文件: %v", err)
+	}
+	for _, f := range files {
+		if f.Path == normalized {
+			return nil
+		}
+	}
+	return fmt.Errorf("该路径不是此进程当前打开的文件")
+}
+
+// isLogFileLike 判断路径是否像日志文件（.log 后缀或位于日志目录）。
+func isLogFileLike(path string) bool {
+	lower := strings.ToLower(path)
+	for _, ext := range []string{".log", ".out", ".err"} {
+		if strings.HasSuffix(lower, ext) {
+			return true
+		}
+	}
+	if strings.Contains(path, "/log/") || strings.Contains(path, "/logs/") || strings.HasSuffix(path, ".log") {
+		return true
+	}
+	return false
+}
+
+// ---------------------------------------------------------------------------
+// 其他 /proc 读取辅助
+// ---------------------------------------------------------------------------
+
+func readFileString(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func mapState(code string) string {
+	switch code {
+	case "R":
+		return "运行中"
+	case "S":
+		return "睡眠"
+	case "D":
+		return "磁盘等待"
+	case "Z":
+		return "僵尸"
+	case "T":
+		return "已停止"
+	case "t":
+		return "跟踪"
+	case "X":
+		return "已退出"
+	default:
+		return code
+	}
+}
+
+// readProcessCommand 读取完整命令行（/proc/pid/cmdline）。
+func readProcessCommand(pid int) string {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	if err != nil {
+		// 回退到 comm
+		return readFileString(fmt.Sprintf("/proc/%d/comm", pid))
+	}
+	// cmdline 以 \0 分隔参数
+	parts := strings.Split(strings.TrimSuffix(string(data), "\x00"), "\x00")
+	return strings.Join(parts, " ")
+}
+
+// readProcExe 读取进程可执行文件路径。
+func readProcExe(pid int) string {
+	path, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
+// readProcStartTime 将进程启动时间（starttime，自系统启动的时钟周期数）格式化为时间字符串。
+func readProcStartTime(startTicks int64) string {
+	if startTicks <= 0 {
+		return ""
+	}
+	// 系统启动时间
+	uptimeSec := readProcUptime()
+	if uptimeSec <= 0 {
+		return ""
+	}
+	hz := int64(100) // 常见 CLK_TCK
+	procStartOffsetSec := startTicks / hz
+	bootTime := time.Now().Unix() - uptimeSec
+	startTime := time.Unix(bootTime+procStartOffsetSec, 0)
+	return startTime.Format("2006-01-02 15:04:05")
+}
+
+func readProcUptime() int64 {
+	data, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return 0
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) == 0 {
+		return 0
+	}
+	sec, _ := strconv.ParseFloat(fields[0], 64)
+	return int64(sec)
+}
+
+// sendSignal 向指定 PID 的进程发送信号。
+// 使用 os.FindProcess + Process.Signal 实现，Linux 目标平台正常工作，且可在开发机跨平台编译。
+func sendSignal(pid int, sig syscall.Signal) error {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return proc.Signal(sig)
+}
+
+func formatProcessBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}

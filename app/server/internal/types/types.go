@@ -118,6 +118,14 @@ type CleanLogResult struct {
 	Errors  []string `json:"errors,omitempty"`
 }
 
+// RecycleCleanResult represents the result of moving leftover directories of
+// uninstalled apps into the recycle bin.
+type RecycleCleanResult struct {
+	Moved  int      `json:"moved"`
+	Dirs   []string `json:"dirs,omitempty"`
+	Errors []string `json:"errors,omitempty"`
+}
+
 // DockerContainer represents a Docker container.
 type DockerContainer struct {
 	Name   string `json:"name"`

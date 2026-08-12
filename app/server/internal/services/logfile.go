@@ -497,6 +497,81 @@ func GetLogStats() (types.LogStats, error) {
 	return stats, nil
 }
 
+// ReadLogFileAt reads content from a log file WITHOUT restricting to LogDirs.
+// Caller MUST have already validated the path (e.g. verified it is a regular file
+// opened by a process via /proc/<pid>/fd). Performs symlink and regular-file checks.
+func ReadLogFileAt(filePath string, options types.ReadLogOptions) (types.ReadLogResult, error) {
+	normalizedPath := utils.SafePath(filePath)
+	if normalizedPath == "" {
+		return types.ReadLogResult{}, fmt.Errorf("不允许访问此文件")
+	}
+	// 拒绝符号链接，防止指向任意文件
+	if utils.IsSymlinkPath(normalizedPath) {
+		return types.ReadLogResult{}, fmt.Errorf("不允许通过符号链接读取")
+	}
+
+	info, err := os.Stat(normalizedPath)
+	if err != nil {
+		return types.ReadLogResult{}, err
+	}
+	if !info.Mode().IsRegular() {
+		return types.ReadLogResult{}, fmt.Errorf("不是有效的常规文件")
+	}
+
+	maxLines := options.MaxLines
+	if maxLines <= 0 {
+		maxLines = config.Get().LogFile.MaxPreviewLines
+	}
+	maxPreviewBytes := config.Get().LogFile.MaxPreviewBytes
+
+	// Small file: read entirely into memory
+	if info.Size() <= maxPreviewBytes {
+		data, err := os.ReadFile(normalizedPath)
+		if err != nil {
+			return types.ReadLogResult{}, err
+		}
+
+		content := string(data)
+		allLines := strings.Split(content, "\n")
+		totalLines := len(allLines)
+
+		var selectedLines []string
+		var truncated bool
+
+		if options.Tail {
+			start := 0
+			if totalLines > maxLines {
+				start = totalLines - maxLines
+				truncated = true
+			}
+			selectedLines = allLines[start:]
+		} else {
+			end := options.Offset + maxLines
+			if end > totalLines {
+				end = totalLines
+			}
+			if options.Offset < totalLines {
+				selectedLines = allLines[options.Offset:end]
+			}
+			if end < totalLines {
+				truncated = true
+			}
+		}
+
+		return types.ReadLogResult{
+			Content:       utils.FilterSensitiveInfo(strings.Join(selectedLines, "\n")),
+			TotalLines:    totalLines,
+			Size:          info.Size(),
+			SizeFormatted: utils.FormatBytes(info.Size()),
+			Truncated:     truncated,
+			HasMore:       truncated,
+		}, nil
+	}
+
+	// Large file: stream read
+	return readLargeFileStreaming(normalizedPath, options, info.Size())
+}
+
 // ReadLogFile reads content from a log file.
 func ReadLogFile(filePath string, options types.ReadLogOptions) (types.ReadLogResult, error) {
 	normalizedPath := utils.SafePath(filePath)

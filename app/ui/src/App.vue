@@ -50,7 +50,7 @@
       @list-logs="listLogs"
       @show-search="showSearchModal = true"
       @show-clean="showCleanModal = true"
-      @clean-empty-dirs="cleanEmptyDirs"
+      @show-uninstalled-clean="showUninstalledCleanModal = true"
       @backup="backupLogs"
       @list-archives="listArchives"
       @list-docker="listDockerContainers"
@@ -60,6 +60,7 @@
       @show-event-logger="showEventLogger = true"
       @show-auto-clean="showAutoClean = true"
       @show-kernel-modules="showKernelModules = true"
+      @show-processes="showProcesses = true"
     />
     
     <AppFooter />
@@ -101,6 +102,13 @@
       @execute="executeClean"
     />
     
+    <UninstalledCleanModal 
+      v-if="showUninstalledCleanModal"
+      @close="showUninstalledCleanModal = false"
+      @clean-empty="cleanEmptyDirs"
+      @clean-trash="cleanUninstalledDirs"
+    />
+    
     <SearchModal 
       v-if="showSearchModal"
       @close="showSearchModal = false"
@@ -139,6 +147,11 @@
       @close="showKernelModules = false"
     />
     
+    <ProcessPanel
+      v-if="showProcesses"
+      @close="showProcesses = false"
+    />
+    
     <ConfirmDialog ref="confirmDialog" />
   </div>
 </template>
@@ -159,6 +172,7 @@ import LogListCard from './components/LogListCard.vue'
 import AppFooter from './components/AppFooter.vue'
 import LogModal from './components/LogModal.vue'
 import CleanModal from './components/CleanModal.vue'
+import UninstalledCleanModal from './components/UninstalledCleanModal.vue'
 import SearchModal from './components/SearchModal.vue'
 import UpdateNotification from './components/UpdateNotification.vue'
 import SettingsModal from './components/SettingsModal.vue'
@@ -168,6 +182,7 @@ import NotificationPanel from './components/NotificationPanel.vue'
 import EventLoggerPanel from './components/EventLoggerPanel.vue'
 import AutoCleanPanel from './components/AutoCleanPanel.vue'
 import KernelModulePanel from './components/KernelModulePanel.vue'
+import ProcessPanel from './components/ProcessPanel.vue'
 
 const {
   stats,
@@ -178,6 +193,7 @@ const {
   filterEnabled,
   showLogModal,
   showCleanModal,
+  showUninstalledCleanModal,
   showSearchModal,
   logContent,
   logTitle,
@@ -210,6 +226,7 @@ const {
   switchTab,
   executeClean,
   cleanEmptyDirs,
+  cleanUninstalledDirs,
   exportLog,
   toggleFilter,
   checkForUpdates,
@@ -224,6 +241,7 @@ const showNotification = ref(false)
 const showEventLogger = ref(false)
 const showAutoClean = ref(false)
 const showKernelModules = ref(false)
+const showProcesses = ref(false)
 const loadingAllLines = ref(false)
 const bookmarks = ref([])
 

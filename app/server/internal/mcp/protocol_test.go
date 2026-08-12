@@ -66,7 +66,8 @@ func TestToolsListContainsCoreTools(t *testing.T) {
 		"list_dirs", "list_logs", "search_logs", "read_log", "tail_log",
 		"truncate_log", "delete_log", "clean_logs", "backup_logs",
 		"list_docker_containers", "get_docker_logs", "get_event_logs",
-		"list_kernels", "remove_kernel", "get_system_info", "get_audit_logs",
+		"list_kernels", "remove_kernel", "get_audit_logs",
+		"clean_uninstalled_dirs", "list_recycle_items", "restore_recycle_item",
 	} {
 		if !names[want] {
 			t.Errorf("missing tool %q", want)

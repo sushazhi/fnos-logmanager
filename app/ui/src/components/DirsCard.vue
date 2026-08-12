@@ -291,12 +291,27 @@ const allDirs = computed(() => {
 
 const displayedDirs = computed(() => {
   const dirs = allDirs.value
-  if (!dirs || dirs.length === 0) return []
-  
-  if (visibleDirs.value.length === 0) {
-    return dirs.filter(d => d && d.exists)
+
+  // 系统/后端目录：按可见性过滤
+  let baseDirs: Array<DirWithDisplay & { isCustom?: boolean }> = []
+  if (dirs && dirs.length > 0) {
+    baseDirs = dirs.filter(d =>
+      d && (visibleDirs.value.length === 0 ? d.exists : visibleDirs.value.includes(d.path))
+    ).map(d => ({ ...d, isCustom: false }))
   }
-  return dirs.filter(d => d && visibleDirs.value.includes(d.path))
+
+  // 合并自定义目录（设置面板添加的，来自 localStorage）
+  const customDirs_: Array<DirWithDisplay & { isCustom?: boolean }> = customDirs.value.map(d => ({
+    path: d.path,
+    displayName: d.displayPath || dirNames[d.path] || d.path,
+    displayPath: d.displayPath,
+    logCount: 0,
+    totalSize: '0B',
+    exists: true,
+    isCustom: true
+  }))
+
+  return [...baseDirs, ...customDirs_]
 })
 
 function toggleDir(path: string): void {

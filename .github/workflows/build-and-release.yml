@@ -113,7 +113,7 @@ jobs:
           # Inject version into build manifest (mirror build.ps1 manifest update)
           sed "s/^version[[:space:]]*=.*/version = ${APP_VERSION}/" manifest > build/manifest
 
-          for file in LICENSE ICON.PNG ICON_256.PNG; do
+          for file in ICON.PNG ICON_256.PNG; do
             if [ -f "$file" ]; then cp "$file" build/; fi
           done
 

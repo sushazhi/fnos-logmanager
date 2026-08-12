@@ -326,13 +326,15 @@ func (ns *NotificationStore) saveConfig() error {
 	return os.WriteFile(ns.configFilePath, data, 0600)
 }
 
-// saveHistory writes the current history to disk.
+// saveHistory writes the current history to disk. History may embed excerpts
+// of log content (which can contain sensitive data), so it is written with
+// owner-only permissions rather than world-readable 0644.
 func (ns *NotificationStore) saveHistory() error {
 	data, err := json.MarshalIndent(ns.history, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(ns.historyPath, data, 0644)
+	return os.WriteFile(ns.historyPath, data, 0600)
 }
 
 // ==================== Config Accessors ====================
