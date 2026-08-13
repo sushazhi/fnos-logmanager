@@ -297,15 +297,36 @@ MCP_APP_NAME=fnos-logmanager  # 可选，展示给 Agent 的名称
 
 - Go 1.26+
 - Node.js 24+
-- PowerShell (Windows) 或 Bash (Linux)
+- Python 3.7+（跨平台构建，推荐）
+- PowerShell (Windows) 可选
 
 ### 构建步骤
 
-```bash
-# Windows
-.\build.ps1 -Version 0.8.0
+跨平台构建脚本（推荐，Windows/Linux/macOS 通用，自动选择对应的 fnpack 工具）：
 
-# 或使用 GitHub Actions
+```bash
+# 使用 manifest 中的版本号
+python build.py
+
+# 指定版本号
+python build.py --version 0.8.0
+
+# 跳过 Vue 构建（仅重新编译 Go 服务 + 打包）
+python build.py --skip-vue
+
+# 强制重新下载所有依赖
+python build.py --force
+```
+
+Windows 下也可使用 PowerShell 脚本：
+
+```powershell
+.\build.ps1 -Version 0.8.0
+```
+
+或使用 GitHub Actions：
+
+```bash
 git tag v0.8.0
 git push --tags
 ```
@@ -364,7 +385,8 @@ git push --tags
 ├── wizard/                         # 安装向导
 ├── manifest                        # 应用清单
 ├── version.json                    # 版本信息
-├── build.ps1                       # 本地构建脚本
+├── build.py                        # 跨平台本地构建脚本（推荐）
+├── build.ps1                       # Windows 本地构建脚本
 ├── ICON.PNG
 └── ICON_256.PNG
 ```

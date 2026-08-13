@@ -22,10 +22,7 @@ export const useStatusStore = defineStore('status', () => {
   }
 
   async function confirm(options: ConfirmOptions): Promise<boolean> {
-    if (!confirmFn) {
-      return window.confirm(options.message || String(options))
-    }
-    return confirmFn({
+    return confirmFn!({
       title: options.title || '确认',
       message: options.message || '',
       type: options.type || 'warning',

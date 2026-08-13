@@ -10,7 +10,12 @@ const DIR_NAMES: Record<string, string> = {
   '/vol1/@apphome': '@apphome',
   '/vol1/@apptemp': '@apptemp',
   '/vol1/@appshare': '@appshare',
-  '/var/log/apps': '/var/log/apps'
+  '/var/log/apps': '/var/log/apps',
+  '/var/log/trim_app_center': '应用中心',
+  '/var/log/trim-connect': '连接服务',
+  '/var/log/trim_open_gateway': '开放网关',
+  '/var/log/accountsrv': '账号服务',
+  '/var/log/updatemgr': '更新管理'
 }
 
 export const useDirsStore = defineStore('dirs', () => {

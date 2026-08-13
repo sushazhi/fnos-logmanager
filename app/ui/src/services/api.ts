@@ -431,6 +431,9 @@ export interface ProcessItem {
   ports: number[]
   protect: boolean
   system: boolean
+  isDocker?: boolean
+  containerId?: string
+  containerName?: string
 }
 
 export interface ProcessesResponse {

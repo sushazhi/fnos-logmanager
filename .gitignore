@@ -34,6 +34,13 @@ npm-debug.log*
 .cache/
 .parcel-cache/
 
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
 # Other package managers
 pnpm-lock.yaml
 

@@ -37,6 +37,9 @@ type processInfo struct {
 	Ports       []int    `json:"ports"` // 监听端口
 	Protect     bool     `json:"protect"` // 受保护进程，禁止结束
 	System      bool     `json:"system"`  // 系统级进程（内核线程/无用户态命令行）
+	IsDocker      bool   `json:"isDocker"` // 是否为 docker 容器进程
+	ContainerID   string `json:"containerId,omitempty"`   // docker 容器短 ID（若可解析）
+	ContainerName string `json:"containerName,omitempty"` // docker 容器名称（若可解析）
 }
 
 // RegisterProcessRoutes registers process-management routes.
@@ -276,6 +279,8 @@ func readProcesses() ([]processInfo, error) {
 	portByInode := readListenPorts()
 	uidMap := loadUIDMap()
 	sysJiffies := readSystemJiffies()
+	// 容器 ID -> 名称 映射（用于给 docker 进程标注容器名）
+	containerNameByID := loadDockerContainerNames()
 
 	procs := make([]processInfo, 0, len(entries))
 	for _, e := range entries {
@@ -294,6 +299,7 @@ func readProcesses() ([]processInfo, error) {
 		// 系统进程：内核线程（comm 以 [ 开头）或无用户态命令行（cmdline 为空）
 		isKernelThread := strings.HasPrefix(comm, "[")
 		isSystem := isKernelThread || (cmdline == "" && pid > 1)
+		isDocker, containerID := detectDockerProcess(pid)
 
 		p := processInfo{
 			PID:       pid,
@@ -304,9 +310,12 @@ func readProcesses() ([]processInfo, error) {
 			Command:   cmdline,
 			StartTime: readProcStartTime(st.startTicks),
 			CPU:       computeCPUUsage(pid, comm, st.utime, st.stime, sysJiffies),
-			Protect:   isProtectedPID(pid),
-			System:    isSystem,
-		}
+			Protect:       isProtectedPID(pid),
+			System:        isSystem,
+			IsDocker:      isDocker,
+			ContainerID:   containerID,
+			ContainerName: containerNameByID[containerID],
+			}
 
 		p.Memory, p.MemBytes = readProcMemory(pid)
 
@@ -320,6 +329,158 @@ func readProcesses() ([]processInfo, error) {
 	}
 
 	return procs, nil
+}
+
+// 容器名映射缓存：进程列表接口可能被频繁刷新，每次执行 `docker ps` 会产生系统调用
+// 开销并可能拖慢接口（docker daemon 无响应时）。用一个短 TTL 缓存复用结果。
+var (
+	containerNameCache     map[string]string
+	containerNameCacheAt   time.Time
+	containerNameCacheMu   sync.Mutex
+	containerNameCacheTTL  = 30 * time.Second
+)
+
+// loadDockerContainerNames 通过 `docker ps` 构建 容器短ID -> 容器名 的映射。
+// 供进程管理给 docker 容器进程标注容器名。失败时返回空映射（不影响进程列表本身）。
+func loadDockerContainerNames() map[string]string {
+	containerNameCacheMu.Lock()
+	defer containerNameCacheMu.Unlock()
+
+	// 缓存命中（TTL 内）直接复用
+	if containerNameCache != nil && time.Since(containerNameCacheAt) < containerNameCacheTTL {
+		return containerNameCache
+	}
+
+	// docker 命令参数固定（无用户输入），不会产生命令注入。
+	// 使用固定的短超时与输出上限，避免异常时拖慢进程列表接口。
+	stdout, err := execDocker([]string{"ps", "--format", "{{.ID}}\t{{.Names}}", "--no-trunc"}, 3000, 65536)
+	if err != nil {
+		// docker 不可用时返回空映射，进程列表仍正常返回
+		return map[string]string{}
+	}
+	m := buildContainerNameMap(stdout)
+	containerNameCache = m
+	containerNameCacheAt = time.Now()
+	return m
+}
+
+// buildContainerNameMap 解析 `docker ps --format '{{.ID}}\t{{.Names}}'` 的输出，
+// 构建 完整ID -> 名称 与 短ID(前12位) -> 名称 两个键的映射，便于按短ID反查容器名。
+func buildContainerNameMap(stdout string) map[string]string {
+	m := make(map[string]string)
+	for _, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		fullID := strings.TrimSpace(parts[0])
+		name := strings.TrimSpace(parts[1])
+		// 去掉容器名常见的 "/" 前缀（docker 命名约定）
+		name = strings.TrimPrefix(name, "/")
+		if len(fullID) >= 12 && name != "" {
+			m[fullID] = name
+			m[fullID[:12]] = name
+		}
+	}
+	return m
+}
+
+// detectDockerProcess 通过 /proc/<pid>/cgroup 判断进程是否属于 docker 容器。
+// 返回是否容器进程，以及解析出的容器短 ID（若非容器则 ID 为空）。
+//
+// 覆盖 fnOS / 主流 Docker 系统的常见 cgroup 命名方式：
+//   - cgroup v2 + systemd 驱动:  /system.slice/docker-<64位ID>.scope   （fnOS 实测）
+//   - cgroup v1 经典路径:        /docker/<64位ID>/...                 （Docker 经典）
+//   - containerd runc:           /containerd/<ns>-<64位ID>.scope/...
+//
+// 容器 ID 取完整 64 位 ID 的前 12 位（与 docker ps 显示的短 ID 一致）。
+func detectDockerProcess(pid int) (bool, string) {
+	data := readFileString(fmt.Sprintf("/proc/%d/cgroup", pid))
+	if data == "" {
+		return false, ""
+	}
+
+	// 遍历 cgroup 的每一行（同一进程可能挂在多个子系统下）
+	for _, line := range strings.Split(data, "\n") {
+		if isD, id := detectDockerFromCgroupLine(line); isD {
+			return true, id
+		}
+	}
+
+	return false, ""
+}
+
+// detectDockerFromCgroupLine 对 cgroup 单行内容执行 docker 容器判定。
+// 独立出来以便用真实 cgroup 内容做单元测试。
+func detectDockerFromCgroupLine(line string) (bool, string) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return false, ""
+	}
+
+	// 模式 1: systemd 驱动（cgroup v2）: docker-<64位ID>.scope
+	// 路径形如 /system.slice/docker-fce8...a873.scope，不含 /docker/ 分隔符。
+	// 注意：宿主 dockerd 进程 cgroup 是 /system.slice/docker.service，其
+	// "docker-" 后是 "service" 非 64 位 hex，extractDockerID 会返回空，不会误判。
+	if idx := strings.Index(line, "docker-"); idx >= 0 {
+		rest := line[idx+len("docker-"):]
+		if containerID := extractDockerID(rest); containerID != "" {
+			return true, containerID
+		}
+	}
+
+	// 模式 2: .../docker/<64位ID>/... （Docker cgroup v1 经典路径）
+	if idx := strings.Index(line, "/docker/"); idx >= 0 {
+		rest := line[idx+len("/docker/"):]
+		if containerID := extractDockerID(rest); containerID != "" {
+			return true, containerID
+		}
+	}
+
+	// 模式 3: .../containerd/<namespace>-<ID>.scope/... （containerd runc 运行时）
+	if idx := strings.Index(line, "/containerd/"); idx >= 0 {
+		rest := line[idx+len("/containerd/"):]
+		if containerID := extractDockerID(rest); containerID != "" {
+			return true, containerID
+		}
+	}
+
+	return false, ""
+}
+
+// extractDockerID 从 cgroup 路径片段中提取容器 ID（64 位十六进制，取前 12 位）。
+// 兼容 "1234567890ab..."（docker 直接路径）与 "docker-1234567890ab.scope" 等形式。
+func extractDockerID(s string) string {
+	s = strings.TrimPrefix(s, "/")
+	// 去掉后缀 .scope / 后续路径
+	if idx := strings.Index(s, ".scope"); idx >= 0 {
+		s = s[:idx]
+	}
+	if idx := strings.Index(s, "/"); idx >= 0 {
+		s = s[:idx]
+	}
+	// 去掉可能的 "docker-" 前缀（systemd scope 形式）
+	s = strings.TrimPrefix(s, "docker-")
+	s = strings.TrimSpace(s)
+
+	// 判断是否为 64 位十六进制 ID
+	if len(s) >= 64 {
+		valid := true
+		for _, r := range s[:64] {
+			if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+				valid = false
+				break
+			}
+		}
+		if valid {
+			return s[:12]
+		}
+	}
+	return ""
 }
 
 // procStatFields 为单次读取 /proc/pid/stat 的解析结果。

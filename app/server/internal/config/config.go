@@ -278,6 +278,12 @@ func loadConfig() *Config {
 			"/vol1/@apptemp",
 			"/vol1/@appshare",
 			"/var/log/apps",
+			// fnOS 系统服务散落日志（root 私有，logmanager 以 root 运行可读）
+			"/var/log/trim_app_center", // 应用中心
+			"/var/log/trim-connect",     // 连接/代理服务
+			"/var/log/trim_open_gateway", // 开放平台网关
+			"/var/log/accountsrv",        // 账号服务
+			"/var/log/updatemgr",         // 系统更新管理
 		},
 		EventLogger: EventLoggerConfig{
 			DBPath:        getEnvOrDefault("EVENTLOGGER_DB_PATH", "/usr/trim/var/eventlogger_service/logger_data.db3"),

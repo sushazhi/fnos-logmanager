@@ -28,6 +28,23 @@
             <button class="search-btn" @click="loadProcesses()" :disabled="loading">搜索</button>
           </div>
           <div class="toolbar-actions">
+            <div class="mobile-sort" v-if="isMobile">
+              <select
+                v-model="mobileSortValue"
+                @change="applyMobileSort()"
+                class="sort-select"
+                title="排序"
+              >
+                <option value="cpu-desc">CPU 从高到低</option>
+                <option value="cpu-asc">CPU 从低到高</option>
+                <option value="mem-desc">内存从高到低</option>
+                <option value="mem-asc">内存从低到高</option>
+                <option value="pid-asc">PID 从小到大</option>
+                <option value="pid-desc">PID 从大到小</option>
+                <option value="name-asc">名称 A→Z</option>
+                <option value="name-desc">名称 Z→A</option>
+              </select>
+            </div>
             <label class="scope-toggle" title="只显示用户进程（服务），隐藏系统底层进程">
               <input type="checkbox" v-model="userOnly" @change="loadProcesses()" />
               <span>仅用户进程</span>
@@ -68,6 +85,7 @@
               <span class="col-name">
                 <span class="proc-name" :title="p.command || p.exePath || p.name">{{ p.name || '-' }}</span>
                 <span v-if="p.protect" class="protect-badge" title="受保护进程，不可结束">🔒</span>
+                <span v-if="p.isDocker" class="docker-badge" :title="'Docker 容器进程' + (p.containerName ? '：' + p.containerName : '')">🐳 {{ p.containerName || 'Docker' }}</span>
               </span>
               <span class="col-pid"><code class="pid">{{ p.pid }}</code></span>
               <span class="col-user">{{ p.user || '-' }}</span>
@@ -199,6 +217,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { processApi, type ProcessItem, type ProcessSortKey, type ProcessFile, type ProcessLogResult } from '../services/api'
+import { useStore } from '../composables/useStore'
+
+const { confirm } = useStore()
 
 const emit = defineEmits<{
   close: []
@@ -218,6 +239,26 @@ const userOnly = ref(true) // 默认只显示用户进程/服务
 const sortKey = ref<ProcessSortKey>('cpu')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 const showAll = ref(false)
+const isMobile = ref(window.matchMedia('(max-width: 768px)').matches)
+const mobileSortValue = ref('cpu-desc')
+
+const mobileSortOptions: Record<string, [ProcessSortKey, 'asc' | 'desc']> = {
+  'cpu-desc': ['cpu', 'desc'],
+  'cpu-asc': ['cpu', 'asc'],
+  'mem-desc': ['mem', 'desc'],
+  'mem-asc': ['mem', 'asc'],
+  'pid-asc': ['pid', 'asc'],
+  'pid-desc': ['pid', 'desc'],
+  'name-asc': ['name', 'asc'],
+  'name-desc': ['name', 'desc'],
+}
+
+function applyMobileSort() {
+  const [key, order] = mobileSortOptions[mobileSortValue.value] || ['cpu', 'desc']
+  sortKey.value = key
+  sortOrder.value = order
+  loadProcesses()
+}
 
 const displayedProcesses = computed(() =>
   showAll.value || processes.value.length <= DISPLAY_LIMIT
@@ -411,9 +452,12 @@ function formatCpu(cpu: number): string {
 }
 
 async function killProcess(proc: ProcessItem) {
-  const confirmed = window.confirm(
-    `确定要结束进程吗？\n\n进程名: ${proc.name || '未知'}\nPID: ${proc.pid}\n命令行: ${proc.command || proc.exePath || '未知'}\n\n结束进程后该程序将被终止，且无法恢复。`
-  )
+  const confirmed = await confirm({
+    title: '结束进程',
+    message: `确定要结束进程吗？\n\n进程名: ${proc.name || '未知'}\nPID: ${proc.pid}\n命令行: ${proc.command || proc.exePath || '未知'}\n\n结束进程后该程序将被终止，且无法恢复。`,
+    type: 'danger',
+    confirmText: '结束'
+  })
   if (!confirmed) return
 
   killing.value = proc.pid
@@ -441,8 +485,22 @@ function stateClass(state: string): string {
   return 'default'
 }
 
+let mobileQuery: MediaQueryList
+let mobileQueryListener: (e: MediaQueryListEvent) => void
+
 onMounted(() => {
+  mobileQuery = window.matchMedia('(max-width: 768px)')
+  mobileQueryListener = (e) => {
+    isMobile.value = e.matches
+  }
+  mobileQuery.addEventListener('change', mobileQueryListener)
   loadProcesses()
+})
+
+onUnmounted(() => {
+  if (mobileQuery && mobileQueryListener) {
+    mobileQuery.removeEventListener('change', mobileQueryListener)
+  }
 })
 </script>
 
@@ -718,6 +776,7 @@ onMounted(() => {
   align-items: center;
   gap: var(--spacing-xs);
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .proc-name {
@@ -732,6 +791,21 @@ onMounted(() => {
 .protect-badge {
   font-size: var(--font-size-sm);
   flex-shrink: 0;
+}
+
+.docker-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: var(--radius-2xs);
+  background: var(--info-bg);
+  border: 1px solid var(--info-color);
+  color: var(--info-color);
+  font-size: var(--font-size-2xs);
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .protected-text {
@@ -1200,6 +1274,21 @@ onMounted(() => {
   .toolbar-actions {
     justify-content: space-between;
     flex-wrap: wrap;
+  }
+
+  .mobile-sort {
+    width: 100%;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .sort-select {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    background: var(--bg-color-2);
+    color: var(--text-color-1);
+    font-size: var(--font-size-base);
   }
 
   .process-list-header {
