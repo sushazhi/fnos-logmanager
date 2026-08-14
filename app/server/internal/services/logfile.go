@@ -75,7 +75,32 @@ func extractAppNameFromPath(logPath string) string {
 	return ""
 }
 
+// ignoredLogDirs are directory names that never contain logs (package caches,
+// language virtual environments, build artifacts). Recursing into them wastes
+// time and surfaces non-log files (e.g. service-2.json.gz in a venv) as
+// "archive logs". Matched by directory name at any depth.
+var ignoredLogDirs = map[string]bool{
+	"venv":         true,
+	".venv":        true,
+	"node_modules": true,
+	"site-packages": true,
+	"__pycache__":  true,
+	".git":         true,
+	".cache":       true,
+	"dist":         true,
+	".npm":         true,
+	".pnpm-store":  true,
+}
+
+// isIgnoredLogDir reports whether a directory name should be skipped during
+// log scanning.
+func isIgnoredLogDir(name string) bool {
+	return ignoredLogDirs[name]
+}
+
 // findFiles recursively walks a directory and returns files matching the filter function.
+// Known non-log directories (venv, node_modules, site-packages, ...) are skipped
+// so package data files are never surfaced as logs or archive logs.
 func findFiles(dir string, filterFn func(string) bool, limit int) ([]string, error) {
 	var results []string
 
@@ -93,6 +118,10 @@ func findFiles(dir string, filterFn func(string) bool, limit int) ([]string, err
 		// Skip symlinks to prevent traversal outside the allowed directory tree
 		if info.Mode()&os.ModeSymlink != 0 {
 			return nil
+		}
+		// Skip known non-log directories to avoid scanning package caches
+		if info.IsDir() && isIgnoredLogDir(info.Name()) {
+			return filepath.SkipDir
 		}
 		if !info.IsDir() && filterFn(info.Name()) {
 			results = append(results, path)

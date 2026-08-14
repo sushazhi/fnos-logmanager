@@ -28,4 +28,4 @@ desktop_applaunchname = logmanager.Application
 # 启用前端 JS SDK 支持
 micro_app = true
 
-changelog = v0.8.0<br>1. 新增 Linux 内核版本管理功能<br>2. 通知规则支持 IP 白名单(白名单来源登录事件跳过推送)<br>3. 后端迁移至Go<br>4. 新增 MCP 服务器，支持AI Agent 接入管理日志<br>5. 新增进程管理功能<br>6. 新增清理已卸载应用残留目录改为移入回收站，支持还原（24小时自动清空）
+changelog = v0.8.0<br>1. 新增 Linux 内核版本管理功能<br>2. 通知规则支持 IP 白名单(白名单来源登录事件跳过推送)<br>3. 后端迁移至Go<br>4. 新增 MCP 服务器，支持AI Agent 接入管理日志<br>5. 新增进程管理功能<br>6. 新增清理已卸载应用残留目录改为移入回收站，支持还原（24小时自动清空）<br>7. 新增应用中心/连接服务/开放网关/账号服务/更新管理 5个系统服务日志目录
