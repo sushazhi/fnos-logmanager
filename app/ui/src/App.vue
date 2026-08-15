@@ -401,21 +401,39 @@ function loadSavedSettings() {
         root.style.setProperty('--base-font-size', `${settings.fontSize}px`)
       }
       
-      if (typeof settings.primaryColor === 'string' && validColorRegex.test(settings.primaryColor)) {
-        applyThemeColor(settings.primaryColor)
-      }
-      
+      // 先应用主题模式（dark-theme 类），再应用主题色，
+      // 确保 applyThemeColor 能读到正确的亮/暗模式并生成对应的卡片色
       if (settings.theme === 'dark' || settings.theme === 'light' || settings.theme === 'auto') {
         const isDark = settings.theme === 'dark' || 
           (settings.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
         if (isDark) {
           root.classList.add('dark-theme')
+        } else {
+          root.classList.remove('dark-theme')
         }
+      }
+      
+      if (typeof settings.primaryColor === 'string' && validColorRegex.test(settings.primaryColor)) {
+        applyThemeColor(settings.primaryColor)
       }
     }
   } catch (e) {
     console.warn('Failed to load settings:', e)
     localStorage.removeItem('logmanager_settings')
+  }
+}
+
+// 读取已保存的自定义主题色并重新应用（含亮/暗模式下的卡片色重算）
+function reapplySavedPrimaryColor() {
+  try {
+    const saved = localStorage.getItem('logmanager_settings')
+    if (!saved) return
+    const settings = JSON.parse(saved)
+    if (typeof settings.primaryColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(settings.primaryColor)) {
+      applyThemeColor(settings.primaryColor)
+    }
+  } catch {
+    // ignore
   }
 }
 
@@ -442,6 +460,8 @@ onMounted(async () => {
     } else {
       root.classList.remove('dark-theme')
     }
+    // 系统主题就绪后重新应用主题色，确保卡片色随亮/暗模式正确
+    reapplySavedPrimaryColor()
     try {
       localStorage.setItem('logmanager_lang', config.language || 'zh-CN')
     } catch { /* ignore */ }
@@ -460,6 +480,8 @@ onMounted(async () => {
     } else {
       root.classList.remove('dark-theme')
     }
+    // 重新应用主题色，使莫兰迪渐变卡片色随亮/暗模式重算（夜间深底/亮色浅底）
+    reapplySavedPrimaryColor()
   })
   
   // P3: Listen for fnOS language changes

@@ -62,8 +62,14 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-export function applyThemeColor(color: string): void {
+export function applyThemeColor(color: string, theme?: 'dark' | 'light'): void {
   const root = document.documentElement
+
+  // 未显式传入主题时，从 DOM 当前类推断（夜间模式会设置 dark-theme 类）
+  const isDark = theme
+    ? theme === 'dark'
+    : root.classList.contains('dark-theme')
+
   root.style.setProperty('--primary-color', color)
 
   const darkerColor = adjustColor(color, -20)
@@ -74,19 +80,32 @@ export function applyThemeColor(color: string): void {
   const hsl = hexToHSL(color)
   const hue = hsl.h
 
-  const card1Color = hslToHex((hue + 0) % 360, Math.min(hsl.s * 0.6, 60), Math.max(hsl.l, 50))
-  const card2Color = hslToHex((hue + 60) % 360, Math.min(hsl.s * 0.6, 60), Math.max(hsl.l, 50))
-  const card3Color = hslToHex((hue + 120) % 360, Math.min(hsl.s * 0.6, 60), Math.max(hsl.l, 50))
-  const card4Color = hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.6, 60), Math.max(hsl.l, 50))
+  // 卡片基础亮度：
+  //  - 亮色模式：保持原有莫兰迪浅色（>=50%），白色文字
+  //  - 夜间模式：使用较深底色（<=34%），保证白色文字清晰可读
+  const baseLight = isDark ? Math.min(hsl.l, 34) : Math.max(hsl.l, 50)
+  const lightOffset = isDark ? 8 : 10
+
+  const card1Color = hslToHex((hue + 0) % 360, Math.min(hsl.s * 0.6, 60), baseLight)
+  const card2Color = hslToHex((hue + 60) % 360, Math.min(hsl.s * 0.6, 60), baseLight)
+  const card3Color = hslToHex((hue + 120) % 360, Math.min(hsl.s * 0.6, 60), baseLight)
+  const card4Color = hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.6, 60), baseLight)
 
   root.style.setProperty('--card-color-1', card1Color)
-  root.style.setProperty('--card-color-1-light', hslToHex((hue + 0) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+  root.style.setProperty('--card-color-1-light', hslToHex((hue + 0) % 360, Math.min(hsl.s * 0.5, 50), Math.min(baseLight + lightOffset, 60)))
   root.style.setProperty('--card-color-2', card2Color)
-  root.style.setProperty('--card-color-2-light', hslToHex((hue + 60) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+  root.style.setProperty('--card-color-2-light', hslToHex((hue + 60) % 360, Math.min(hsl.s * 0.5, 50), Math.min(baseLight + lightOffset, 60)))
   root.style.setProperty('--card-color-3', card3Color)
-  root.style.setProperty('--card-color-3-light', hslToHex((hue + 120) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+  root.style.setProperty('--card-color-3-light', hslToHex((hue + 120) % 360, Math.min(hsl.s * 0.5, 50), Math.min(baseLight + lightOffset, 60)))
   root.style.setProperty('--card-color-4', card4Color)
-  root.style.setProperty('--card-color-4-light', hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.5, 50), Math.max(hsl.l + 10, 60)))
+  root.style.setProperty('--card-color-4-light', hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.5, 50), Math.min(baseLight + lightOffset, 60)))
+
+  // 夜间模式（深底）下，渐变卡片文字保持白色；亮色模式移除 inline 覆盖，回落到 CSS 默认
+  if (isDark) {
+    root.style.setProperty('--text-color-on-primary', '#FFFFFF')
+  } else {
+    root.style.removeProperty('--text-color-on-primary')
+  }
 
   // 鸿蒙 7.0 动态光效：主色辉光跟随用户主题色
   const glow = hexToRgba(color, 0.35)

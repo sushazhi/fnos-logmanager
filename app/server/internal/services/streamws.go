@@ -642,12 +642,26 @@ func CloseDockerStreamWS() {
 func authenticateWS(r *http.Request, clientIP string, path string) bool {
 	if config.IsGatewayMode() {
 		uid := r.Header.Get("X-Trim-Userid")
-		if uid != "" {
+		// The X-Trim-Userid header is only trustworthy when the connection
+		// genuinely comes from the local gateway proxy (loopback). Otherwise
+		// a remote client could forge the header and impersonate any user,
+		// exactly as the HTTP-side ValidateToken middleware enforces.
+		if uid != "" && utils.IsLoopbackAddr(r.RemoteAddr) {
 			// Gateway handles auth; reuse a per-user session to avoid
 			// unbounded session growth on every WS reconnect.
 			GetOrCreateUserSession(uid)
 			return true
 		}
+		if uid != "" {
+			AddAuditLog("auth_failed", map[string]interface{}{
+				"path":       path,
+				"clientIP":   clientIP,
+				"ws":         true,
+				"reason":     "x-trim-userid from non-loopback",
+				"remoteAddr": r.RemoteAddr,
+			}, nil)
+		}
+		// Fall through to token validation for legitimate remote clients.
 	}
 
 	token := getSessionToken(r)

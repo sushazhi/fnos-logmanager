@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sushazhi/fnos-logmanager/internal/config"
+	"github.com/sushazhi/fnos-logmanager/internal/middleware"
 	"github.com/sushazhi/fnos-logmanager/internal/services"
 )
 
@@ -27,9 +28,13 @@ type mcpConfigResponse struct {
 }
 
 // registerMCPConfigRoutes mounts the MCP configuration management endpoints.
+// These endpoints manage the MCP API key and independent listener port, so they
+// must be protected like other sensitive configuration endpoints:
+//   - GET requires an authenticated session
+//   - PUT additionally requires admin privileges and CSRF validation
 func registerMCPConfigRoutes(api *gin.RouterGroup) {
-	api.GET("/mcp/config", getMCPConfig)
-	api.PUT("/mcp/config", saveMCPConfig)
+	api.GET("/mcp/config", middleware.ValidateToken, getMCPConfig)
+	api.PUT("/mcp/config", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, saveMCPConfig)
 }
 
 // getMCPConfig returns the effective MCP configuration. The API key is masked.

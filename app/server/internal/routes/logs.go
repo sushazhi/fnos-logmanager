@@ -185,7 +185,10 @@ func getDirsHandler(c *gin.Context) {
 	// Admins see all directories (default + custom) without ACL filtering, so
 	// they can manage system log dirs. Non-admins still get ACL filtering for
 	// custom/user dirs.
-	isAdmin := c.GetHeader("x-trim-isadmin") == "true"
+	// Only trust the admin header when the request comes from the local gateway
+	// (loopback). A remote client must not be able to forge x-trim-isadmin to
+	// widen the directory list it can see.
+	isAdmin := c.GetHeader("x-trim-isadmin") == "true" && utils.IsLoopbackAddr(c.Request.RemoteAddr)
 	if uid != "" && !isAdmin {
 		// Build the set of default dirs that must always remain visible.
 		defaultSet := make(map[string]bool, len(config.Get().LogDirs))

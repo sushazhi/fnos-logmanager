@@ -72,8 +72,26 @@ func (h *NotifyHub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	sessionToken := getSessionToken(r)
 	isGatewayMode := config.IsGatewayMode()
 
-	if !isGatewayMode {
-		if sessionToken == "" || !ValidateSession(sessionToken) {
+	// In gateway mode the fnOS gateway injects X-Trim-Userid for authenticated
+	// users. This header is only trustworthy when the connection genuinely comes
+	// from the local gateway proxy (loopback); otherwise a remote client could
+	// forge it to bypass authentication, matching the HTTP-side ValidateToken.
+	if isGatewayMode {
+		uid := r.Header.Get("X-Trim-Userid")
+		if uid != "" && utils.IsLoopbackAddr(r.RemoteAddr) {
+			// Gateway authenticated the user; proceed without further checks.
+		} else if uid != "" {
+			AddAuditLog("auth_failed", map[string]interface{}{
+				"path":       r.URL.Path,
+				"clientIP":   clientIP,
+				"ws":         true,
+				"reason":     "x-trim-userid from non-loopback",
+				"remoteAddr": r.RemoteAddr,
+			}, nil)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		} else if sessionToken == "" || !ValidateSession(sessionToken) {
+			// No gateway header — fall back to validating the session token.
 			AddAuditLog("auth_failed", map[string]interface{}{
 				"path":     r.URL.Path,
 				"clientIP": clientIP,
@@ -82,6 +100,14 @@ func (h *NotifyHub) ServeWS(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+	} else if sessionToken == "" || !ValidateSession(sessionToken) {
+		AddAuditLog("auth_failed", map[string]interface{}{
+			"path":     r.URL.Path,
+			"clientIP": clientIP,
+			"ws":       true,
+		}, nil)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)
