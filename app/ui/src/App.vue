@@ -208,6 +208,7 @@ const {
   listType,
   appVersion,
   loadFilterStatus,
+  loadDirs,
   refreshAll,
   selectDir,
   listLogs,
@@ -329,6 +330,7 @@ async function handleLogModalTruncate() {
   if (ok) {
     const logsStore = useLogsStore()
     await logsStore.reloadActiveTab()
+    loadDirs()
   }
 }
 
