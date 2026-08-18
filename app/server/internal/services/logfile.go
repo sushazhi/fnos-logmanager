@@ -22,7 +22,9 @@ import (
 
 // Log extensions to consider as log files
 var logExtensions = []string{".log"}
-var archiveExtensions = []string{".gz", ".bz2", ".xz", ".zip", ".tar", ".tar.gz", ".tar.bz2", ".tar.xz", ".7z", ".rar"}
+// FIX(bug 34): include .tgz so compressed tarballs are recognized by
+// isArchiveFile (readArchiveContent already handles them).
+var archiveExtensions = []string{".gz", ".bz2", ".xz", ".zip", ".tar", ".tgz", ".tar.gz", ".tar.bz2", ".tar.xz", ".7z", ".rar"}
 
 // Installed apps cache
 var (
@@ -54,7 +56,13 @@ func extractAppNameFromPath(logPath string) string {
 	if strings.HasPrefix(logPath, "/var/log/apps/") {
 		rest := strings.TrimPrefix(logPath, "/var/log/apps/")
 		appName := strings.Split(rest, "/")[0]
-		re := regexp.MustCompile(`\.log(-\d{8})?(\.\d+)?\.(gz|bz2|xz|zip|tar(\.gz|\.bz2|\.xz)?|7z|rar)$`)
+		// FIX(bug 12): rotated-but-not-yet-archived logs (nginx.log.1,
+		// nginx.log-20240101, nginx.log.20240101) must strip their rotation
+		// suffix too, otherwise the app name stays "nginx.log.1", is never in
+		// the installed set, and CleanUninstalledLogs deletes the logs of an
+		// INSTALLED app. Match an optional archive extension AND/OR a rotation
+		// number/date suffix.
+		re := regexp.MustCompile(`\.log(-?\d{8})?((-|\.)\d+)?(\.(gz|bz2|xz|zip|tar(\.gz|\.bz2|\.xz)?|7z|rar))?$`)
 		appName = re.ReplaceAllString(appName, "")
 		appName = strings.TrimSuffix(appName, ".log")
 		if appName != "" {
@@ -101,6 +109,18 @@ func isIgnoredLogDir(name string) bool {
 // findFiles recursively walks a directory and returns files matching the filter function.
 // Known non-log directories (venv, node_modules, site-packages, ...) are skipped
 // so package data files are never surfaced as logs or archive logs.
+//
+// FIX(bug 11): the previous implementation returned filepath.SkipDir as soon as
+// len(results) reached `limit`, which — because the walk is depth-first in
+// lexicographic order — only ever returned the FIRST `limit` files alphabetically
+// and never descended into later subdirs. Callers then sorted by ModTime and
+// truncated, so the NEWEST logs (often in lexicographically-later paths) could
+// be permanently missing from List/Search/Stats/Clean. Walk the entire tree now
+// (bounded only by a generous hard cap to prevent OOM on pathological trees);
+// callers that care about recency sort by ModTime before truncating, so the
+// newest files are always included.
+const findFilesHardCap = 100000
+
 func findFiles(dir string, filterFn func(string) bool, limit int) ([]string, error) {
 	var results []string
 
@@ -112,9 +132,6 @@ func findFiles(dir string, filterFn func(string) bool, limit int) ([]string, err
 			}
 			return err
 		}
-		if len(results) >= limit {
-			return filepath.SkipDir
-		}
 		// Skip symlinks to prevent traversal outside the allowed directory tree
 		if info.Mode()&os.ModeSymlink != 0 {
 			return nil
@@ -125,14 +142,20 @@ func findFiles(dir string, filterFn func(string) bool, limit int) ([]string, err
 		}
 		if !info.IsDir() && filterFn(info.Name()) {
 			results = append(results, path)
+			// Hard safety cap: stop collecting once we exceed it. This is far
+			// above any real log count and only guards against unbounded memory
+			// from a pathological directory tree.
+			if len(results) >= findFilesHardCap {
+				return filepath.SkipDir
+			}
 		}
 		return nil
 	})
 
 	if err != nil {
-		return results[:min(len(results), limit)], nil
+		return results, nil
 	}
-	return results[:min(len(results), limit)], nil
+	return results, nil
 }
 
 // getInstalledApps returns the list of installed apps, with caching.
@@ -154,10 +177,13 @@ func getInstalledApps() ([]string, error) {
 
 	apps, err := execAppcenterList()
 	if err != nil {
+		// FIX(bug 3): never cache an empty list on failure. Caching []string{}
+		// here made CleanUninstalledLogs treat every log-bearing app as
+		// "uninstalled" and delete all their logs, and made ListLogFiles report
+		// CanDelete=true for everything. Return the error and keep the stale
+		// cache (if any) so callers abort safely instead of acting on wrong data.
 		slog.Warn("failed to get installed apps from appcenter-cli", "error", err)
-		cachedInstalledApps = []string{}
-		installedAppsCacheAt = time.Now()
-		return cachedInstalledApps, nil
+		return nil, err
 	}
 
 	cachedInstalledApps = apps
@@ -252,7 +278,11 @@ func ListLogFiles(dir string, limit int) ([]types.LogFile, error) {
 	}
 
 	var results []types.LogFile
-	installedApps, _ := getInstalledApps()
+	// FIX(bug 3): if we cannot determine the installed-app set (appcenter-cli
+	// error), treat every app-named log as NOT deletable (canDelete=false) rather
+	// than deleting all of them. Empty installedSet would otherwise make every
+	// app-named file look uninstalled and surface a delete button everywhere.
+	installedApps, installedErr := getInstalledApps()
 	installedSet := make(map[string]bool)
 	for _, app := range installedApps {
 		installedSet[app] = true
@@ -283,7 +313,7 @@ func ListLogFiles(dir string, limit int) ([]types.LogFile, error) {
 
 			appName := extractAppNameFromPath(file)
 			canDelete := false
-			if appName != "" {
+			if appName != "" && installedErr == nil {
 				canDelete = !installedSet[appName]
 			}
 
@@ -562,7 +592,11 @@ func ReadLogFileAt(filePath string, options types.ReadLogOptions) (types.ReadLog
 
 		content := string(data)
 		allLines := strings.Split(content, "\n")
-		totalLines := len(allLines)
+		// FIX(bug 21): report a line count consistent with the streaming path.
+		// strings.Split includes a phantom trailing empty element when the file
+		// ends with "\n" (e.g. "a\nb\n" -> ["a","b",""]), and an empty file counts
+		// as 1. Normalize so empty file = 0 and a trailing newline is not a line.
+		totalLines := countLinesInContent(content)
 
 		var selectedLines []string
 		var truncated bool
@@ -601,6 +635,20 @@ func ReadLogFileAt(filePath string, options types.ReadLogOptions) (types.ReadLog
 	return readLargeFileStreaming(normalizedPath, options, info.Size())
 }
 
+// countLinesInContent returns the number of lines in a string, where an empty
+// string is 0 lines and a trailing newline does not create an extra line.
+// Used to keep the small-file and streaming line counts identical.
+func countLinesInContent(s string) int {
+	if s == "" {
+		return 0
+	}
+	n := strings.Count(s, "\n")
+	if !strings.HasSuffix(s, "\n") {
+		n++
+	}
+	return n
+}
+
 // ReadLogFile reads content from a log file.
 func ReadLogFile(filePath string, options types.ReadLogOptions) (types.ReadLogResult, error) {
 	normalizedPath := utils.SafePath(filePath)
@@ -631,7 +679,7 @@ func ReadLogFile(filePath string, options types.ReadLogOptions) (types.ReadLogRe
 
 		content := string(data)
 		allLines := strings.Split(content, "\n")
-		totalLines := len(allLines)
+		totalLines := countLinesInContent(content)
 
 		var selectedLines []string
 		var truncated bool
@@ -682,32 +730,39 @@ func readLargeFileStreaming(filePath string, options types.ReadLogOptions, fileS
 	}
 	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	// Increase buffer for long lines
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	// FIX(bug 20): bufio.Scanner hard-caps a single line at its max buffer
+	// (1 MiB); an over-long line makes Scan() return false (ErrTooLong) and the
+	// loop stops, silently dropping every line AFTER it — which, for tail, is
+	// exactly the newest data. Switch to bufio.Reader.ReadString('\n') which
+	// streams arbitrarily long lines without a cap.
+	reader := bufio.NewReader(f)
 
 	totalLines := 0
 	var lineBuffer []string
 	maxBuf := maxLines
 
-	for scanner.Scan() {
-		totalLines++
-		line := scanner.Text()
-
-		if options.Tail {
-			lineBuffer = append(lineBuffer, line)
-			if len(lineBuffer) > maxBuf {
-				lineBuffer = lineBuffer[1:]
-			}
-		} else {
-			if totalLines > options.Offset && len(lineBuffer) < maxBuf {
-				lineBuffer = append(lineBuffer, line)
+	for {
+		line, err := reader.ReadString('\n')
+		if len(line) > 0 {
+			totalLines++
+			// Strip the trailing '\n' (and optional '\r' for CRLF logs) to match
+			// the small-file strings.Split behavior.
+			trimmed := strings.TrimRight(line, "\n")
+			trimmed = strings.TrimSuffix(trimmed, "\r")
+			if options.Tail {
+				lineBuffer = append(lineBuffer, trimmed)
+				if len(lineBuffer) > maxBuf {
+					lineBuffer = lineBuffer[1:]
+				}
+			} else {
+				if totalLines > options.Offset && len(lineBuffer) < maxBuf {
+					lineBuffer = append(lineBuffer, trimmed)
+				}
 			}
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		slog.Warn("scanner error reading large file", "path", filePath, "error", err)
+		if err != nil {
+			break
+		}
 	}
 
 	content := strings.Join(lineBuffer, "\n")
@@ -916,6 +971,14 @@ func CleanLogFiles(options types.CleanLogOptions) (types.CleanLogResult, error) 
 			if options.Action == "delete" && options.Days != nil {
 				return isArchiveFile(name) || isLogFile(name)
 			}
+			if options.Action == "truncate" && options.Days != nil {
+				// FIX(bug 4): "清空 + 按天数" must truncate the live log FILES
+				// older than the cutoff, never the compressed archives.
+				// Truncating a .gz/.zip to 0 bytes corrupts the archive while
+				// leaving every .log untouched. Archives are already size-bounded
+				// and are removed via the delete action, so exclude them here.
+				return isLogFile(name) && !isArchiveFile(name)
+			}
 			if options.Days != nil {
 				return isArchiveFile(name)
 			}
@@ -961,8 +1024,10 @@ func CleanLogFiles(options types.CleanLogOptions) (types.CleanLogResult, error) 
 	return result, nil
 }
 
+// appDirsToClean are the app-data roots scanned for empty leftover dirs.
+// FIX(bug 31): @appcenter (the app store itself) is intentionally excluded —
+// its per-app entries are system bookkeeping, not removable leftovers.
 var appDirsToClean = []string{
-	"/vol1/@appcenter",
 	"/vol1/@appconf",
 	"/vol1/@appdata",
 	"/vol1/@apphome",
@@ -1008,7 +1073,13 @@ func CleanEmptyAppDirs() (map[string]interface{}, error) {
 		"errors":  []string{},
 	}
 
-	installedApps, _ := getInstalledApps()
+	installedApps, err := getInstalledApps()
+	if err != nil {
+		// FIX(bug 3): cannot determine the installed set — abort instead of
+		// removing directories of possibly-installed apps.
+		result["errors"] = []string{fmt.Sprintf("无法获取已安装应用列表，已取消清理: %s", err.Error())}
+		return result, err
+	}
 	installedSet := make(map[string]bool)
 	for _, app := range installedApps {
 		installedSet[app] = true
@@ -1038,6 +1109,14 @@ func CleanEmptyAppDirs() (map[string]interface{}, error) {
 			}
 
 			appName := entry.Name()
+			// FIX(bug 31): never touch reserved/system dirs (logmanager, home,
+			// System, dot-files/@-prefixed entries) — the same protection
+			// recycle.go's isReservedAppDir applies. Without it, an empty
+			// "logmanager" or dot-directory under an @app* root could be
+			// removed as though it were a leftover app.
+			if isReservedAppDir(appName) {
+				continue
+			}
 			if installedSet[appName] {
 				continue
 			}

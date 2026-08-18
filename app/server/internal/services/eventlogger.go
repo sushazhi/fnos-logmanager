@@ -317,6 +317,19 @@ func (el *EventLoggerState) pollNewEvents() {
 						continue
 					}
 
+					// FIX(bug 9): respect the user's configured frequency limits and
+					// quiet hours BEFORE sending. Previously notifications were sent
+					// unconditionally for every significant event — the cooldown,
+					// hourly cap and quiet-time window were dead code, so an event
+					// storm would spam every channel instantly. Skip the whole rule
+					// when quiet hours apply or the rate limit is exhausted.
+					if IsInQuietHours(*rule) {
+						continue
+					}
+					if !ns.CanSendNotification(*rule) {
+						continue
+					}
+
 				// Map numeric type to readable category name, fallback to raw EventType
 				categoryName := entry.EventType
 				// Prefer the Cat field (parsed from the JSON parameter's "cat" field)
@@ -368,6 +381,10 @@ func (el *EventLoggerState) pollNewEvents() {
 					}
 
 					ns.UpdateRuleTrigger(ruleID)
+					// FIX(bug 9): record the send so CanSendNotification can
+					// enforce the per-rule cooldown and hourly maximum going
+					// forward.
+					ns.RecordNotification(ruleID)
 				}
 			}
 		}

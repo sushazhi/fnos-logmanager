@@ -21,7 +21,11 @@ const VALID_STREAM_TYPES = new Set([
   'connected', 'subscribed', 'unsubscribed', 'data',
   'file_rotated', 'file_deleted', 'error'
 ])
-const MAX_MESSAGE_CONTENT_LENGTH = 256 * 1024 // 256 KB per message
+// FIX(bug 8): the server sends up to 1 MiB of log text per data frame, but the
+// client rejected any content larger than 256 KiB, so ~3/4 of a large chunk was
+// silently dropped (compounding server-side data loss). Accept the full server
+// chunk size with headroom.
+const MAX_MESSAGE_CONTENT_LENGTH = 1024 * 1024 // 1 MiB per message
 
 function isValidStreamMessage(msg: unknown): msg is StreamMessage {
   if (!msg || typeof msg !== 'object') return false

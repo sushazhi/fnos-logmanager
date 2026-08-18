@@ -2,8 +2,10 @@ package routes
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -200,9 +202,19 @@ func killProcessHandler(c *gin.Context) {
 		return
 	}
 
-	// 确认进程存在
-	if _, err := os.Stat(fmt.Sprintf("/proc/%d", req.PID)); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "进程不存在或已退出"})
+	// 确认进程存在并记录其启动时间戳（startTicks）。启动时间用于后续
+	// 检测 PID 是否被复用：/proc/PID 的"存在"本身不足以保证还是原来那个进程。
+	// FIX(bug 19): 若在 SIGTERM→SIGKILL 升级期间该 PID 被操作系统回收并分配给
+	// 另一个无关进程，直接按 PID 补 SIGKILL 会误杀新进程。
+	origStat := readProcStatFields(req.PID)
+	if origStat.startTicks == 0 {
+		if _, err := os.Stat(fmt.Sprintf("/proc/%d", req.PID)); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "进程不存在或已退出"})
+			return
+		}
+		// startTicks==0 但 /proc/PID 存在：极罕见的解析失败，保守地拒绝操作
+		// 而非冒险按 PID 补杀，避免误杀。
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法确认进程启动信息，已中止操作"})
 		return
 	}
 
@@ -227,7 +239,8 @@ func killProcessHandler(c *gin.Context) {
 		return
 	}
 
-	// 优雅退出：等待进程退出，超时后强制结束
+	// 优雅退出：等待进程退出，超时后强制结束。等待期间持续用 startTicks
+	// 校验仍是原来那个进程，绝不对被复用的 PID 补发 SIGKILL。
 	terminated := false
 	if !force {
 		for i := 0; i < 20; i++ {
@@ -236,9 +249,16 @@ func killProcessHandler(c *gin.Context) {
 				terminated = true
 				break
 			}
+			// PID 仍存在：确认它仍是原进程（startTicks 一致）。
+			cur := readProcStatFields(req.PID)
+			if cur.startTicks != origStat.startTicks {
+				// PID 已被复用为别的进程——绝不能补杀，直接认定"已退出"。
+				terminated = true
+				break
+			}
 		}
 		if !terminated {
-			// 未在超时时间内退出，升级为 SIGKILL
+			// 仍是原进程且未在超时时间内退出，升级为 SIGKILL。
 			sendSignal(req.PID, syscall.SIGKILL)
 		}
 	} else {
@@ -596,11 +616,15 @@ type cpuSample struct {
 	procJiffies int64 // 进程累计 CPU jiffies
 	sysJiffies  int64 // 系统总 CPU jiffies
 	valid       bool
+	lastSeen    time.Time // 最近一次采样时间，用于清理过期条目（防止 map 无界增长）
 }
 
 var (
 	cpuSampleMu sync.Mutex
 	cpuSamples  = map[int]cpuSample{}
+	// cpuSampleTTL 采样条目存活时间：超过该时长未再出现的 PID（多为已退出进程）
+	// 将被周期性清理，避免短生命周期进程导致 cpuSamples 无界增长（内存泄漏）。
+	cpuSampleTTL = 10 * time.Minute
 )
 
 // computeCPUUsage 计算进程 CPU 占用率。返回百分比（0-100+，可大于 100 多核）。
@@ -618,8 +642,20 @@ func computeCPUUsage(pid int, comm string, utime, stime, sysJiffies int64) float
 	cpuSampleMu.Lock()
 	defer cpuSampleMu.Unlock()
 
+	// 周期性清理过期采样：每次调用以 1/100 概率触发一次全量清理，
+	// 删除超过 cpuSampleTTL 未再采样的条目（已退出/短生命周期进程）。
+	// 概率触发避免每次请求都遍历整个 map，同时保证清理最终必然发生。
+	if rand.Intn(100) == 0 {
+		now := time.Now()
+		for pid, s := range cpuSamples {
+			if now.Sub(s.lastSeen) > cpuSampleTTL {
+				delete(cpuSamples, pid)
+			}
+		}
+	}
+
 	prev, ok := cpuSamples[pid]
-	cpuSamples[pid] = cpuSample{procJiffies: procJiffies, sysJiffies: sysJiffies, valid: true}
+	cpuSamples[pid] = cpuSample{procJiffies: procJiffies, sysJiffies: sysJiffies, valid: true, lastSeen: time.Now()}
 
 	if !ok || !prev.valid {
 		return 0 // 首次采样，无增量
@@ -644,7 +680,12 @@ func readSystemJiffies() int64 {
 		if !strings.HasPrefix(line, "cpu") {
 			continue
 		}
-		// 跳过 "cpu" 汇总行（以 "cpu " 开头），只累加 "cpu0", "cpu1"... 或直接累加汇总行
+		// 跳过 "cpu " 汇总行（全核合计）：per-CPU 行（cpu0/cpu1...）之和 == 汇总行，
+		// 若把汇总行也累加会导致 total ≈ 2× 真实值，进而使 CPU% 少报约一半。
+		// 判断依据："cpu " 是 "cpu"+空格（第 4 个字符为空格），而 "cpu0" 第 4 个字符是数字。
+		if len(line) > 3 && line[3] == ' ' {
+			continue
+		}
 		fields := strings.Fields(line)
 		if len(fields) < 5 {
 			continue
@@ -1036,11 +1077,56 @@ func readProcStartTime(startTicks int64) string {
 	if uptimeSec <= 0 {
 		return ""
 	}
-	hz := int64(100) // 常见 CLK_TCK
+	// 使用系统真实时钟频率（USER_HZ）而非硬编码 100：
+	// 若系统 USER_HZ=1000（部分平台），硬编码 100 会导致启动时间计算错误。
+	hz := readClockTicksPerSec()
 	procStartOffsetSec := startTicks / hz
 	bootTime := time.Now().Unix() - uptimeSec
 	startTime := time.Unix(bootTime+procStartOffsetSec, 0)
 	return startTime.Format("2006-01-02 15:04:05")
+}
+
+var (
+	clockTicksOnce sync.Once
+	clockTicks     int64
+)
+
+// readClockTicksPerSec 返回系统时钟频率（USER_HZ，每秒时钟周期数）。
+// 优先从 /proc/self/auxv 的 AT_CLKTCK（entry type 17）读取真实值，
+// 读取失败时回退到 100（常见 CLK_TCK）。结果缓存，避免每个进程重复读取。
+func readClockTicksPerSec() int64 {
+	clockTicksOnce.Do(func() {
+		clockTicks = readClockTicksFromAuxv()
+	})
+	return clockTicks
+}
+
+// readClockTicksFromAuxv 从 /proc/self/auxv 解析 AT_CLKTCK。
+// auxv 为 (type, value) 的 8 字节对（unsigned long），AT_CLKTCK = 17。
+// 兼容小端/大端字节序；解析失败时回退到 100。
+func readClockTicksFromAuxv() int64 {
+	data, err := os.ReadFile("/proc/self/auxv")
+	if err != nil {
+		return 100
+	}
+	const (
+		atClktck     = 17
+		entrySize    = 16 // 8 字节 type + 8 字节 value
+		maxPlausible = 1 << 20
+	)
+	for _, order := range []binary.ByteOrder{binary.LittleEndian, binary.BigEndian} {
+		for i := 0; i+entrySize <= len(data); i += entrySize {
+			typ := order.Uint64(data[i : i+8])
+			val := order.Uint64(data[i+8 : i+16])
+			if typ == atClktck {
+				if val > 0 && val < maxPlausible {
+					return int64(val)
+				}
+				return 100
+			}
+		}
+	}
+	return 100
 }
 
 func readProcUptime() int64 {

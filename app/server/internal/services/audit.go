@@ -55,6 +55,22 @@ var actionNames = map[string]string{
 	"SECURITY_SENSITIVE_INFO_SCAN":  "安全扫描-敏感信息",
 	"SECURITY_APP_UPDATED":          "安全事件-应用更新",
 	"SECURITY_UPDATE_FAILED":        "安全事件-更新失败",
+	"SECURITY_PROCESS_KILL":         "结束进程",
+	"SECURITY_PROCESS_LOG_READ":     "查看进程日志",
+	"SECURITY_MCP_CONFIG_UPDATE":    "更新 MCP 配置",
+	"SECURITY_MCP_LOG_TRUNCATE":     "MCP 清空日志",
+	"SECURITY_MCP_LOG_DELETE":       "MCP 删除日志文件",
+	"SECURITY_MCP_LOGS_CLEAN":       "MCP 批量清理日志",
+	"SECURITY_MCP_DIRS_CLEAN_EMPTY": "MCP 清理空文件夹",
+	"SECURITY_MCP_DIRS_CLEAN_UNINSTALLED": "MCP 清理已卸载残留",
+	"SECURITY_MCP_DIRS_RESTORE":     "MCP 还原残留目录",
+	"SECURITY_MCP_LOGS_BACKUP":      "MCP 备份日志",
+	"SECURITY_MCP_BACKUP_DELETE":    "MCP 删除备份",
+	"SECURITY_MCP_BACKUPS_CLEAN":    "MCP 清理旧备份",
+	"SECURITY_MCP_PROCESS_KILL":     "结束进程(MCP)",
+	"SECURITY_MCP_PROCESS_LOG_READ": "查看进程日志(MCP)",
+	"SECURITY_MCP_KERNEL_REMOVE":    "MCP 删除内核",
+	"SECURITY_MCP_KERNEL_CLEANUP":   "MCP 清理旧内核",
 }
 
 func getActionName(action string) string {

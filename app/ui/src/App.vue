@@ -265,6 +265,10 @@ async function handleOpenBookmark(bookmark) {
   } else {
     viewLog(bookmark.path)
   }
+  // 从书签直接打开详情页时，清理残留的背景列表状态（如之前浏览目录留下的
+  // selectedDir / logList），避免后续在详情页内点击"清空"时无端刷新并弹出结果列表抽屉。
+  selectedDir.value = null
+  logList.value = []
 }
 
 async function handleDeleteBookmark(bookmark) {
@@ -326,11 +330,23 @@ async function handleLogModalToggleBookmark() {
 
 async function handleLogModalTruncate() {
   if (!logCurrentPath.value) return
-  const ok = await truncateLog(logCurrentPath.value)
+  const logsStore = useLogsStore()
+  // 注意：这里必须用底层的 logsStore.truncateLog，而不是 useStore 导出的
+  // truncateLog（即 handleTruncateLog）。后者专为结果列表的清空按钮设计，
+  // 会在 selectedDir 为空时自动调用 listLogs() 填充 logList，导致从书签打开
+  // 详情页后点击清空时无端弹出结果列表抽屉。这里由本函数自行控制刷新。
+  const ok = await logsStore.truncateLog(logCurrentPath.value)
   if (ok) {
-    const logsStore = useLogsStore()
     await logsStore.reloadActiveTab()
     loadDirs()
+    // 清空后同步刷新底层结果列表（抽屉），避免其继续显示被清空文件的旧大小/旧条目，
+    // 保持详情页背后的列表数据一致。若本来就没有列表（如从书签直接打开详情页），则不刷新，
+    // 以免无端弹出结果列表抽屉。
+    if (selectedDir.value) {
+      logList.value = await selectDir(selectedDir.value)
+    } else if (logList.value.length > 0) {
+      await listLogs()
+    }
   }
 }
 

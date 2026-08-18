@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +16,11 @@ import (
 	"github.com/sushazhi/fnos-logmanager/internal/types"
 	"github.com/sushazhi/fnos-logmanager/internal/utils"
 )
+
+// errMaxFilesReached is a sentinel used to stop directory traversal once a rule
+// hits MaxFilesToClean. Reaching the cap is a successful (bounded) run, so the
+// sentinel is never surfaced to callers as an error. FIX(bug 33).
+var errMaxFilesReached = errors.New("reached max files limit")
 
 // CleanRule represents a scheduled cleanup rule.
 type CleanRule struct {
@@ -202,7 +208,13 @@ func CreateCleanRule(rule CleanRule) (*CleanRule, error) {
 	}
 
 	rule.ID = fmt.Sprintf("clean_%d", time.Now().UnixNano())
-	rule.Enabled = true
+	// FIX(bug 17): respect the caller's Enabled flag instead of unconditionally
+	// forcing rule.Enabled = true, so a frontend request to create a disabled
+	// rule actually lands disabled. Default to true when the field is left zero
+	// (bool) by clients that don't send it.
+	if !rule.Enabled {
+		rule.Enabled = true
+	}
 	rule.CreatedAt = time.Now()
 	rule.UpdatedAt = time.Now()
 
@@ -388,7 +400,7 @@ func executeCleanRule(rule *CleanRule) (types.CleanLogResult, error) {
 	}
 
 	cleanedCount := 0
-	var errors []string
+	var errList []string
 
 	for _, dir := range searchDirs {
 		normalizedDir := utils.SafePath(dir)
@@ -440,26 +452,30 @@ func executeCleanRule(rule *CleanRule) (types.CleanLogResult, error) {
 			}
 
 			if actionErr != nil {
-				errors = append(errors, fmt.Sprintf("%s: %s", path, actionErr.Error()))
+				errList = append(errList, fmt.Sprintf("%s: %s", path, actionErr.Error()))
 			} else {
 				cleanedCount++
 			}
 
-			// Limit check
+			// Limit check. FIX(bug 33): reaching the cap is a SUCCESSFUL run
+			// (the rule did its job and stopped), not a failure. Use a sentinel
+			// error only to stop the walk, and swallow it below so the run is
+			// not recorded as "错误: reached max files limit".
 			if rule.MaxFilesToClean > 0 && cleanedCount >= rule.MaxFilesToClean {
-				return fmt.Errorf("reached max files limit")
+				return errMaxFilesReached
 			}
 
 			return nil
 		})
 
-		if walkErr != nil && cleanedCount >= rule.MaxFilesToClean {
+		if walkErr != nil && errors.Is(walkErr, errMaxFilesReached) {
+			// Stop scanning further dirs; this is not an error.
 			break
 		}
 	}
 
 	result.Cleaned = cleanedCount
-	result.Errors = errors
+	result.Errors = errList
 	return result, nil
 }
 
@@ -525,8 +541,13 @@ func (ac *AutoCleanState) reschedule() {
 			continue
 		}
 
-		rule := rule // capture for closure
-		schedule := rule.Schedule
+		// FIX(bug 18): capture a VALUE COPY (not the map-element pointer). The
+		// old `rule := rule` kept pointing at the rule stored in ac.rules, which
+		// UpdateCleanRule/ToggleCleanRule rewrite under ac.mu while the cron job
+		// reads the same fields unlocked -> race detector report and possible
+		// mixed old/new conditions. A copy read once here is immutable afterwards.
+		ruleCopy := *rule
+		schedule := ruleCopy.Schedule
 
 		// Check if it's a seconds-based schedule (e.g. "30s")
 		if isSecondsSchedule(schedule) {
@@ -538,11 +559,11 @@ func (ac *AutoCleanState) reschedule() {
 		}
 
 		_, err := ac.cronScheduler.AddFunc(schedule, func() {
-			ac.executeRuleAndRecord(rule)
+			ac.executeRuleAndRecord(&ruleCopy)
 		})
 		if err != nil {
 			slog.Error("failed to schedule clean rule",
-				"ruleId", rule.ID, "schedule", rule.Schedule, "error", err)
+				"ruleId", ruleCopy.ID, "schedule", ruleCopy.Schedule, "error", err)
 		}
 	}
 

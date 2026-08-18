@@ -148,45 +148,17 @@ func scheduleSave() {
 func saveSessions() {
 	saveMu.Lock()
 	defer saveMu.Unlock()
-	if !dirty {
-		return
-	}
-	dirty = false
 
-	mu.RLock()
-	data := struct {
-		Sessions   map[string]*types.Session    `json:"sessions"`
-		CSRFTokens map[string]*types.CSRFToken    `json:"csrfTokens"`
-	}{
-		Sessions:   sessions,
-		CSRFTokens: csrfTokens,
-	}
-	mu.RUnlock()
+	// FIX(bug 1): time.AfterFunc returns a *time.Timer that stays non-nil after
+	// firing, and it was never reset, so saveTimer never became nil again and
+	// scheduleSave() only ever scheduled the very first flush. Reset it on every
+	// exit path (still under saveMu, before saveMu.Unlock runs) so subsequent
+	// scheduleSave() calls can arm a fresh timer.
+	defer func() {
+		saveTimer = nil
+	}()
 
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		slog.Error("failed to marshal sessions", "error", err)
-		return
-	}
-
-	encrypted, err := encrypt(string(jsonData))
-	if err != nil {
-		slog.Error("failed to encrypt sessions", "error", err)
-		return
-	}
-
-	dir := config.Get().DataDir
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return
-	}
-
-	// Atomic write
-	tmpFile := sessionFilePath() + ".tmp"
-	if err := os.WriteFile(tmpFile, []byte(encrypted), 0600); err != nil {
-		slog.Error("failed to write session file", "error", err)
-		return
-	}
-	os.Rename(tmpFile, sessionFilePath())
+	flushSessionsLocked()
 }
 
 func loadSessions() {
@@ -323,6 +295,11 @@ func GetOrCreateUserSession(username string) string {
 				sess.LastAccess = now
 			}
 			mu.Unlock()
+			// FIX(bug 4): LastAccess was only refreshed in memory. Without
+			// scheduleSave() the persisted LastAccess stays stale, so after a
+			// restart this still-active session would be judged expired. Flag
+			// the change so the next flush persists it.
+			scheduleSave()
 			return token
 		}
 	}
@@ -388,6 +365,9 @@ func ValidateSession(token string) bool {
 	mu.Lock()
 	session.LastAccess = now
 	mu.Unlock()
+	// FIX(bug 4): persist the refreshed LastAccess so restarts do not treat
+	// still-active sessions as expired.
+	scheduleSave()
 	return true
 }
 
@@ -501,6 +481,79 @@ func cleanExpiredSessions() {
 	}
 }
 
+// FlushSessions synchronously persists any in-memory session/CSRF changes to
+// disk. It is a final safety net invoked from main() during graceful shutdown:
+// scheduleSave() flushes at most 5s after the last change, but a process that
+// is killed before the timer fires would otherwise lose every unsaved session
+// (users logged in again on every restart).
+func FlushSessions() {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+
+	if !dirty {
+		return
+	}
+	// Reuse the same serialization+write path as saveSessions by temporarily
+	// forcing a fresh timer is overkill — just call saveSessions' core under the
+	// same lock is impossible (it re-locks). Instead, replicate via a helper.
+	flushSessionsLocked()
+}
+
+// flushSessionsLocked performs the actual persistence. Caller must hold saveMu.
+func flushSessionsLocked() {
+	if !dirty {
+		return
+	}
+
+	mu.RLock()
+	sessionCopy := make(map[string]*types.Session, len(sessions))
+	for k, v := range sessions {
+		sessionCopy[k] = v
+	}
+	csrfCopy := make(map[string]*types.CSRFToken, len(csrfTokens))
+	for k, v := range csrfTokens {
+		csrfCopy[k] = v
+	}
+	mu.RUnlock()
+
+	data := struct {
+		Sessions    map[string]*types.Session   `json:"sessions"`
+		CSRFTokens  map[string]*types.CSRFToken `json:"csrfTokens"`
+	}{
+		Sessions:   sessionCopy,
+		CSRFTokens: csrfCopy,
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		slog.Error("failed to marshal sessions", "error", err)
+		return
+	}
+	encrypted, err := encrypt(string(jsonData))
+	if err != nil {
+		slog.Error("failed to encrypt sessions", "error", err)
+		return
+	}
+	if err := os.MkdirAll(config.Get().DataDir, 0700); err != nil {
+		slog.Error("failed to create data dir", "error", err)
+		return
+	}
+	tmpFile := sessionFilePath() + ".tmp"
+	if err := os.WriteFile(tmpFile, []byte(encrypted), 0600); err != nil {
+		slog.Error("failed to write session file", "error", err)
+		return
+	}
+	if err := os.Rename(tmpFile, sessionFilePath()); err != nil {
+		slog.Error("failed to rename session file", "error", err)
+		return
+	}
+	// FIX(bug 3): dirty is only cleared after every persistence step succeeded.
+	// If marshal/encrypt/WriteFile/Rename failed above, dirty stays true so the
+	// next flush (timer-armed or FlushSessions on exit) retries instead of
+	// silently dropping the in-memory changes.
+	dirty = false
+}
+
 func init() {
 	loadSessions()
 
@@ -512,6 +565,5 @@ func init() {
 		}
 	}()
 
-	// Save on exit
-	// Note: Go handles this via signal handling in main.go
+	// Save on exit is invoked explicitly by main() via FlushSessions().
 }

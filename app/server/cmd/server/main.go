@@ -209,6 +209,10 @@ func main() {
 	// 通知 MCP 独立监听器管理器优雅停止
 	close(mcpStop)
 
+	// FIX(bug 1): flush any unsaved session/CSRF changes to disk before exiting,
+	// otherwise a shutdown that races the 5s save timer would drop every login.
+	services.FlushSessions()
+
 	slog.Info("服务已关闭")
 }
 

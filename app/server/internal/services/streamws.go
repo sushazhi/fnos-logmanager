@@ -152,10 +152,35 @@ func wsUpgrader() websocket.Upgrader {
 
 // logStreamClient represents a log file tail WebSocket client.
 type logStreamClient struct {
-	ws       *websocket.Conn
-	filePath string
-	lastSize int64
-	cancel   chan struct{}
+	ws         *websocket.Conn
+	filePath   string
+	lastSize   int64
+	cancel     chan struct{}
+	cancelOnce sync.Once // FIX(bug 22/23): guard close(cancel) so a ticker or a
+	// subsequent poll can never double-close the channel (panic) or leak a
+	// goroutine/ticker.
+	pollTicker *time.Ticker // FIX(bug 22): active poll ticker, stopped on
+	// cleanup/unsubscribe so re-subscribes don't leak a ticker each time.
+}
+
+// stopOnce marks the client's cancel channel closed exactly once. Safe to call
+// multiple times from the main loop, the cleanup defer, and pollLogFile.
+func (c *logStreamClient) stop() {
+	c.cancelOnce.Do(func() { close(c.cancel) })
+}
+
+// wsWriteJSON writes a JSON message to the client, setting a fresh write
+// deadline immediately before each write. FIX(bug 6): gorilla's write deadline
+// is persistent — a single SetWriteDeadline(now+10s) on each heartbeat means
+// every data write more than 10s later silently fails (the error is ignored).
+// Setting it right before every write keeps data flowing the whole 30s window
+// between heartbeats.
+func (c *logStreamClient) wsWriteJSON(v interface{}) error {
+	if c.ws == nil {
+		return nil
+	}
+	c.ws.SetWriteDeadline(time.Now().Add(15 * time.Second))
+	return c.ws.WriteJSON(v)
 }
 
 	var (
@@ -233,7 +258,9 @@ type logStreamClient struct {
 				pollLogFile(client)
 
 			case <-heartbeatTicker.C:
-				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+				// FIX(bug 6): set the write deadline immediately before the write.
+				// Do not keep a long-lived deadline set at heartbeat time.
+				conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					return
 				}
@@ -273,12 +300,20 @@ type logStreamClient struct {
 				return currentPollC
 			}
 
-			if _, err := os.Stat(message.FilePath); os.IsNotExist(err) {
-				conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "File not found"})
+			// FIX(bug 24): capture the stat result and reuse it; the previous
+			// code re-ran os.Stat and ignored its error, leaving info possibly
+			// nil (nil-pointer panic on info.Size()). We only accept regular
+			// files.
+			info, err := os.Stat(message.FilePath)
+			if err != nil || !info.Mode().IsRegular() {
+				if os.IsNotExist(err) {
+					conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "File not found"})
+				} else {
+					conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "文件不可读"})
+				}
 				return currentPollC
 			}
 
-			info, _ := os.Stat(message.FilePath)
 			client.filePath = message.FilePath
 			client.lastSize = info.Size()
 
@@ -288,19 +323,18 @@ type logStreamClient struct {
 			}
 
 			newTicker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
-			// Stop old ticker via goroutine (can't access old ticker handle here easily)
 			pollC := newTicker.C
 
 			logStreamClients.Store(conn, client)
 
-			// Store ticker reference on client for cleanup
-			// (we'll leak one ticker per subscribe; acceptable for simplicity)
-			go func() {
-				<-client.cancel
-				newTicker.Stop()
-			}()
+			// FIX(bug 22): track the active ticker on the client so cleanup can
+			// stop it, instead of spawning a goroutine that leaks (the old
+			// goroutine waited on client.cancel which was never closed). Use a
+			// single "poll ticker" field: stopping a stale one on re-subscribe
+			// is harmless.
+			client.pollTicker = newTicker
 
-			conn.WriteJSON(map[string]interface{}{
+			client.wsWriteJSON(map[string]interface{}{
 				"type":        wsTypeSubscribed,
 				"filePath":    message.FilePath,
 				"initialSize": info.Size(),
@@ -312,7 +346,11 @@ type logStreamClient struct {
 		case "unsubscribe":
 			client.filePath = ""
 			logStreamClients.Delete(conn)
-			conn.WriteJSON(map[string]string{"type": wsTypeUnsubscribed})
+			if client.pollTicker != nil {
+				client.pollTicker.Stop()
+				client.pollTicker = nil
+			}
+			client.wsWriteJSON(map[string]string{"type": wsTypeUnsubscribed})
 			return nil
 		}
 		return currentPollC
@@ -326,11 +364,13 @@ func pollLogFile(client *logStreamClient) {
 	info, err := os.Stat(client.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			client.ws.WriteJSON(map[string]interface{}{
+			client.wsWriteJSON(map[string]interface{}{
 				"type":     wsTypeFileDeleted,
 				"filePath": client.filePath,
 			})
-			close(client.cancel)
+			// FIX(bug 23): use the once-guarded stop() so a later poll (if the
+			// ticker still fires once more) cannot panic on double close.
+			client.stop()
 		}
 		return
 	}
@@ -340,7 +380,7 @@ func pollLogFile(client *logStreamClient) {
 	// File rotated/truncated
 	if currentSize < client.lastSize {
 		client.lastSize = 0
-		client.ws.WriteJSON(map[string]interface{}{
+		client.wsWriteJSON(map[string]interface{}{
 			"type":     wsTypeFileRotated,
 			"filePath": client.filePath,
 		})
@@ -348,7 +388,14 @@ func pollLogFile(client *logStreamClient) {
 
 	// New content
 	if currentSize > client.lastSize {
-		readSize := currentSize - client.lastSize
+		// FIX(bug 7): read in bounded chunks so a single file can be much
+		// larger than the 1 MiB chunk cap without permanently skipping data.
+		// The old code capped readSize at 1 MiB but then unconditionally set
+		// client.lastSize = currentSize, so every byte past (lastSize+1MiB) was
+		// never delivered again. Now we advance lastSize only by the bytes
+		// actually read; leftover bytes are delivered on the next poll.
+		remaining := currentSize - client.lastSize
+		readSize := remaining
 		if readSize > 1024*1024 {
 			readSize = 1024 * 1024
 		}
@@ -361,14 +408,16 @@ func pollLogFile(client *logStreamClient) {
 
 		n, err := f.ReadAt(buf, client.lastSize)
 		f.Close()
-		if err != nil && n == 0 {
+		if n == 0 {
+			// Nothing read (e.g. file shrank between stat and open) — do not
+			// advance lastSize, just retry next poll.
 			return
 		}
 
 		content := string(buf[:n])
 		content = utils.FilterSensitiveInfo(content)
 
-		client.ws.WriteJSON(map[string]interface{}{
+		client.wsWriteJSON(map[string]interface{}{
 			"type":      wsTypeData,
 			"content":   content,
 			"filePath":  client.filePath,
@@ -376,11 +425,18 @@ func pollLogFile(client *logStreamClient) {
 			"totalSize": currentSize,
 		})
 
-		client.lastSize = currentSize
+		client.lastSize += int64(n)
 	}
 }
 
 func cleanupLogStream(client *logStreamClient) {
+	// FIX(bug 22): stop the active poll ticker and signal cancellation so the
+	// read loop and any ticker goroutine terminate instead of leaking.
+	if client.pollTicker != nil {
+		client.pollTicker.Stop()
+		client.pollTicker = nil
+	}
+	client.stop()
 	logStreamClients.Delete(client.ws)
 	client.ws.Close()
 }

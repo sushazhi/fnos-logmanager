@@ -35,6 +35,7 @@
             <button class="refresh-btn" @click="loadRecycle">刷新</button>
           </div>
 
+          <div v-if="restoreError" class="recycle-error">{{ restoreError }}</div>
           <div v-if="recycleError" class="recycle-empty">{{ recycleError }}</div>
           <div v-else-if="!recycleLoaded" class="recycle-empty">加载中...</div>
           <div v-else-if="recycleItems.length === 0" class="recycle-empty">回收站为空</div>
@@ -51,7 +52,7 @@
                   原始位置：{{ item.originalPath }}
                 </span>
                 <span v-else class="recycle-original muted">原始位置：未知</span>
-                <span class="recycle-misc">{{ item.sizeFormatted }} · {{ formatTime(item.modified) }}</span>
+                <span class="recycle-misc">{{ item.sizeFormatted }} · {{ formatTime(item.movedAt) }}</span>
               </div>
             </div>
           </div>
@@ -77,6 +78,7 @@ interface RecycleItem {
   size: number
   sizeFormatted: string
   modified: string
+  movedAt: string
 }
 
 const emit = defineEmits<{
@@ -90,10 +92,14 @@ const restoring = ref(false)
 const recycleItems = ref<RecycleItem[]>([])
 const recycleLoaded = ref(false)
 const recycleError = ref('')
+// 还原失败的提示独立于列表加载错误：还原失败时仍保留回收站列表可见，
+// 而不是用错误文案整段替换掉列表（否则"点一个，全部条目都消失"）。
+const restoreError = ref('')
 
 async function loadRecycle(): Promise<void> {
   recycleLoaded.value = false
   recycleError.value = ''
+  restoreError.value = ''
   try {
     const data = await api.get<{ items: RecycleItem[] }>('/api/dirs/recycle-list')
     recycleItems.value = data.items || []
@@ -107,19 +113,20 @@ async function loadRecycle(): Promise<void> {
 async function restoreItem(item: RecycleItem): Promise<void> {
   if (restoring.value) return
   restoring.value = true
+  restoreError.value = ''
   try {
     const data = await api.post<{ restored: number; errors: string[]; message: string }>('/api/dirs/recycle-restore', {
       root: item.root,
       rels: [item.relPath]
     })
     if (data.errors && data.errors.length > 0) {
-      recycleError.value = data.errors.join('；')
+      restoreError.value = data.errors.join('；')
     } else {
-      recycleError.value = ''
+      restoreError.value = ''
       await loadRecycle()
     }
   } catch (e) {
-    recycleError.value = '还原失败'
+    restoreError.value = '还原失败'
   } finally {
     restoring.value = false
   }
@@ -297,6 +304,17 @@ onMounted(loadRecycle)
   font-size: var(--font-size-sm);
   color: var(--text-color-3);
   padding: var(--spacing-sm) 0;
+}
+
+.recycle-error {
+  font-size: var(--font-size-sm);
+  color: var(--error-color);
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  background: var(--glass-bg);
+  border: 1px solid var(--error-color);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
 }
 
 .recycle-list {

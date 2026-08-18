@@ -2,8 +2,15 @@
 
 # 飞牛日志管理升级回调脚本
 #
-# 将升级前备份的数据恢复到应用数据目录。恢复前确保目录存在，恢复成功才
-# 删除备份；若恢复失败则保留备份并中止，绝不删除唯一的数据副本。
+# 数据保留策略：应用数据位于 ${TRIM_PKGVAR}（fnOS 的 @appdata 持久化目录），
+# fnOS 升级时会原生保留该目录，因此正常情况下无需恢复。
+#
+# 本脚本只做「非破坏性」兜底：
+#   - 仅当目标数据目录为空/不存在（全新安装后首次升级、或 fnOS 未保留）时，
+#     才从升级前备份恢复，避免配置随升级丢失。
+#   - 绝不覆盖 fnOS 已保留的现有数据：若 ${TRIM_PKGVAR} 已含数据，则跳过恢复，
+#     直接删除残留备份，防止用陈旧/空的备份覆盖当前配置。
+#   - 恢复成功后才删除备份；失败则保留备份供人工处理，绝不删除唯一数据副本。
 
 echo "正在完成升级..."
 
@@ -12,22 +19,38 @@ DATA_DIR="${TRIM_PKGVAR}"
 BACKUP_DIR="/vol1/@appshare/logmanager/backup/.upgrade-backup"
 MAIN_SCRIPT="${TRIM_APPDEST}/cmd/main"
 
-# 恢复数据（如果存在升级备份）
+restore_needed() {
+    # 目标目录不存在，或存在但为空 -> 需要从备份恢复
+    if [ ! -d "$DATA_DIR" ]; then
+        return 0
+    fi
+    if ! ls -A "$DATA_DIR" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+# 恢复数据（存在升级备份，且目标数据目录为空时）
 if [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ]; then
-    if ! mkdir -p "$DATA_DIR"; then
-        echo "Error: 无法创建数据目录 $DATA_DIR" > "$TRIM_TEMP_LOGFILE"
-        exit 1
+    if restore_needed; then
+        if ! mkdir -p "$DATA_DIR"; then
+            echo "Error: 无法创建数据目录 $DATA_DIR" > "$TRIM_TEMP_LOGFILE"
+            exit 1
+        fi
+
+        # 恢复全部内容（含隐藏文件）。
+        if ! cp -a "$BACKUP_DIR"/. "$DATA_DIR/"; then
+            echo "Error: 数据恢复失败，备份已保留在 $BACKUP_DIR，请勿手动删除" > "$TRIM_TEMP_LOGFILE"
+            exit 1
+        fi
+        echo "数据已从备份恢复"
+    else
+        # 目标数据目录已有 fnOS 保留的当前数据：绝不覆盖，仅清理陈旧备份。
+        echo "数据目录已有现有数据，跳过恢复（保留当前配置）"
     fi
 
-    # 恢复全部内容（含隐藏文件）。使用 "$BACKUP_DIR"/. 确保点文件也被复制。
-    if ! cp -a "$BACKUP_DIR"/. "$DATA_DIR/"; then
-        echo "Error: 数据恢复失败，备份已保留在 $BACKUP_DIR，请勿手动删除" > "$TRIM_TEMP_LOGFILE"
-        exit 1
-    fi
-
-    # 恢复成功后删除备份
+    # 无论是否恢复，备份已完成使命，安全删除（防止下次升级误用陈旧备份覆盖）。
     rm -rf "$BACKUP_DIR" 2>/dev/null
-    echo "数据已恢复"
 fi
 
 # 启动服务

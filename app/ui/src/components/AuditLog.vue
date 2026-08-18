@@ -27,7 +27,7 @@
               <span class="log-time">{{ formatTime(log.timestamp) }}</span>
             </div>
             <div class="log-details">
-              <span class="log-ip">IP: {{ log.ip }}</span>
+              <span class="log-ip">来源IP: {{ log.ip }}</span>
               <span v-if="log.details && Object.keys(log.details).length" class="log-extra">
                 {{ formatDetails(log.details) }}
               </span>
@@ -139,7 +139,15 @@ function getActionText(action) {
     'SECURITY_MCP_KERNEL_CLEANUP': 'MCP 清理旧内核',
     'SECURITY_SENSITIVE_INFO_SCAN': '敏感信息扫描',
     'SECURITY_APP_UPDATED': '应用升级',
-    'SECURITY_UPDATE_FAILED': '应用升级失败'
+    'SECURITY_UPDATE_FAILED': '应用升级失败',
+    'SECURITY_PROCESS_KILL': '结束进程',
+    'SECURITY_PROCESS_LOG_READ': '查看进程日志',
+    'SECURITY_MCP_DIRS_CLEAN_UNINSTALLED': 'MCP 清理已卸载残留',
+    'SECURITY_MCP_DIRS_RESTORE': 'MCP 还原残留目录',
+    'SECURITY_MCP_PROCESS_KILL': '结束进程(MCP)',
+    'SECURITY_MCP_PROCESS_LOG_READ': '查看进程日志(MCP)',
+    'SECURITY_UNCAUGHT_EXCEPTION': '安全异常-未捕获异常',
+    'SECURITY_UNHANDLED_REJECTION': '安全异常-未处理Promise'
   }
   return actionMap[action] || action
 }
@@ -147,6 +155,7 @@ function getActionText(action) {
 function formatTime(timestamp) {
   const date = new Date(timestamp)
   return date.toLocaleString('zh-CN', {
+    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -157,10 +166,31 @@ function formatTime(timestamp) {
 
 function formatDetails(details) {
   if (!details) return ''
+  const originalAction = details.originalAction || ''
   const parts = []
-  if (details.path) parts.push(`文件: ${details.path}`)
+
+  // 进程类操作：展示 PID/命令/信号等更有意义的信息，且其 path 是 API 请求路径，不应标为"文件"
+  const isProcessAction = /PROCESS_KILL|PROCESS_LOG_READ/.test(originalAction)
+  if (isProcessAction) {
+    if (details.pid !== undefined) parts.push(`PID: ${details.pid}`)
+    if (details.command) parts.push(`命令: ${details.command}`)
+    if (details.signal) parts.push(`信号: ${details.signal}`)
+    if (details.outcome) parts.push(`结果: ${details.outcome === 'terminated' ? '已退出' : '已结束'}`)
+    if (details.path && !details.path.startsWith('/api/')) parts.push(`文件: ${details.path}`)
+    return parts.join(' | ')
+  }
+
+  // 其余操作：优先展示文件/归档路径，避免把 API 请求路径当作文件路径展示
+  const isFileOp = /LOG_TRUNCATE|LOG_DELETE|LOGS_BACKUP|BACKUP_DELETE|KERNEL_|FILE/.test(originalAction)
+  if (details.path && isFileOp) parts.push(`文件: ${details.path}`)
+  if (details.path && !isFileOp && !details.path.startsWith('/api/')) parts.push(`路径: ${details.path}`)
   if (details.action) parts.push(`操作: ${details.action}`)
+  if (details.version) parts.push(`版本: ${details.version}`)
   if (details.cleaned !== undefined) parts.push(`清理: ${details.cleaned}个`)
+  if (details.deleted !== undefined) parts.push(`删除: ${details.deleted}个`)
+  if (details.restored !== undefined) parts.push(`还原: ${details.restored}个`)
+  if (details.moved !== undefined) parts.push(`移动: ${details.moved}个`)
+  if (details.freedSize !== undefined) parts.push(`释放: ${details.freedSize}`)
   return parts.join(' | ')
 }
 </script>

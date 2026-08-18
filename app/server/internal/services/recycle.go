@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -178,9 +179,22 @@ func moveToTrash(src, trashDir, rel string) error {
 		return fmt.Errorf("创建回收站目录失败: %w", err)
 	}
 
+	// FIX(bug 13): uniqueDest may append a numeric suffix (redis -> redis-1)
+	// to avoid clobbering a previous same-name item. The manifest and times
+	// records must be keyed by the ACTUAL on-disk relative path (dest's rel),
+	// not the unsuffixed input rel — otherwise a second same-name move
+	// overwrites the first entry, making that first item invisible, un-restorable
+	// and never purged (permanent orphaned disk usage).
+	relKey, err := filepath.Rel(trashDir, dest)
+	if err != nil || relKey == "" || relKey == "." {
+		relKey = rel
+	}
+
+	movedAt := time.Now()
 	if err := os.Rename(src, dest); err == nil {
 		recordTrashRoot(trashDir)
-		recordTrashManifest(trashDir, rel, src)
+		recordTrashManifest(trashDir, relKey, src)
+		recordTrashTime(trashDir, relKey, movedAt)
 		return nil
 	}
 
@@ -192,7 +206,8 @@ func moveToTrash(src, trashDir, rel string) error {
 		return fmt.Errorf("移动后清理源目录失败: %w", err)
 	}
 	recordTrashRoot(trashDir)
-	recordTrashManifest(trashDir, rel, src)
+	recordTrashManifest(trashDir, relKey, src)
+	recordTrashTime(trashDir, relKey, movedAt)
 	return nil
 }
 
@@ -219,6 +234,14 @@ func uniqueDest(dest string) string {
 // inside each recycle dir so the original location stays co-located with the
 // moved data and restore is exact even after suffix-based de-duplication.
 const trashManifestFileName = "restore_manifest.json"
+
+// trashTimesFileName records the unix-second time at which each recycle item
+// was moved into the recycle bin, keyed by the item's relative path. The move
+// time is authoritative for the 24h retention window: unlike a directory's
+// mtime (which os.Rename preserves from the source app-data dir), it is the
+// actual moment the item entered the recycle bin, so auto-purge fires reliably
+// ~24h after the move regardless of how old the leftover data itself is.
+const trashTimesFileName = "restore_manifest_times.json"
 
 // recordTrashManifest records the original absolute path of a moved item keyed
 // by its relative path inside the recycle dir.
@@ -252,6 +275,48 @@ func readTrashManifest(trashDir string) map[string]string {
 	return m
 }
 
+// recordTrashTime persists the unix-second time at which a recycle item was
+// moved into the recycle bin. This timestamp drives the 24h auto-purge, so it
+// must be recorded even if the manifest already exists from an older version.
+func recordTrashTime(trashDir, relPath string, movedAt time.Time) {
+	timesPath := filepath.Join(trashDir, trashTimesFileName)
+
+	m := map[string]int64{}
+	if data, err := os.ReadFile(timesPath); err == nil {
+		_ = json.Unmarshal(data, &m)
+	}
+	m[relPath] = movedAt.Unix()
+
+	if data, err := json.MarshalIndent(m, "", "  "); err == nil {
+		if err := os.WriteFile(timesPath, data, 0644); err != nil {
+			slog.Warn("failed to write recycle move-times", "error", err)
+		}
+	}
+}
+
+// readTrashTimes returns the rel-path -> unix-second move-time map of a recycle
+// dir. Entries for items that are no longer present are tolerated by callers.
+func readTrashTimes(trashDir string) map[string]int64 {
+	timesPath := filepath.Join(trashDir, trashTimesFileName)
+	data, err := os.ReadFile(timesPath)
+	if err != nil {
+		return nil
+	}
+	m := map[string]int64{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
+// writeTrashTimes persists the given rel-path -> move-time map, dropping entries
+// for items that were purged or restored.
+func writeTrashTimes(trashDir string, m map[string]int64) {
+	if data, err := json.MarshalIndent(m, "", "  "); err == nil {
+		_ = os.WriteFile(filepath.Join(trashDir, trashTimesFileName), data, 0644)
+	}
+}
+
 // copyDirTree recursively copies dir into dest.
 func copyDirTree(src, dest string) error {
 	info, err := os.Lstat(src)
@@ -259,8 +324,18 @@ func copyDirTree(src, dest string) error {
 		return err
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		// Skip symlinks to avoid traversing outside the allowed tree.
-		return nil
+		// FIX(bug 16): recreate the symlink instead of silently dropping it.
+		// A hard-boundary check keeps us from following the target (we never
+		// read through it), but preserving the link itself means a cross-volume
+		// restore doesn't lose the app's symlinked config/data layout.
+		target, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			return err
+		}
+		return os.Symlink(target, dest)
 	}
 	// Skip special files (sockets, FIFOs, device nodes, etc.). They are runtime
 	// artifacts that cannot be read as regular files and carry no data worth
@@ -299,11 +374,30 @@ func copyFile(src, dest string) error {
 	if !info.Mode().IsRegular() {
 		return nil
 	}
-	data, err := os.ReadFile(src)
+
+	// FIX(bug 16): stream the content with io.Copy instead of slurping the whole
+	// file into memory with os.ReadFile. Leftover app-data dirs (notably log
+	// dirs) can be multi-GB; buffering them entirely risks OOM on the NAS.
+	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dest, data, 0644)
+	defer in.Close()
+
+	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	// Preserve the source file's modification time so the copied item behaves
+	// like the original.
+	return os.Chtimes(dest, info.ModTime(), info.ModTime())
 }
 
 // isReservedAppDir reports whether a top-level directory name under an @app*
@@ -385,7 +479,14 @@ func CleanUninstalledAppDirsToTrash(uid string) (types.RecycleCleanResult, error
 				continue
 			}
 			trashDir := recycleDirForPath(normalizedBase, uid)
-			rel := filepath.Join(filepath.Base(normalizedBase), appName)
+			// rel MUST be an absolute path rooted at "/", because
+			// RestoreRecycleItems re-validates it via utils.SafePath which
+			// rejects anything not starting with "/". Using only
+			// filepath.Base(normalizedBase) produced a bare "@appdata/xunlei"
+			// key that always failed SafePath, making every restore
+			// impossible. Build rel from the full absolute normalizedBase so
+			// it is both a legal SafePath and stays strictly inside trashDir.
+			rel := filepath.Join(normalizedBase, appName)
 			if err := moveToTrash(src, trashDir, rel); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", src, err.Error()))
 				continue
@@ -408,6 +509,7 @@ type RecycleItem struct {
 	Size          int64     `json:"size"`
 	SizeFormatted string    `json:"sizeFormatted"`
 	Modified      time.Time `json:"modified"`
+	MovedAt       time.Time `json:"movedAt,omitempty"`
 }
 
 // ListRecycleItems lists items currently in all known recycle dirs, including
@@ -425,12 +527,19 @@ func ListRecycleItems() []RecycleItem {
 			continue
 		}
 		manifest := readTrashManifest(normalized)
+		times := readTrashTimes(normalized)
 
 		for rel, original := range manifest {
 			item := filepath.Join(normalized, rel)
 			info, err := os.Stat(item)
 			if err != nil {
 				continue
+			}
+			// Prefer the authoritative move time; fall back to the directory
+			// mtime for items moved before the times file existed.
+			movedAt := info.ModTime()
+			if unix, ok := times[rel]; ok && unix > 0 {
+				movedAt = time.Unix(unix, 0)
 			}
 			items = append(items, RecycleItem{
 				Name:          filepath.Base(rel),
@@ -441,6 +550,7 @@ func ListRecycleItems() []RecycleItem {
 				Size:          dirSize(item),
 				SizeFormatted: utils.FormatBytes(dirSize(item)),
 				Modified:      info.ModTime(),
+				MovedAt:       movedAt,
 			})
 		}
 	}
@@ -451,13 +561,34 @@ func ListRecycleItems() []RecycleItem {
 // absolute path under an fnOS app-data root on a storage volume. This is a
 // defense-in-depth guard against a tampered manifest moving files to arbitrary
 // system paths during restore.
+//
+// FIX(bug 15): CleanUninstalledAppDirsToTrash scans custom volumes too (e.g.
+// /vol2/@appdata from config.LogDirs), but this check only accepted the
+// hard-coded /vol1 roots, so items moved from a custom volume could be sent to
+// the recycle bin but never restored. Validate generically: any /volN followed
+// by an @app* data-root folder is a legitimate restore target.
 func isValidRestoreTarget(original string) bool {
 	o := utils.SafePath(original)
 	if o == "" || o != original {
 		return false
 	}
-	for _, root := range appDataDirsToRecycle {
-		if o == root || strings.HasPrefix(o, root+"/") {
+	m := volRe.FindStringSubmatch(o)
+	if len(m) != 2 {
+		return false
+	}
+	// Strip the leading "/volN/" prefix and require the very next path segment
+	// to be an app-data root (@appdata etc.). Build the prefix from m[1] (the
+	// bare "volN") so we don't depend on whether m[0] includes the trailing
+	// slash — the previous version used m[0]+"/", which produced a double slash
+	// ("/vol1//") that never matched, so EVERY legitimate target was rejected
+	// and restore always failed.
+	rest := strings.TrimPrefix(o, "/"+m[1]+"/")
+	firstSeg := rest
+	if idx := strings.IndexByte(rest, '/'); idx >= 0 {
+		firstSeg = rest[:idx]
+	}
+	for _, name := range appDataRootNames {
+		if firstSeg == name {
 			return true
 		}
 	}
@@ -477,26 +608,33 @@ func RestoreRecycleItems(root string, rels []string) (restored int, errors []str
 	}
 
 	manifest := readTrashManifest(normalized)
+	times := readTrashTimes(normalized)
 	for _, rel := range rels {
 		original, ok := manifest[rel]
 		if !ok {
 			errors = append(errors, fmt.Sprintf("未找到回收站记录: %s", rel))
 			continue
 		}
-		// Defense in depth: rel must resolve to a path strictly inside the
-		// recycle root (no ".." traversal), and original must be a legitimate
-		// app-data path — not an arbitrary location controlled by a tampered
-		// manifest.
-		relSafe := utils.SafePath(rel)
-		if relSafe == "" {
+		// Resolve the on-disk source path the same way ListRecycleItems builds
+		// it: relative to the trash root. rel may be an absolute path rooted at
+		// "/" (new style) OR a bare "@appdata/xunlei" key (legacy entries
+		// written before the rel format was corrected). filepath.Join collapses
+		// either form to the correct path inside the trash dir.
+		src := filepath.Join(normalized, rel)
+		// Defense in depth: src must resolve to a path strictly inside the
+		// recycle root (no ".." traversal, no escape), and original must be a
+		// legitimate app-data path — not an arbitrary location controlled by a
+		// tampered manifest.
+		srcSafe := utils.SafePath(src)
+		if srcSafe == "" {
 			errors = append(errors, fmt.Sprintf("拒绝还原非法路径: %s", rel))
 			continue
 		}
-		src := filepath.Join(normalized, relSafe)
-		if !strings.HasPrefix(src, normalized+"/") && src != normalized {
+		if !strings.HasPrefix(srcSafe, normalized+"/") && srcSafe != normalized {
 			errors = append(errors, fmt.Sprintf("拒绝还原越界路径: %s", rel))
 			continue
 		}
+		src = srcSafe
 		if !isValidRestoreTarget(original) {
 			errors = append(errors, fmt.Sprintf("拒绝还原到非法位置: %s", original))
 			continue
@@ -525,12 +663,14 @@ func RestoreRecycleItems(root string, rels []string) (restored int, errors []str
 			}
 		}
 		delete(manifest, rel)
+		delete(times, rel)
 		restored++
 	}
 
 	if data, err := json.MarshalIndent(manifest, "", "  "); err == nil {
 		_ = os.WriteFile(filepath.Join(normalized, trashManifestFileName), data, 0644)
 	}
+	writeTrashTimes(normalized, times)
 	return restored, errors
 }
 
@@ -565,7 +705,11 @@ func isAppDataRoot(dir string) bool {
 	if len(m) != 2 {
 		return false
 	}
-	base := strings.TrimPrefix(strings.TrimPrefix(dir, m[1]), "/")
+	// The segment immediately after "/volN/" must be an app-data root folder.
+	// Use "/"+m[1]+"/" as the prefix so it works regardless of whether m[0]
+	// includes the trailing slash; the previous TrimPrefix(m[1]) left the
+	// leading slash in place and always produced "vol1/@appdata" (never matched).
+	base := strings.TrimPrefix(dir, "/"+m[1]+"/")
 	for _, name := range appDataRootNames {
 		if base == name {
 			return true
@@ -658,21 +802,52 @@ func (rc *recycleCleaner) cleanExpired() {
 		}
 
 		manifest := readTrashManifest(normalized)
+		times := readTrashTimes(normalized)
 		changed := false
 
 		// Only purge items that we know about through the manifest. This avoids
 		// ever treating structural subfolders (@appdata, @appshare) or the
 		// manifest itself as an expired item.
 		for rel, original := range manifest {
-			item := filepath.Join(normalized, rel)
+			// FIX(bug 14): the manifest lives inside a user-accessible recycle
+			// dir, so its rel values are attacker-controllable. Guard against a
+			// tampered entry using ".." to escape the recycle root and point
+			// RemoveAll at an arbitrary path — mirror the safety checks used by
+			// RestoreRecycleItems. Never follow symlinks out of the tree either.
+			relSafe := utils.SafePath(rel)
+			if relSafe == "" {
+				slog.Warn("回收站清扫拒绝非法相对路径", "rel", rel)
+				continue
+			}
+			item := filepath.Join(normalized, relSafe)
+			if !strings.HasPrefix(item, normalized+"/") && item != normalized {
+				slog.Warn("回收站清扫拒绝越界路径", "rel", rel)
+				continue
+			}
+			if utils.IsSymlinkPath(item) {
+				slog.Warn("回收站清扫拒绝符号链接", "rel", rel)
+				continue
+			}
 			info, err := os.Stat(item)
 			if err != nil {
 				// Item already gone — drop the stale record.
 				delete(manifest, rel)
+				delete(times, rel)
 				changed = true
 				continue
 			}
-			if info.ModTime().After(cutoff) {
+
+			// Age is measured from the recorded move time when available
+			// (authoritative). For items moved by older versions that predate
+			// the times file, fall back to the directory mtime so they still get
+			// purged rather than lingering forever.
+			var age time.Time
+			if unix, ok := times[rel]; ok && unix > 0 {
+				age = time.Unix(unix, 0)
+			} else {
+				age = info.ModTime()
+			}
+			if age.After(cutoff) {
 				continue
 			}
 			if err := os.RemoveAll(item); err != nil {
@@ -681,6 +856,7 @@ func (rc *recycleCleaner) cleanExpired() {
 			}
 			slog.Info("回收站项目已过期自动清空", "path", item, "original", original)
 			delete(manifest, rel)
+			delete(times, rel)
 			changed = true
 		}
 
@@ -688,6 +864,40 @@ func (rc *recycleCleaner) cleanExpired() {
 			if data, err := json.MarshalIndent(manifest, "", "  "); err == nil {
 				_ = os.WriteFile(filepath.Join(normalized, trashManifestFileName), data, 0644)
 			}
+			writeTrashTimes(normalized, times)
+		}
+
+		// Structural subfolders (@appdata, @appshare, ...) are only containers
+		// created to mirror the source app-data layout. Once every item inside a
+		// subfolder has been purged (and so is no longer tracked in the manifest),
+		// remove that empty subfolder too so the recycle dir returns to a clean
+		// state. Safety rules:
+		//   - only consider dirs whose name is an app-data root (@appdata etc.);
+		//   - only remove a subfolder if it is now EMPTY, so we never touch any
+		//     unrelated file the user may have placed in the recycle dir;
+		//   - never remove the manifest / times files themselves.
+		for _, dirName := range appDataRootNames {
+			sub := filepath.Join(normalized, dirName)
+			info, err := os.Lstat(sub)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+			if dirIsEmpty(sub) {
+				if err := os.RemoveAll(sub); err != nil {
+					slog.Warn("清理回收站空子目录失败", "path", sub, "error", err)
+					continue
+				}
+				slog.Info("已清理回收站空子目录", "path", sub)
+			}
 		}
 	}
+}
+
+// dirIsEmpty reports whether the directory at path contains no entries at all.
+func dirIsEmpty(path string) bool {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false
+	}
+	return len(entries) == 0
 }

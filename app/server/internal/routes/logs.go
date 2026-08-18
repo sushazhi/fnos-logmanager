@@ -2,6 +2,7 @@ package routes
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -676,9 +677,39 @@ func tailLogHandler(c *gin.Context) {
 	content := string(buf[:n])
 	content = utils.FilterSensitiveInfo(content)
 
+	// FIX(bug 34): never hand back an offset that lands in the middle of a
+	// multi-byte UTF-8 rune. The client resumes from the returned offset, so if
+	// `end` splits a rune the next request would start at a broken byte boundary
+	// and the UI would show a garbled character at every page boundary. Advance
+	// the offset past any UTF-8 continuation bytes that follow `end`, reading a
+	// tiny margin from the file if needed.
+	newOffset := end
+	if newOffset < fileSize {
+		// Peek up to 4 bytes past `end` to see if they are continuation bytes.
+		peekLen := int64(4)
+		if fileSize-newOffset < peekLen {
+			peekLen = fileSize - newOffset
+		}
+		peekBuf := make([]byte, peekLen)
+		if nPeek, perr := f.ReadAt(peekBuf, newOffset); nPeek > 0 || perr == nil {
+			if nPeek > len(peekBuf) {
+				nPeek = len(peekBuf)
+			}
+			// While the current byte is a continuation byte, it belongs to a
+			// rune that started before `end`, so advance past it.
+			for _, b := range peekBuf[:nPeek] {
+				if b&0xC0 == 0x80 { // 10xxxxxx continuation
+					newOffset++
+				} else {
+					break
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"content":   content,
-		"offset":    end,
+		"offset":    newOffset,
 		"totalSize": fileSize,
 	})
 }
@@ -797,6 +828,13 @@ func exportLogHandler(c *gin.Context) {
 	if err != nil {
 		slog.Error("failed to read log file for export", "path", q.Path, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "导出失败"})
+		return
+	}
+
+	// 修复：导出超过 20 万行时静默截断会导致 JSON 的 totalLines 与 lines 不一致，
+	// 直接返回错误提示，避免导出不完整数据（前端 fetch 已处理非 2xx 响应）
+	if result.Truncated {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "日志文件过大，仅支持导出前 200000 行"})
 		return
 	}
 
@@ -1098,7 +1136,12 @@ func deleteBackupHandler(c *gin.Context) {
 		return
 	}
 	cfg := config.Get()
-	if !strings.HasPrefix(safePath, cfg.Backup.BaseDir) || !strings.HasSuffix(safePath, ".tar.gz") {
+	// 修复：目录边界校验，防止 /vol1/@appshare/logmanager/backup_evil/x.tar.gz 通过前缀检查
+	baseDir := cfg.Backup.BaseDir
+	if !strings.HasSuffix(baseDir, string(os.PathSeparator)) {
+		baseDir += string(os.PathSeparator)
+	}
+	if !strings.HasPrefix(safePath, baseDir) || !strings.HasSuffix(safePath, ".tar.gz") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "只能删除备份目录下的 .tar.gz 文件"})
 		return
 	}
@@ -1269,6 +1312,10 @@ func readArchiveContent(path string, maxLines int) (string, bool, error) {
 
 	var cmd *exec.Cmd
 	switch {
+	// 修复：tar 专属分支必须最先匹配。.tar.gz/.tar.bz2/.tar.xz 同时满足 .gz/.bz2/.xz 后缀，
+	// 若后者先匹配会走 zcat/bzcat/xzcat，输出 tar 二进制乱码，且 tar 分支不可达。
+	case strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tar.bz2") || strings.HasSuffix(lower, ".tar.xz"):
+		cmd = exec.Command("tar", "-xOf", normalizedPath)
 	case strings.HasSuffix(lower, ".gz") || strings.HasSuffix(lower, ".tgz"):
 		cmd = exec.Command("zcat", normalizedPath)
 	case strings.HasSuffix(lower, ".bz2"):
@@ -1278,8 +1325,6 @@ func readArchiveContent(path string, maxLines int) (string, bool, error) {
 	case strings.HasSuffix(lower, ".zip"):
 		cmd = exec.Command("unzip", "-p", normalizedPath)
 	case strings.HasSuffix(lower, ".tar"):
-		cmd = exec.Command("tar", "-xOf", normalizedPath)
-	case strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tar.bz2") || strings.HasSuffix(lower, ".tar.xz"):
 		cmd = exec.Command("tar", "-xOf", normalizedPath)
 	case strings.HasSuffix(lower, ".7z"):
 		cmd = exec.Command("7z", "x", "-so", normalizedPath)
@@ -1309,6 +1354,10 @@ func readArchiveContent(path string, maxLines int) (string, bool, error) {
 		return strings.Join(lines, "\n"), truncated, nil
 	}
 
+	// 修复：使用 context 超时防止超大/zip-bomb 归档阻塞请求
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", false, fmt.Errorf("无法创建管道: %w", err)
@@ -1318,6 +1367,14 @@ func readArchiveContent(path string, maxLines int) (string, bool, error) {
 		return "", false, fmt.Errorf("无法启动解压命令: %w", err)
 	}
 
+	// 修复：超时后终止解压进程，避免命令无限运行
+	go func() {
+		<-ctx.Done()
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	}()
+
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	var lines []string
@@ -1325,20 +1382,31 @@ func readArchiveContent(path string, maxLines int) (string, bool, error) {
 		lines = append(lines, scanner.Text())
 	}
 
-	// We need to wait for the command to finish and consume remaining output
-	// to check if there are more lines
 	truncated := false
 	if scanner.Scan() {
 		truncated = true
 	}
-	// Drain the rest
-	for scanner.Scan() {
+
+	// 修复：达到 maxLines 后终止解压进程，不再排空整个输出流（zip-bomb 防护）
+	if truncated {
+		if err := cmd.Process.Kill(); err != nil {
+			slog.Warn("failed to kill archive command", "path", normalizedPath, "error", err)
+		}
 	}
 
-	cmd.Wait()
+	// 修复：检查 cmd.Wait() 错误，zcat/unzip 失败（损坏的 gz、加密 zip）时返回错误
+	waitErr := cmd.Wait()
+	if ctx.Err() != nil {
+		return "", false, fmt.Errorf("归档解压超时")
+	}
+	// 主动 Kill 导致的退出错误属于预期行为，仅在未截断时视为解压失败
+	if waitErr != nil && !truncated {
+		return "", false, fmt.Errorf("归档解压失败: %w", waitErr)
+	}
 
+	// 修复：解压分支与纯文本分支一致，scanner 错误（如超长行 ErrTooLong）直接返回
 	if err := scanner.Err(); err != nil {
-		return strings.Join(lines, "\n"), truncated, nil
+		return "", false, err
 	}
 
 	return strings.Join(lines, "\n"), truncated, nil

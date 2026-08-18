@@ -172,7 +172,10 @@ func PerformBackup() types.BackupResult {
 		}
 	}
 
-	timestamp := time.Now().Format("2006-01-02T15-04-05")
+	// FIX(bug 29): include a nanosecond component so two backups started within
+	// the same second cannot share a temp dir / archive name and overwrite each
+	// other's output.
+	timestamp := time.Now().Format("2006-01-02T15-04-05.000000000")
 	tmpBackupDir := filepath.Join(backupDir, "backup-"+timestamp)
 	backupFile := tmpBackupDir + ".tar.gz"
 
@@ -245,6 +248,11 @@ func PerformBackup() types.BackupResult {
 
 	if result.Files > 0 {
 		if err := createTarGz(tmpBackupDir, backupFile); err != nil {
+			// FIX(bug 29): always clean up the temp dir even when archiving
+			// fails, so a partial backup never leaks on disk.
+			if rmErr := removeDir(tmpBackupDir); rmErr != nil {
+				slog.Warn("归档失败后清理临时目录失败", "error", rmErr)
+			}
 			result.Errors = append(result.Errors, fmt.Sprintf("创建归档失败: %v", err))
 			return result
 		}

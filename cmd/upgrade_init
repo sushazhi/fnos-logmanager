@@ -3,8 +3,9 @@
 # 飞牛日志管理升级初始化脚本
 #
 # 在升级前将应用数据目录 (TRIM_PKGVAR) 备份到独立的升级备份目录，作为
-# fnOS wizard_data_action=keep 之外的兜底保障。备份成功才允许继续升级；
-# 若备份失败则中止升级，避免新版本安装后数据丢失。
+# fnOS 原生保留 @appdata 之外的兜底保障（仅当 fnOS 未保留时才恢复）。
+# 备份成功才允许继续升级；若备份失败则中止升级，避免新版本安装后数据丢失。
+# 同时清除上一次可能残留的备份，防止陈旧备份在回调中被误恢复覆盖当前配置。
 
 echo "正在准备升级..."
 
@@ -21,16 +22,22 @@ if [ -f "$MAIN_SCRIPT" ]; then
     fi
 fi
 
-# 备份数据（如果用户选择保留配置）
+# 无论用户本次是否选择保留配置，都先清除上一次可能残留的备份目录。
+# 否则残留的陈旧/空备份会在 upgrade_callback 中被错误恢复，覆盖 fnOS
+# 已保留的当前数据，导致通知配置等设置丢失。
+if [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ]; then
+    rm -rf "${BACKUP_DIR:?}/" 2>/dev/null
+    rmdir "$BACKUP_DIR" 2>/dev/null
+fi
+
+# 备份数据（如果用户选择保留配置）。即使跳过备份，fnOS 也会原生保留
+# ${TRIM_PKGVAR}（@appdata），配置不会因升级而丢失。
 BACKUP_ACTION="${wizard_backup_before_upgrade:-yes}"
 if [ "$BACKUP_ACTION" = "yes" ] && [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
     if ! mkdir -p "$BACKUP_DIR"; then
         echo "Error: 无法创建备份目录 $BACKUP_DIR" > "$TRIM_TEMP_LOGFILE"
         exit 1
     fi
-
-    # 清除上一次可能残留的备份，避免脏数据混入
-    rm -rf "${BACKUP_DIR:?}/" 2>/dev/null
 
     # 复制整个数据目录（含隐藏文件）。使用 "$DATA_DIR"/. 而非 "$DATA_DIR"/*，
     # 防止通配符漏掉以 "." 开头的文件。
