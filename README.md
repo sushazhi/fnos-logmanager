@@ -305,10 +305,11 @@ MCP_APP_NAME=fnos-logmanager  # 可选，展示给 Agent 的名称
 跨平台构建脚本（推荐，Windows/Linux/macOS 通用，自动选择对应的 fnpack 工具）：
 
 ```bash
-# 使用 manifest 中的版本号
+# 使用 manifest/version.json 中的版本号
 python build.py
 
-# 指定版本号
+# 指定版本号（推荐方式，无需修改 version.json / manifest）
+# 构建时脚本会把版本号写入打包副本的 manifest，根目录文件保持原样
 python build.py --version 0.8.0
 
 # 跳过 Vue 构建（仅重新编译 Go 服务 + 打包）
@@ -318,13 +319,9 @@ python build.py --skip-vue
 python build.py --force
 ```
 
-Windows 下也可使用 PowerShell 脚本：
+> **关于版本号**：`--version` 只影响产物文件名（`logmanager-<version>.fpk`）和包内 `manifest` 的版本字段，**不会修改**项目根目录的 `version.json` / `manifest`。因此构建指定版本时直接加 `--version` 即可，无需手动编辑这两个文件。
 
-```powershell
-.\build.ps1 -Version 0.8.0
-```
-
-或使用 GitHub Actions：
+或使用 GitHub Actions（基于 tag 自动构建发布）：
 
 ```bash
 git tag v0.8.0
