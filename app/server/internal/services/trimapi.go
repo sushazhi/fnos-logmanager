@@ -280,12 +280,9 @@ type convertPathResponseData struct {
 }
 
 // parseConvertPathResult 解析 trim.file.convertPath 响应的 data 字段。
-// 实测/文档中网关可能返回三种格式：
-//  1. 数组格式 [ {path, semanticPath}, ... ]
-//  2. key-value map 格式 { "/vol1/...": "语义路径", ... }（fnOS 官方文档示例）
-//  3. 对象格式 { status, result: [...] }（旧文档描述）
-//
-// 这里全部兼容，取最稳妥的解析结果，避免因格式不匹配导致静默降级为原始路径。
+// 实际网关返回的是数组格式 [ {path, semanticPath}, ... ]，
+// 部分版本返回文档描述的 { status, result: [...] } 对象格式。
+// 这里同时兼容两种格式，取最稳妥的解析结果。
 func parseConvertPathResult(data []byte) []convertPathResultItem {
 	// 1. 数组格式：直接是 []convertPathResultItem
 	var arr []convertPathResultItem
@@ -293,19 +290,7 @@ func parseConvertPathResult(data []byte) []convertPathResultItem {
 		return arr
 	}
 
-	// 2. key-value map 格式：{ 原始路径: 语义路径, ... }
-	// 注意：先于对象格式解析，因为普通 map 里没有 status/result 字段，
-	// 用对象格式解析会得到空 result，导致无法还原出条目。
-	var kv map[string]string
-	if err := json.Unmarshal(data, &kv); err == nil && len(kv) > 0 {
-		items := make([]convertPathResultItem, 0, len(kv))
-		for k, v := range kv {
-			items = append(items, convertPathResultItem{Path: k, SemanticPath: v})
-		}
-		return items
-	}
-
-	// 3. 对象格式：{ status, result: [...] }
+	// 2. 对象格式：{ status, result: [...] }
 	var obj convertPathResponseData
 	if err := json.Unmarshal(data, &obj); err == nil {
 		return obj.Result
@@ -321,10 +306,8 @@ func (c *TrimAPIClient) ConvertPath(path, language string) (string, error) {
 		language = "zh-CN"
 	}
 
-	// 官方文档示例要求 data.path 为数组格式 ["/vol1/..."], 用数组传参最稳妥，
-	// 避免部分网关拒绝字符串类型的 path。
 	reqData := convertPathRequest{
-		Path:     []string{path},
+		Path:     path,
 		Language: language,
 	}
 
