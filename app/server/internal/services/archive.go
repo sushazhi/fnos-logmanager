@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log/slog"
 	"os/exec"
 	"strings"
@@ -56,38 +57,55 @@ func ReadArchiveContent(archivePath string, maxLines int) (ArchiveResult, error)
 		return ArchiveResult{}, fmt.Errorf("不支持的归档格式: %s", archivePath)
 	}
 
-	var stdout, stderr bytes.Buffer
+	// Stream stdout and stop reading at the output cap so a huge archive is
+	// never fully decompressed into memory. The subprocess is killed once the
+	// limit is reached; stderr is still captured for error reporting.
 	proc := exec.Command(cmd, args...)
-	proc.Stdout = &stdout
+	var stderr bytes.Buffer
 	proc.Stderr = &stderr
 
-	if err := proc.Run(); err != nil {
-		slog.Error("archive command failed", "cmd", cmd, "error", err, "stderr", stderr.String())
-		return ArchiveResult{}, fmt.Errorf("解压失败: %s", stderr.String())
+	stdout, err := proc.StdoutPipe()
+	if err != nil {
+		return ArchiveResult{}, fmt.Errorf("创建输出管道失败: %w", err)
+	}
+	if err := proc.Start(); err != nil {
+		slog.Error("archive command failed to start", "cmd", cmd, "error", err)
+		return ArchiveResult{}, fmt.Errorf("解压失败: %w", err)
 	}
 
-	// Limit output
-	output := stdout.String()
-	if int64(len(output)) > cfg.Archive.MaxOutputBytes {
-		output = output[:cfg.Archive.MaxOutputBytes]
-		return ArchiveResult{
-			Content: utils.FilterSensitiveInfo(output),
-			Truncated: true,
-		}, nil
+	// Read up to MaxOutputBytes+1; the extra byte detects truncation without
+	// needing to read the whole stream.
+	maxBytes := cfg.Archive.MaxOutputBytes
+	data, readErr := io.ReadAll(io.LimitReader(stdout, maxBytes+1))
+	truncated := int64(len(data)) > maxBytes
+	if readErr != nil && proc.Process != nil {
+		_ = proc.Process.Kill()
+	}
+	waitErr := proc.Wait()
+	// A killed process after an intentional truncation is expected (the pipe
+	// closed early); only surface a non-truncated failure as an error.
+	if waitErr != nil && !truncated {
+		slog.Error("archive command failed", "cmd", cmd, "error", waitErr, "stderr", stderr.String())
+		return ArchiveResult{}, fmt.Errorf("解压失败: %s", stderr.String())
+	}
+	if waitErr != nil {
+		slog.Debug("archive output truncated, subprocess stopped", "cmd", cmd)
+	}
+
+	output := string(data)
+	if truncated {
+		output = output[:maxBytes]
 	}
 
 	// Limit lines
 	lines := strings.Split(output, "\n")
 	if len(lines) > maxLines {
 		lines = lines[:maxLines]
-		return ArchiveResult{
-			Content:   utils.FilterSensitiveInfo(strings.Join(lines, "\n")),
-			Truncated: true,
-		}, nil
+		truncated = true
 	}
 
 	return ArchiveResult{
 		Content:   utils.FilterSensitiveInfo(output),
-		Truncated: false,
+		Truncated: truncated,
 	}, nil
 }

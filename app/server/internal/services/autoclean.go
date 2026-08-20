@@ -26,7 +26,9 @@ var errMaxFilesReached = errors.New("reached max files limit")
 type CleanRule struct {
 	ID              string   `json:"id"`
 	Name            string   `json:"name"`
-	Enabled         bool     `json:"enabled"`
+	// Enabled is a *bool so creation can distinguish "not sent" (nil, default
+	// to enabled) from an explicit "false" (create the rule disabled).
+	Enabled         *bool    `json:"enabled"`
 	Schedule        string   `json:"schedule"`        // cron expression or seconds interval (e.g. "30s")
 	LogDirs         []string `json:"logDirs"`          // empty = all dirs
 	FilePattern     string   `json:"filePattern"`      // regex to match filenames
@@ -40,6 +42,12 @@ type CleanRule struct {
 	LastResult      string   `json:"lastResult"`
 	CreatedAt       time.Time  `json:"createdAt"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
+}
+
+// isEnabled reports whether the rule is enabled, treating a nil Enabled
+// (field not sent / legacy data without the field) as enabled.
+func (r *CleanRule) isEnabled() bool {
+	return r.Enabled == nil || *r.Enabled
 }
 
 // CleanRunHistory records a single execution of a clean rule.
@@ -203,17 +211,19 @@ func CreateCleanRule(rule CleanRule) (*CleanRule, error) {
 	if rule.Schedule == "" {
 		return nil, fmt.Errorf("调度表达式不能为空")
 	}
+	if !validCleanSchedule(rule.Schedule) {
+		return nil, fmt.Errorf("无效的调度表达式: %s", rule.Schedule)
+	}
 	if !utils.IsValidAction(rule.Action) {
 		return nil, fmt.Errorf("无效的操作类型: %s", rule.Action)
 	}
 
 	rule.ID = fmt.Sprintf("clean_%d", time.Now().UnixNano())
-	// FIX(bug 17): respect the caller's Enabled flag instead of unconditionally
-	// forcing rule.Enabled = true, so a frontend request to create a disabled
-	// rule actually lands disabled. Default to true when the field is left zero
-	// (bool) by clients that don't send it.
-	if !rule.Enabled {
-		rule.Enabled = true
+	// Default a missing Enabled (clients that don't send the field) to true,
+	// but honor an explicit "false" so a rule can be created disabled.
+	if rule.Enabled == nil {
+		v := true
+		rule.Enabled = &v
 	}
 	rule.CreatedAt = time.Now()
 	rule.UpdatedAt = time.Now()
@@ -256,15 +266,13 @@ func UpdateCleanRule(id string, update CleanRule) (*CleanRule, error) {
 	if update.FilePattern != "" {
 		rule.FilePattern = update.FilePattern
 	}
-	if update.MinSizeBytes > 0 {
-		rule.MinSizeBytes = update.MinSizeBytes
-	}
-	if update.MaxSizeBytes > 0 {
-		rule.MaxSizeBytes = update.MaxSizeBytes
-	}
-	if update.RetentionDays > 0 {
-		rule.RetentionDays = update.RetentionDays
-	}
+	// Numeric limits are synced unconditionally: the route layer builds the
+	// update from the existing rule (so an absent field carries over the old
+	// value) and uses pointer fields to distinguish "not sent" from an explicit
+	// zero. Unconditional assignment lets a client clear a limit back to 0.
+	rule.MinSizeBytes = update.MinSizeBytes
+	rule.MaxSizeBytes = update.MaxSizeBytes
+	rule.RetentionDays = update.RetentionDays
 	if update.Action != "" {
 		if !utils.IsValidAction(update.Action) {
 			globalAutoClean.mu.Unlock()
@@ -272,13 +280,15 @@ func UpdateCleanRule(id string, update CleanRule) (*CleanRule, error) {
 		}
 		rule.Action = update.Action
 	}
-	if update.MaxFilesToClean > 0 {
-		rule.MaxFilesToClean = update.MaxFilesToClean
-	}
+	rule.MaxFilesToClean = update.MaxFilesToClean
 	if update.Description != "" {
 		rule.Description = update.Description
 	}
-	rule.Enabled = update.Enabled
+	// Only override Enabled when the client explicitly sent the field;
+	// a nil Enabled (field omitted in the update) leaves the current state.
+	if update.Enabled != nil {
+		rule.Enabled = update.Enabled
+	}
 	rule.UpdatedAt = time.Now()
 
 	cp := *rule
@@ -328,7 +338,7 @@ func ToggleCleanRule(id string, enabled bool) error {
 		globalAutoClean.mu.Unlock()
 		return fmt.Errorf("规则不存在")
 	}
-	rule.Enabled = enabled
+	rule.Enabled = &enabled
 	rule.UpdatedAt = time.Now()
 	globalAutoClean.mu.Unlock()
 
@@ -419,6 +429,12 @@ func executeCleanRule(rule *CleanRule) (types.CleanLogResult, error) {
 				return err
 			}
 			if info.IsDir() {
+				return nil
+			}
+			// Never follow/act on symlinks: truncating or removing a link would
+			// write/delete the link TARGET, which may live outside the scanned
+			// directory (and outside the log dirs entirely).
+			if info.Mode()&os.ModeSymlink != 0 {
 				return nil
 			}
 
@@ -537,7 +553,7 @@ func (ac *AutoCleanState) reschedule() {
 	ac.cronScheduler = cron.New()
 
 	for _, rule := range ac.rules {
-		if !rule.Enabled {
+		if !rule.isEnabled() {
 			continue
 		}
 
@@ -546,6 +562,9 @@ func (ac *AutoCleanState) reschedule() {
 		// UpdateCleanRule/ToggleCleanRule rewrite under ac.mu while the cron job
 		// reads the same fields unlocked -> race detector report and possible
 		// mixed old/new conditions. A copy read once here is immutable afterwards.
+		// executeRuleAndRecord still persists LastRun/LastResult to the LIVE
+		// rule in ac.rules (looked up by ID under the lock), so scheduled runs
+		// update the persisted state instead of only a discarded copy.
 		ruleCopy := *rule
 		schedule := ruleCopy.Schedule
 
@@ -572,6 +591,23 @@ func (ac *AutoCleanState) reschedule() {
 
 func isSecondsSchedule(s string) bool {
 	return len(s) > 2 && s[len(s)-1] == 's'
+}
+
+// validCleanSchedule reports whether a rule schedule expression is valid.
+// Accepts a cron expression (standard 5-field) or a seconds interval like
+// "30s". Used to reject malformed expressions at rule creation time so a bad
+// schedule is never silently accepted and never executed.
+func validCleanSchedule(s string) bool {
+	if s == "" {
+		return false
+	}
+	if isSecondsSchedule(s) {
+		return parseSecondsInterval(s) > 0
+	}
+	// robfig/cron v3 standard parser: minute hour dom month dow, plus
+	// descriptors (@every/@hourly/...) which reschedule also accepts.
+	_, err := cron.ParseStandard(s)
+	return err == nil
 }
 
 func parseSecondsInterval(s string) time.Duration {
@@ -610,15 +646,22 @@ func (ac *AutoCleanState) executeRuleAndRecord(rule *CleanRule) {
 		Success:    err == nil,
 	}
 
-	// Update rule's last run
+	// Update the LIVE rule's last run (looked up by ID in the map). The rule
+	// parameter may be a value copy captured by a cron closure, so writing to
+	// it directly would never reach the persisted rule. Persist the result to
+	// the rule stored in ac.rules under the lock so LastRun/LastResult survive
+	// saveRules() and are visible to the frontend. If the rule was deleted in
+	// the meantime, skip (history is still recorded).
 	ac.mu.Lock()
-	rule.LastRun = &startTime
-	if err != nil {
-		rule.LastResult = fmt.Sprintf("错误: %s", err.Error())
-	} else {
-		rule.LastResult = fmt.Sprintf("已清理 %d 个文件", result.Cleaned)
+	if live, ok := ac.rules[rule.ID]; ok {
+		live.LastRun = &startTime
+		if err != nil {
+			live.LastResult = fmt.Sprintf("错误: %s", err.Error())
+		} else {
+			live.LastResult = fmt.Sprintf("已清理 %d 个文件", result.Cleaned)
+		}
+		live.UpdatedAt = startTime
 	}
-	rule.UpdatedAt = startTime
 
 	// Add to history
 	ac.history = append([]CleanRunHistory{history}, ac.history...)
@@ -648,7 +691,7 @@ func RunAllCleanRulesNow() []CleanRunHistory {
 	globalAutoClean.mu.RLock()
 	rules := make([]*CleanRule, 0)
 	for _, rule := range globalAutoClean.rules {
-		if rule.Enabled {
+		if rule.isEnabled() {
 			rules = append(rules, rule)
 		}
 	}

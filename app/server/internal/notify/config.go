@@ -337,6 +337,55 @@ func SetConfig(key, value string) {
 	}
 }
 
+// SnapshotConfig returns a copy of the current global channel configuration.
+// Used to temporarily override config for a single-channel send and then
+// restore it, so a one-off (e.g. test) send never pollutes the config that all
+// channels read.
+func SnapshotConfig() map[string]string {
+	cfgVal := reflect.ValueOf(&pushConfig).Elem()
+	cfgType := cfgVal.Type()
+	snap := make(map[string]string)
+	for i := range cfgType.NumField() {
+		field := cfgType.Field(i)
+		jsonTag := field.Tag.Get("json")
+		if jsonTag == "" {
+			continue
+		}
+		tagName, _, _ := strings.Cut(jsonTag, ",")
+		f := cfgVal.Field(i)
+		if f.Kind() == reflect.String {
+			if s := f.String(); s != "" {
+				snap[tagName] = s
+			}
+		}
+	}
+	return snap
+}
+
+// RestoreConfig overwrites the current global channel configuration with the
+// given snapshot. Pass the value previously returned by SnapshotConfig.
+func RestoreConfig(snapshot map[string]string) {
+	// A blank config means nothing was set; avoid wiping env-loaded defaults.
+	if len(snapshot) == 0 {
+		return
+	}
+	cfgVal := reflect.ValueOf(&pushConfig).Elem()
+	cfgType := cfgVal.Type()
+	// First clear all string fields, then re-apply the snapshot values so keys
+	// absent from the snapshot (that were only set temporarily) are removed.
+	for i := range cfgType.NumField() {
+		field := cfgType.Field(i)
+		if field.Tag.Get("json") == "" {
+			continue
+		}
+		f := cfgVal.Field(i)
+		if f.CanSet() && f.Kind() == reflect.String {
+			f.SetString("")
+		}
+	}
+	SetConfigs(snapshot)
+}
+
 // SetConfigs bulk-sets channel configuration from a map of key-value pairs.
 // Uses reflection to match keys against the ChannelConfig struct's JSON tags,
 // supporting all registered channel config keys.

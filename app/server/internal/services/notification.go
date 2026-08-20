@@ -70,11 +70,18 @@ func SendNotificationToChannel(title, message string, channelType string, config
 		notifyName = channelType
 	}
 
-	// Convert map[string]interface{} to map[string]string for SetConfigs
+	// Convert map[string]interface{} to map[string]string for SetConfigs.
+	// Non-string values (numbers, booleans) are rendered with fmt.Sprint so
+	// numeric config like priorities/timeouts is not silently dropped.
 	configStr := make(map[string]string, len(config))
 	for key, val := range config {
-		if str, ok := val.(string); ok {
-			configStr[key] = str
+		switch v := val.(type) {
+		case string:
+			configStr[key] = v
+		case nil:
+			// skip
+		default:
+			configStr[key] = fmt.Sprint(v)
 		}
 	}
 	{
@@ -84,13 +91,20 @@ func SendNotificationToChannel(title, message string, channelType string, config
 		}
 		slog.Info("推送通知渠道配置", "channel", channelType, "keys", keys, "qqAppId_present", configStr["QQ_APP_ID"] != "")
 	}
-	notify.SetConfigs(configStr)
 
 	// Get the channel from registry and enable it temporarily
 	ch := notify.Registry.Get(notifyName)
 	if ch == nil {
 		return fmt.Errorf("通知渠道 %s (notify: %s) 未注册", channelType, notifyName)
 	}
+
+	// Set the channel config for this send, then restore the previous global
+	// config afterwards. notify.SetConfigs writes the process-global config
+	// that ALL channels read, so without snapshot/restore a one-off send would
+	// permanently overwrite every other channel's credentials.
+	snapshot := notify.SnapshotConfig()
+	notify.SetConfigs(configStr)
+	defer notify.RestoreConfig(snapshot)
 
 	wasEnabled := ch.Enabled()
 	if !wasEnabled {
@@ -153,8 +167,13 @@ func SyncNotifyStoreToRegistry() {
 		if len(ch.Config) > 0 {
 			configStr := make(map[string]string, len(ch.Config))
 			for key, val := range ch.Config {
-				if str, ok := val.(string); ok {
-					configStr[key] = str
+				switch v := val.(type) {
+				case string:
+					configStr[key] = v
+				case nil:
+					// skip
+				default:
+					configStr[key] = fmt.Sprint(v)
 				}
 			}
 			if len(configStr) > 0 {

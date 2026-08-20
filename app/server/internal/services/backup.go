@@ -208,8 +208,16 @@ func PerformBackup() types.BackupResult {
 			continue
 		}
 
-		dirName := filepath.Base(normalizedDir)
-		targetDir := filepath.Join(tmpBackupDir, dirName)
+		// Use the path relative to the root so two dirs with the same base name
+		// on different volumes (e.g. /vol1/@appdata and /vol2/@appdata) land in
+		// separate backup subdirectories instead of overwriting each other.
+		var targetDir string
+		if rel, err := filepath.Rel("/", normalizedDir); err != nil || rel == ".." ||
+			strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+			targetDir = filepath.Join(tmpBackupDir, filepath.Base(normalizedDir))
+		} else {
+			targetDir = filepath.Join(tmpBackupDir, rel)
+		}
 
 		files, err := collectLogFiles(normalizedDir, normalizedDir, cfg.Backup.MaxFiles, cfg.Backup.MaxFileSizeBytes)
 		if err != nil {

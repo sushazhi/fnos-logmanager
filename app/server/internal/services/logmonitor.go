@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sushazhi/fnos-logmanager/internal/config"
 	"github.com/sushazhi/fnos-logmanager/internal/utils"
 )
 
@@ -48,6 +50,7 @@ type MonitorState struct {
 	mu            sync.RWMutex
 	rules         map[string]*MonitorRule
 	lastAlerted   map[string]time.Time // ruleID+logPath -> last alert time
+	lastOffset    map[string]int64     // ruleID+logPath -> last read byte offset
 	alertHistory  []AlertEvent
 	running       bool
 	stopCh        chan struct{}
@@ -66,6 +69,7 @@ func InitMonitor(rulesDir string) error {
 	globalMonitor = &MonitorState{
 		rules:        make(map[string]*MonitorRule),
 		lastAlerted:  make(map[string]time.Time),
+		lastOffset:   make(map[string]int64),
 		alertHistory: make([]AlertEvent, 0),
 		stopCh:       make(chan struct{}),
 		rulesFile:    filepath.Join(rulesDir, "monitor_rules.json"),
@@ -131,6 +135,7 @@ func (m *MonitorState) loadState() error {
 
 	var state struct {
 		LastAlerted  map[string]time.Time `json:"lastAlerted"`
+		LastOffset   map[string]int64     `json:"lastOffset"`
 		AlertHistory []AlertEvent         `json:"alertHistory"`
 	}
 	if err := json.Unmarshal(data, &state); err != nil {
@@ -139,6 +144,9 @@ func (m *MonitorState) loadState() error {
 
 	m.mu.Lock()
 	m.lastAlerted = state.LastAlerted
+	if state.LastOffset != nil {
+		m.lastOffset = state.LastOffset
+	}
 	m.alertHistory = state.AlertHistory
 	m.mu.Unlock()
 	return nil
@@ -148,9 +156,11 @@ func (m *MonitorState) saveState() error {
 	m.mu.RLock()
 	state := struct {
 		LastAlerted  map[string]time.Time `json:"lastAlerted"`
+		LastOffset   map[string]int64     `json:"lastOffset"`
 		AlertHistory []AlertEvent         `json:"alertHistory"`
 	}{
 		LastAlerted:  m.lastAlerted,
+		LastOffset:   m.lastOffset,
 		AlertHistory: m.alertHistory,
 	}
 	m.mu.RUnlock()
@@ -295,10 +305,15 @@ func DeleteMonitorRule(id string) error {
 	}
 	delete(globalMonitor.rules, id)
 
-	// Clean up lastAlerted entries for this rule
+	// Clean up lastAlerted and lastOffset entries for this rule
 	for key := range globalMonitor.lastAlerted {
 		if strings.HasPrefix(key, id+":") {
 			delete(globalMonitor.lastAlerted, key)
+		}
+	}
+	for key := range globalMonitor.lastOffset {
+		if strings.HasPrefix(key, id+":") {
+			delete(globalMonitor.lastOffset, key)
 		}
 	}
 	globalMonitor.mu.Unlock()
@@ -466,65 +481,108 @@ func (m *MonitorState) scanRule(rule *MonitorRule) {
 }
 
 func (m *MonitorState) scanLogFile(rule *MonitorRule, re *regexp.Regexp, logPath string) {
-	f, err := os.Open(logPath)
+	// Defense in depth: only monitor regular files inside the configured log
+	// dirs, and never follow symlinks (a symlinked logPath could point at an
+	// arbitrary file outside the allowed tree).
+	normalized := utils.SafePath(logPath)
+	if normalized == "" || !utils.IsAllowedPath(logPath, config.Get().LogDirs) {
+		slog.Warn("log monitor rejected out-of-tree path", "path", logPath)
+		return
+	}
+	if utils.IsSymlinkPath(normalized) {
+		slog.Warn("log monitor rejected symlink path", "path", logPath)
+		return
+	}
+
+	f, err := os.Open(normalized)
 	if err != nil {
 		slog.Warn("cannot open log file for monitoring", "path", logPath, "error", err)
 		return
 	}
 	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	key := rule.ID + ":" + logPath
 
+	// Read the last known offset so we only scan NEW data, not the whole file
+	// every 30s (which re-triggered every matching line each cycle). Reset to 0
+	// when the file shrank (rotated/truncated) so a fresh rotation is scanned
+	// from the top instead of seeking past EOF.
+	info, err := f.Stat()
+	if err != nil {
+		slog.Warn("cannot stat log file for monitoring", "path", logPath, "error", err)
+		return
+	}
+	m.mu.RLock()
+	offset := m.lastOffset[key]
+	m.mu.RUnlock()
+	if offset > info.Size() {
+		offset = 0
+	}
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		slog.Warn("cannot seek log file for monitoring", "path", logPath, "error", err)
+		return
+	}
+
+	// Use bufio.Reader (not Scanner) so arbitrarily long lines are not capped
+	// at 1 MiB and silently skipped.
+	reader := bufio.NewReader(f)
 	lineNum := 0
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
+	for {
+		line, err := reader.ReadString('\n')
+		if len(line) > 0 {
+			lineNum++
+			// Strip trailing newline/CR to match the raw log line.
+			trimmed := strings.TrimRight(line, "\n")
+			trimmed = strings.TrimSuffix(trimmed, "\r")
 
-		if re.MatchString(line) {
-			// Check cooldown
-			key := rule.ID + ":" + logPath
-			m.mu.RLock()
-			lastAlert, exists := m.lastAlerted[key]
-			m.mu.RUnlock()
+			if re.MatchString(trimmed) {
+				// Check cooldown
+				m.mu.RLock()
+				lastAlert, exists := m.lastAlerted[key]
+				m.mu.RUnlock()
 
-			if exists && time.Since(lastAlert).Seconds() < float64(rule.CooldownSec) {
-				continue
+				if !(exists && time.Since(lastAlert).Seconds() < float64(rule.CooldownSec)) {
+					event := AlertEvent{
+						ID:        fmt.Sprintf("alert_%d_%d", time.Now().UnixNano(), lineNum),
+						RuleID:    rule.ID,
+						RuleName:  rule.Name,
+						LogPath:   logPath,
+						Line:      lineNum,
+						Content:   trimmed,
+						Timestamp: time.Now(),
+						Notified:  false,
+					}
+
+					m.mu.Lock()
+					m.lastAlerted[key] = time.Now()
+					m.alertHistory = append([]AlertEvent{event}, m.alertHistory...)
+					if len(m.alertHistory) > m.maxHistory {
+						m.alertHistory = m.alertHistory[:m.maxHistory]
+					}
+					m.mu.Unlock()
+
+					// Send notification
+					if rule.NotifyType != "" && rule.NotifyURL != "" {
+						go sendMonitorNotification(rule, event)
+					}
+
+					slog.Warn("log monitor alert triggered",
+						"ruleId", rule.ID, "ruleName", rule.Name,
+						"path", logPath, "line", lineNum,
+					)
+				}
 			}
-
-			event := AlertEvent{
-				ID:        fmt.Sprintf("alert_%d_%d", time.Now().UnixNano(), lineNum),
-				RuleID:    rule.ID,
-				RuleName:  rule.Name,
-				LogPath:   logPath,
-				Line:      lineNum,
-				Content:   line,
-				Timestamp: time.Now(),
-				Notified:  false,
-			}
-
-			m.mu.Lock()
-			m.lastAlerted[key] = time.Now()
-			m.alertHistory = append([]AlertEvent{event}, m.alertHistory...)
-			if len(m.alertHistory) > m.maxHistory {
-				m.alertHistory = m.alertHistory[:m.maxHistory]
-			}
-			m.mu.Unlock()
-
-			// Send notification
-			if rule.NotifyType != "" && rule.NotifyURL != "" {
-				go sendMonitorNotification(rule, event)
-			}
-
-			slog.Warn("log monitor alert triggered",
-				"ruleId", rule.ID, "ruleName", rule.Name,
-				"path", logPath, "line", lineNum,
-			)
+		}
+		if err != nil {
+			break
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		slog.Warn("scan error during log monitoring", "path", logPath, "error", err)
+	// Persist the new read offset so the next scan continues from here.
+	if newOffset, err := f.Seek(0, io.SeekCurrent); err == nil {
+		m.mu.Lock()
+		m.lastOffset[key] = newOffset
+		m.mu.Unlock()
 	}
 }
 

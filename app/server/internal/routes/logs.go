@@ -1584,7 +1584,7 @@ func listCleanRulesHandler(c *gin.Context) {
 
 type createCleanRuleBody struct {
 	Name            string   `json:"name"`
-	Enabled         bool     `json:"enabled"`
+	Enabled         *bool    `json:"enabled"`
 	Schedule        string   `json:"schedule"`
 	LogDirs         []string `json:"logDirs"`
 	FilePattern     string   `json:"filePattern"`
@@ -1647,15 +1647,15 @@ func createCleanRuleHandler(c *gin.Context) {
 
 type updateCleanRuleBody struct {
 	Name            string   `json:"name"`
-	Enabled         bool     `json:"enabled"`
+	Enabled         *bool    `json:"enabled"`
 	Schedule        string   `json:"schedule"`
 	LogDirs         []string `json:"logDirs"`
 	FilePattern     string   `json:"filePattern"`
-	MinSizeBytes    int64    `json:"minSizeBytes"`
-	MaxSizeBytes    int64    `json:"maxSizeBytes"`
-	RetentionDays   int      `json:"retentionDays"`
+	MinSizeBytes    *int64   `json:"minSizeBytes"`
+	MaxSizeBytes    *int64   `json:"maxSizeBytes"`
+	RetentionDays   *int     `json:"retentionDays"`
 	Action          string   `json:"action"`
-	MaxFilesToClean int      `json:"maxFilesToClean"`
+	MaxFilesToClean *int     `json:"maxFilesToClean"`
 	Description     string   `json:"description"`
 }
 
@@ -1679,7 +1679,9 @@ func updateCleanRuleHandler(c *gin.Context) {
 		return
 	}
 
-	// Build update from existing with overrides
+	// Build update from existing with overrides. Pointer fields (Enabled and
+	// the numeric limits) distinguish "not sent" (nil -> keep existing) from
+	// an explicit zero (e.g. minSizeBytes:0 -> clear the limit).
 	update := *existing
 	if body.Name != "" {
 		update.Name = body.Name
@@ -1693,14 +1695,14 @@ func updateCleanRuleHandler(c *gin.Context) {
 	if body.FilePattern != "" {
 		update.FilePattern = body.FilePattern
 	}
-	if body.MinSizeBytes > 0 {
-		update.MinSizeBytes = body.MinSizeBytes
+	if body.MinSizeBytes != nil {
+		update.MinSizeBytes = *body.MinSizeBytes
 	}
-	if body.MaxSizeBytes > 0 {
-		update.MaxSizeBytes = body.MaxSizeBytes
+	if body.MaxSizeBytes != nil {
+		update.MaxSizeBytes = *body.MaxSizeBytes
 	}
-	if body.RetentionDays > 0 {
-		update.RetentionDays = body.RetentionDays
+	if body.RetentionDays != nil {
+		update.RetentionDays = *body.RetentionDays
 	}
 	if body.Action != "" {
 		if !utils.IsValidAction(body.Action) {
@@ -1709,11 +1711,14 @@ func updateCleanRuleHandler(c *gin.Context) {
 		}
 		update.Action = body.Action
 	}
-	if body.MaxFilesToClean > 0 {
-		update.MaxFilesToClean = body.MaxFilesToClean
+	if body.MaxFilesToClean != nil {
+		update.MaxFilesToClean = *body.MaxFilesToClean
 	}
 	if body.Description != "" {
 		update.Description = body.Description
+	}
+	if body.Enabled != nil {
+		update.Enabled = body.Enabled
 	}
 
 	updated, err := services.UpdateCleanRule(id, update)
@@ -1768,7 +1773,9 @@ func toggleCleanRuleHandler(c *gin.Context) {
 		return
 	}
 
-	if err := services.ToggleCleanRule(id, !rule.Enabled); err != nil {
+	// Enabled is *bool: a nil (legacy/absent) value is treated as enabled.
+	currentEnabled := rule.Enabled == nil || *rule.Enabled
+	if err := services.ToggleCleanRule(id, !currentEnabled); err != nil {
 		slog.Error("failed to toggle clean rule", "id", id, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -1776,7 +1783,7 @@ func toggleCleanRuleHandler(c *gin.Context) {
 
 	services.AddAuditLog("auto_clean_rule_toggle", map[string]interface{}{
 		"ruleId":  id,
-		"enabled": !rule.Enabled,
+		"enabled": !currentEnabled,
 	}, c)
 
 	// Re-fetch updated rule

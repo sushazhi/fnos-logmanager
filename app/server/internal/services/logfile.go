@@ -968,21 +968,25 @@ func CleanLogFiles(options types.CleanLogOptions) (types.CleanLogResult, error) 
 		}
 
 		files, err := findFiles(normalizedDir, func(name string) bool {
-			if options.Action == "delete" && options.Days != nil {
+			switch {
+			case options.Action == "delete":
+				// "删除" always removes both live logs and compressed archives,
+				// regardless of whether a day cutoff is set. Previously the
+				// no-days branch only matched .log files, so "删除全部" silently
+				// left every archive behind while the dated delete removed them.
 				return isArchiveFile(name) || isLogFile(name)
-			}
-			if options.Action == "truncate" && options.Days != nil {
+			case options.Action == "truncate" && options.Days != nil:
 				// FIX(bug 4): "清空 + 按天数" must truncate the live log FILES
 				// older than the cutoff, never the compressed archives.
 				// Truncating a .gz/.zip to 0 bytes corrupts the archive while
 				// leaving every .log untouched. Archives are already size-bounded
 				// and are removed via the delete action, so exclude them here.
 				return isLogFile(name) && !isArchiveFile(name)
-			}
-			if options.Days != nil {
+			case options.Days != nil:
 				return isArchiveFile(name)
+			default:
+				return isLogFile(name)
 			}
-			return isLogFile(name)
 		}, 10000)
 		if err != nil {
 			continue
