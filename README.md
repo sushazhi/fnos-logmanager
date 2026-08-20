@@ -295,31 +295,38 @@ MCP_APP_NAME=fnos-logmanager  # 可选，展示给 Agent 的名称
 
 ### 前置要求
 
-- Go 1.26+
+- Go 1.27+
 - Node.js 24+
-- Python 3.7+（跨平台构建，推荐）
-- PowerShell (Windows) 可选
 
 ### 构建步骤
 
-跨平台构建脚本（推荐，Windows/Linux/macOS 通用，自动选择对应的 fnpack 工具）：
+跨平台 Go 构建器（`build/`，独立 module、仅用标准库），Windows/Linux/macOS 通用，无需 Python。可用 `go run` 直接运行，也可编译为单一二进制复用：
 
 ```bash
-# 使用 manifest/version.json 中的版本号
-python build.py
+# 直接运行（使用 manifest 中的版本号）
+go run ./build
 
 # 指定版本号（推荐方式，无需修改 version.json / manifest）
-# 构建时脚本会把版本号写入打包副本的 manifest，根目录文件保持原样
-python build.py --version 0.8.0
+# 构建时构建器会把版本号写入打包副本的 manifest，根目录文件保持原样
+go run ./build -version 0.8.0
+
+# 或编译为二进制后复用
+cd build && go build -o ../.local-build/buildtool .
+./.local-build/buildtool -version 0.8.0
 
 # 跳过 Vue 构建（仅重新编译 Go 服务 + 打包）
-python build.py --skip-vue
+go run ./build -skip-vue
 
 # 强制重新下载所有依赖
-python build.py --force
+go run ./build -force
+
+# 强制全量构建（忽略所有缓存）
+go run ./build -clean
 ```
 
-> **关于版本号**：`--version` 只影响产物文件名（`logmanager-<version>.fpk`）和包内 `manifest` 的版本字段，**不会修改**项目根目录的 `version.json` / `manifest`。因此构建指定版本时直接加 `--version` 即可，无需手动编辑这两个文件。
+参数：`-version`/`-v`、`-force`/`-f`、`-skip-vue`、`-clean`。
+
+> **关于版本号**：`-version` 只影响产物文件名（`logmanager-<version>.fpk`）和包内 `manifest` 的版本字段，**不会修改**项目根目录的 `version.json` / `manifest`。因此构建指定版本时直接加 `-version` 即可，无需手动编辑这两个文件。
 
 或使用 GitHub Actions（基于 tag 自动构建发布）：
 
@@ -382,8 +389,9 @@ git push --tags
 ├── wizard/                         # 安装向导
 ├── manifest                        # 应用清单
 ├── version.json                    # 版本信息
-├── build.py                        # 跨平台本地构建脚本（推荐）
-├── build.ps1                       # Windows 本地构建脚本
+├── build/                          # Go 跨平台构建器（独立 module）
+│   ├── go.mod
+│   └── main.go
 ├── ICON.PNG
 └── ICON_256.PNG
 ```
@@ -391,7 +399,7 @@ git push --tags
 ## 技术栈
 
 ### 后端
-- **语言**: Go 1.26+
+- **语言**: Go 1.27+
 - **框架**: Gin 1.10+
 - **数据库**: modernc.org/sqlite (纯 Go SQLite)
 - **WebSocket**: gorilla/websocket
