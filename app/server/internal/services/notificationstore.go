@@ -320,8 +320,6 @@ func (ns *NotificationStore) saveConfig() error {
 	// If encryption is unavailable, fall back to plaintext rather than failing.
 	if enc, eerr := encrypt(string(data)); eerr == nil && enc != "" {
 		data = []byte(enc)
-	} else if enc != "" {
-		data = []byte(enc)
 	}
 	return os.WriteFile(ns.configFilePath, data, 0600)
 }
@@ -386,6 +384,8 @@ func (ns *NotificationStore) GetChannels() []NotificationChannelConfig {
 }
 
 // GetChannel returns a channel by name or channel type (Node.js compatible).
+// NOTE: the returned pointer is a detached copy — mutating it does NOT persist.
+// Callers must use UpdateChannel to apply changes.
 func (ns *NotificationStore) GetChannel(name string) *NotificationChannelConfig {
 	ns.mu.RLock()
 	defer ns.mu.RUnlock()
@@ -394,7 +394,8 @@ func (ns *NotificationStore) GetChannel(name string) *NotificationChannelConfig 
 	}
 	for _, ch := range ns.config.Channels {
 		if ch.Name == name || ch.Channel == name {
-			return &ch
+			cp := ch
+			return &cp
 		}
 	}
 	return nil
@@ -506,6 +507,8 @@ func (ns *NotificationStore) GetEnabledRules() []NotificationRule {
 }
 
 // GetRule returns a rule by ID.
+// NOTE: the returned pointer is a detached copy — mutating it does NOT persist.
+// Callers must use UpdateRule to apply changes.
 func (ns *NotificationStore) GetRule(id string) *NotificationRule {
 	ns.mu.RLock()
 	defer ns.mu.RUnlock()
@@ -514,7 +517,8 @@ func (ns *NotificationStore) GetRule(id string) *NotificationRule {
 	}
 	for _, r := range ns.config.Rules {
 		if r.ID == id {
-			return &r
+			cp := r
+			return &cp
 		}
 	}
 	return nil

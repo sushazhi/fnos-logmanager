@@ -29,13 +29,19 @@ type NotifyHub struct {
 }
 
 // Global notification hub instance.
-var globalNotifyHub *NotifyHub
+var (
+	globalNotifyHub     *NotifyHub
+	globalNotifyHubOnce sync.Once
+)
 
 // GetNotifyHub returns the global notification hub, creating it if needed.
+// sync.Once guarantees a single instance even when the first WebSocket
+// connections arrive concurrently; without it, two hubs could be created and
+// half the clients registered against the discarded one, missing broadcasts.
 func GetNotifyHub() *NotifyHub {
-	if globalNotifyHub == nil {
+	globalNotifyHubOnce.Do(func() {
 		globalNotifyHub = NewNotifyHub()
-	}
+	})
 	return globalNotifyHub
 }
 

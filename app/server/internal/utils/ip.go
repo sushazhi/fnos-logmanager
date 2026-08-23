@@ -32,22 +32,32 @@ func isTrustedProxy(ip string) bool {
 	return false
 }
 
-func isPrivateIP(ip string) bool {
-	cleanIP := strings.TrimPrefix(ip, "::ffff:")
-	cleanIP = strings.Split(cleanIP, ":")[0]
+// parseIP normalizes a raw host string (IPv4-mapped prefix, brackets, or a
+// trailing port) into a netip.Addr. The returned Addr is invalid on failure.
+func parseIP(s string) netip.Addr {
+	s = strings.TrimPrefix(s, "::ffff:")
+	if h, _, err := net.SplitHostPort(s); err == nil {
+		s = h
+	}
+	s = strings.Trim(strings.TrimSuffix(s, "]"), "[")
+	addr, _ := netip.ParseAddr(s)
+	return addr
+}
 
-	if strings.HasPrefix(cleanIP, "10.") ||
-		strings.HasPrefix(cleanIP, "192.168.") {
-		return true
+func isPrivateIP(ip string) bool {
+	addr := parseIP(ip)
+	if !addr.IsValid() {
+		// Fallback for legacy/odd inputs: dotted-decimal prefix checks.
+		cleanIP := strings.Split(strings.TrimPrefix(ip, "::ffff:"), ":")[0]
+		return strings.HasPrefix(cleanIP, "10.") ||
+			strings.HasPrefix(cleanIP, "192.168.") ||
+			strings.HasPrefix(cleanIP, "172.") ||
+			strings.HasPrefix(cleanIP, "169.254.")
 	}
-	if strings.HasPrefix(cleanIP, "172.") {
-		if addr, err := netip.ParseAddr(cleanIP); err == nil {
-			if prefix172 := netip.MustParsePrefix("172.16.0.0/12"); prefix172.Contains(addr) {
-				return true
-			}
-		}
-	}
-	return false
+	// RFC 1918 (10/8, 172.16/12, 192.168/16) + RFC 4193 ULA (fc00::/7),
+	// plus loopback, link-local (169.254/16, fe80::/10) and unspecified.
+	return addr.IsPrivate() || addr.IsLoopback() ||
+		addr.IsLinkLocalUnicast() || addr.IsUnspecified()
 }
 
 // IsValidOrigin checks if the request origin matches the expected host.
@@ -66,9 +76,11 @@ func IsValidOrigin(origin, host string) bool {
 }
 
 func isLocalhost(ip string) bool {
-	cleanIP := strings.TrimPrefix(ip, "::ffff:")
-	cleanIP = strings.Split(cleanIP, ":")[0]
-	return cleanIP == "127.0.0.1" || cleanIP == "::1" || cleanIP == "localhost"
+	addr := parseIP(ip)
+	if !addr.IsValid() {
+		return strings.EqualFold(strings.TrimSpace(ip), "localhost")
+	}
+	return addr.IsLoopback()
 }
 
 // IsLoopbackAddr reports whether the given "host:port" or "ip:port" remote
@@ -84,9 +96,7 @@ func IsLoopbackAddr(remoteAddr string) bool {
 		// No port present — treat the whole string as host.
 		host = remoteAddr
 	}
-	cleanIP := strings.TrimPrefix(host, "::ffff:")
-	cleanIP = strings.Split(cleanIP, ":")[0]
-	return cleanIP == "127.0.0.1" || cleanIP == "::1" || cleanIP == "localhost"
+	return isLocalhost(host)
 }
 
 func getFirstHeader(values []string) string {
@@ -119,22 +129,14 @@ func GetClientIP(r *http.Request) string {
 
 	// Check X-Real-IP
 	xRealIP := getFirstHeader(r.Header["X-Real-IP"])
-	if xRealIP != "" && isTrustedProxy(socketIP) {
-		cleanIP := strings.TrimPrefix(xRealIP, "::ffff:")
-		cleanIP = strings.Split(cleanIP, ":")[0]
-		if cleanIP != "" && !isLocalhost(cleanIP) {
-			return cleanIP
-		}
+	if xRealIP != "" && isTrustedProxy(socketIP) && !isLocalhost(xRealIP) {
+		return xRealIP
 	}
 
 	// Check CF-Connecting-IP
 	cfIP := getFirstHeader(r.Header["Cf-Connecting-Ip"])
-	if cfIP != "" && isTrustedProxy(socketIP) {
-		cleanIP := strings.TrimPrefix(cfIP, "::ffff:")
-		cleanIP = strings.Split(cleanIP, ":")[0]
-		if cleanIP != "" && !isLocalhost(cleanIP) {
-			return cleanIP
-		}
+	if cfIP != "" && isTrustedProxy(socketIP) && !isLocalhost(cfIP) {
+		return cfIP
 	}
 
 	// Check X-Forwarded-For

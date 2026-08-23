@@ -28,15 +28,30 @@ func newRateLimitStore() *rateLimitStore {
 	}
 }
 
-func (rls *rateLimitStore) get(key string) *types.RateLimitRecord {
-	rls.mu.RLock()
-	defer rls.mu.RUnlock()
-	return rls.store[key]
-}
-
-func (rls *rateLimitStore) set(key string, record *types.RateLimitRecord) {
+// bump atomically increments the counter for key, resetting it when the window
+// has elapsed, and returns a snapshot of the resulting record. The whole
+// read-modify-write happens under a single write lock, which eliminates the
+// data race that occurred when middlewares incremented a shared *Record that
+// had been returned by an earlier read-locked lookup.
+func (rls *rateLimitStore) bump(key string, now, windowMs int64) *types.RateLimitRecord {
 	rls.mu.Lock()
 	defer rls.mu.Unlock()
+
+	rec := rls.store[key]
+	if rec == nil {
+		rec = &types.RateLimitRecord{
+			Count:     0,
+			ResetTime: now + windowMs,
+		}
+	}
+
+	if now > rec.ResetTime {
+		rec.Count = 1
+		rec.ResetTime = now + windowMs
+	} else {
+		rec.Count++
+	}
+
 	if len(rls.store) >= maxRateLimitEntries {
 		// Evict the oldest entry deterministically instead of random.
 		// If the tracked oldest key is stale, scan for the real oldest.
@@ -58,10 +73,13 @@ func (rls *rateLimitStore) set(key string, record *types.RateLimitRecord) {
 		}
 	}
 	// Track the new oldest entry
-	if rls.oldestKey == "" || record.ResetTime < rls.oldestTime {
-		rls.oldestTime = record.ResetTime
+	if rls.oldestKey == "" || rec.ResetTime < rls.oldestTime {
+		rls.oldestTime = rec.ResetTime
 	}
-	rls.store[key] = record
+
+	rls.store[key] = rec
+	cp := *rec
+	return &cp
 }
 
 func (rls *rateLimitStore) cleanup() {
@@ -98,22 +116,7 @@ func RateLimit(c *gin.Context) {
 	ip := utils.GetClientIP(c.Request)
 	now := time.Now().UnixMilli()
 
-	record := globalRateLimit.get(ip)
-	if record == nil {
-		record = &types.RateLimitRecord{
-			Count:     0,
-			ResetTime: now + cfg.RateLimit.WindowMs,
-		}
-	}
-
-	if now > record.ResetTime {
-		record.Count = 1
-		record.ResetTime = now + cfg.RateLimit.WindowMs
-	} else {
-		record.Count++
-	}
-
-	globalRateLimit.set(ip, record)
+	record := globalRateLimit.bump(ip, now, cfg.RateLimit.WindowMs)
 
 	c.Header("X-RateLimit-Limit", strconv.Itoa(cfg.RateLimit.MaxRequests))
 	c.Header("X-RateLimit-Remaining", strconv.Itoa(max(0, cfg.RateLimit.MaxRequests-record.Count)))
@@ -135,22 +138,7 @@ func APIRateLimit(maxRequests int, windowMs int64) gin.HandlerFunc {
 		ip := utils.GetClientIP(c.Request)
 		now := time.Now().UnixMilli()
 
-		record := apiRateLimitStore.get(ip)
-		if record == nil {
-			record = &types.RateLimitRecord{
-				Count:     0,
-				ResetTime: now + windowMs,
-			}
-		}
-
-		if now > record.ResetTime {
-			record.Count = 1
-			record.ResetTime = now + windowMs
-		} else {
-			record.Count++
-		}
-
-		apiRateLimitStore.set(ip, record)
+		record := apiRateLimitStore.bump(ip, now, windowMs)
 
 		if record.Count > maxRequests {
 			c.Header("Retry-After", strconv.Itoa(int((record.ResetTime-now)/1000)))
@@ -170,22 +158,7 @@ func SensitiveActionRateLimit(maxRequests int, windowMs int64) gin.HandlerFunc {
 		now := time.Now().UnixMilli()
 		key := ip + ":" + c.Request.URL.Path
 
-		record := sensitiveRateLimit.get(key)
-		if record == nil {
-			record = &types.RateLimitRecord{
-				Count:     0,
-				ResetTime: now + windowMs,
-			}
-		}
-
-		if now > record.ResetTime {
-			record.Count = 1
-			record.ResetTime = now + windowMs
-		} else {
-			record.Count++
-		}
-
-		sensitiveRateLimit.set(key, record)
+		record := sensitiveRateLimit.bump(key, now, windowMs)
 
 		if record.Count > maxRequests {
 			c.Header("Retry-After", strconv.Itoa(int((record.ResetTime-now)/1000)))

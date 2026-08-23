@@ -74,6 +74,12 @@ func collectLogFiles(dir, baseDir string, maxFiles int, maxFileSize int64) ([]co
 		if d.IsDir() {
 			return nil
 		}
+		// Never follow/backup symlinks: opening a symlink copies its target,
+		// which may live outside the configured log dirs. This mirrors the
+		// behavior of logfile.go's findFiles.
+		if d.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
 		if !isLogFile(d.Name()) {
 			return nil
 		}

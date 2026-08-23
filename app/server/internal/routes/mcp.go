@@ -126,8 +126,9 @@ func saveMCPConfig(c *gin.Context) {
 		return
 	}
 
-	// Runtime API key / enabled take effect immediately; the dedicated listener
-	// port requires a process restart, which the frontend is told about.
+	// All settings (API key, enabled, port) take effect immediately: the
+	// dedicated listener is started/stopped dynamically by manageMCPListener
+	// in main.go, so no process restart is required.
 	services.AddSecurityAuditLog("MCP_CONFIG_UPDATE", map[string]interface{}{
 		"enabled": req.Enabled, "port": req.Port,
 	}, c)
@@ -137,7 +138,7 @@ func saveMCPConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"ok":              true,
 		"portChanged":     portChanged,
-		"requiresRestart": portChanged && req.Port != 0,
+		"requiresRestart": false,
 	})
 }
 

@@ -289,16 +289,17 @@ func rotateAuditLog() {
 		return
 	}
 
-	// Rotate: .4 -> .5, .3 -> .4, etc.
+	// Rotate: remove the oldest (.5), then .4 -> .5, .3 -> .4, etc. The old
+	// code deleted .4 when it should have renamed it to .5, silently keeping one
+	// fewer rotated file than maxRotatedFiles.
+	if _, err := os.Stat(auditLogFile + ".5"); err == nil {
+		os.Remove(auditLogFile + ".5")
+	}
 	for i := maxRotatedFiles - 1; i >= 1; i-- {
 		oldPath := auditLogFile + "." + string(rune('0'+i))
 		newPath := auditLogFile + "." + string(rune('0'+i+1))
 		if _, err := os.Stat(oldPath); err == nil {
-			if i == maxRotatedFiles-1 {
-				os.Remove(oldPath)
-			} else {
-				os.Rename(oldPath, newPath)
-			}
+			os.Rename(oldPath, newPath)
 		}
 	}
 

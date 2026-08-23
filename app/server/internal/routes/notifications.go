@@ -442,7 +442,13 @@ func testChannel(c *gin.Context) {
 			return
 		}
 		if hasOpenID == "" && hasGroupOpenID == "" {
-			// Push channel config to notify system so StartQQBotListen can read it
+			// Push channel config to notify system so StartQQBotListen can read it.
+			// Snapshot/restore the process-global config: StartQQBotListener reads
+			// the app ID/secret at startup only, so once the listener is up it no
+			// longer depends on the global config. Restoring immediately prevents
+			// this one-off "test" from permanently overwriting the credentials of
+			// every other channel.
+			snapshot := notify.SnapshotConfig()
 			if ch.Config != nil {
 				configStr := make(map[string]string, len(ch.Config))
 				for key, val := range ch.Config {
@@ -454,6 +460,7 @@ func testChannel(c *gin.Context) {
 			}
 			// Start the WebSocket listener (actual implementation, not mock)
 			listenResult, listenMsg := services.StartQQBotListen()
+			notify.RestoreConfig(snapshot)
 			if !listenResult {
 				c.JSON(http.StatusOK, gin.H{
 					"result": map[string]interface{}{

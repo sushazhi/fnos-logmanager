@@ -51,6 +51,7 @@ type MonitorState struct {
 	rules         map[string]*MonitorRule
 	lastAlerted   map[string]time.Time // ruleID+logPath -> last alert time
 	lastOffset    map[string]int64     // ruleID+logPath -> last read byte offset
+	lastLine      map[string]int64     // ruleID+logPath -> last scanned line number
 	alertHistory  []AlertEvent
 	running       bool
 	stopCh        chan struct{}
@@ -70,6 +71,7 @@ func InitMonitor(rulesDir string) error {
 		rules:        make(map[string]*MonitorRule),
 		lastAlerted:  make(map[string]time.Time),
 		lastOffset:   make(map[string]int64),
+		lastLine:     make(map[string]int64),
 		alertHistory: make([]AlertEvent, 0),
 		stopCh:       make(chan struct{}),
 		rulesFile:    filepath.Join(rulesDir, "monitor_rules.json"),
@@ -136,6 +138,7 @@ func (m *MonitorState) loadState() error {
 	var state struct {
 		LastAlerted  map[string]time.Time `json:"lastAlerted"`
 		LastOffset   map[string]int64     `json:"lastOffset"`
+		LastLine     map[string]int64     `json:"lastLine"`
 		AlertHistory []AlertEvent         `json:"alertHistory"`
 	}
 	if err := json.Unmarshal(data, &state); err != nil {
@@ -147,23 +150,50 @@ func (m *MonitorState) loadState() error {
 	if state.LastOffset != nil {
 		m.lastOffset = state.LastOffset
 	}
+	if state.LastLine != nil {
+		m.lastLine = state.LastLine
+	}
+	if m.lastLine == nil {
+		m.lastLine = make(map[string]int64)
+	}
 	m.alertHistory = state.AlertHistory
 	m.mu.Unlock()
 	return nil
 }
 
 func (m *MonitorState) saveState() error {
+	// Snapshot the state under the lock. Copying the maps is required: JSON
+	// marshalling reads them after the lock is released, while scanLogFile may
+	// be mutating the same maps concurrently — sharing the map references would
+	// cause "concurrent map read and map write" panics.
 	m.mu.RLock()
+	lastAlerted := make(map[string]time.Time, len(m.lastAlerted))
+	for k, v := range m.lastAlerted {
+		lastAlerted[k] = v
+	}
+	lastOffset := make(map[string]int64, len(m.lastOffset))
+	for k, v := range m.lastOffset {
+		lastOffset[k] = v
+	}
+	lastLine := make(map[string]int64, len(m.lastLine))
+	for k, v := range m.lastLine {
+		lastLine[k] = v
+	}
+	alertHistory := make([]AlertEvent, len(m.alertHistory))
+	copy(alertHistory, m.alertHistory)
+	m.mu.RUnlock()
+
 	state := struct {
 		LastAlerted  map[string]time.Time `json:"lastAlerted"`
 		LastOffset   map[string]int64     `json:"lastOffset"`
+		LastLine     map[string]int64     `json:"lastLine"`
 		AlertHistory []AlertEvent         `json:"alertHistory"`
 	}{
-		LastAlerted:  m.lastAlerted,
-		LastOffset:   m.lastOffset,
-		AlertHistory: m.alertHistory,
+		LastAlerted:  lastAlerted,
+		LastOffset:   lastOffset,
+		LastLine:     lastLine,
+		AlertHistory: alertHistory,
 	}
-	m.mu.RUnlock()
 
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
@@ -514,9 +544,13 @@ func (m *MonitorState) scanLogFile(rule *MonitorRule, re *regexp.Regexp, logPath
 	}
 	m.mu.RLock()
 	offset := m.lastOffset[key]
+	lineNum := m.lastLine[key]
 	m.mu.RUnlock()
 	if offset > info.Size() {
+		// File rotated/truncated: restart scanning from the top of the new file
+		// and restart line numbering so alerts carry accurate line numbers.
 		offset = 0
+		lineNum = 0
 	}
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		slog.Warn("cannot seek log file for monitoring", "path", logPath, "error", err)
@@ -526,7 +560,6 @@ func (m *MonitorState) scanLogFile(rule *MonitorRule, re *regexp.Regexp, logPath
 	// Use bufio.Reader (not Scanner) so arbitrarily long lines are not capped
 	// at 1 MiB and silently skipped.
 	reader := bufio.NewReader(f)
-	lineNum := 0
 	for {
 		line, err := reader.ReadString('\n')
 		if len(line) > 0 {
@@ -547,7 +580,7 @@ func (m *MonitorState) scanLogFile(rule *MonitorRule, re *regexp.Regexp, logPath
 						RuleID:    rule.ID,
 						RuleName:  rule.Name,
 						LogPath:   logPath,
-						Line:      lineNum,
+						Line:      int(lineNum),
 						Content:   trimmed,
 						Timestamp: time.Now(),
 						Notified:  false,
@@ -578,10 +611,12 @@ func (m *MonitorState) scanLogFile(rule *MonitorRule, re *regexp.Regexp, logPath
 		}
 	}
 
-	// Persist the new read offset so the next scan continues from here.
+	// Persist the new read offset and line number so the next scan continues
+	// from here and alerts carry accurate (absolute) line numbers.
 	if newOffset, err := f.Seek(0, io.SeekCurrent); err == nil {
 		m.mu.Lock()
 		m.lastOffset[key] = newOffset
+		m.lastLine[key] = lineNum
 		m.mu.Unlock()
 	}
 }

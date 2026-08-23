@@ -174,7 +174,28 @@ func saveTrashRoots(file string) error {
 // is still recorded in a manifest so restore is exact even after suffix-based
 // de-duplication.
 func moveToTrash(src, trashDir, rel string) error {
-	dest := uniqueDest(filepath.Join(trashDir, rel))
+	// rel may be an ABSOLUTE source path (e.g. "/vol1/@appdata/redis") passed
+	// by callers to preserve the original location. filepath.Join silently
+	// DROPS the trashDir prefix when a later element is absolute (Go
+	// semantics), which previously "moved" the item by renaming it in place
+	// and wrote manifest keys full of ".." that could never be purged or
+	// restored. Normalize rel to a path relative to the recycle root first:
+	// strip the leading "/volN/" volume root, falling back to a generic
+	// root-relative path for non-volume absolute paths.
+	relPath := rel
+	if filepath.IsAbs(rel) {
+		if vol := volRootOf(rel); vol != "" {
+			relPath = strings.TrimPrefix(rel, "/"+vol+"/")
+		} else if v, err := filepath.Rel("/", rel); err == nil && v != ".." && !strings.HasPrefix(v, ".."+string(filepath.Separator)) {
+			relPath = v
+		}
+	}
+	relPath = filepath.Clean(relPath)
+	if relPath == "" || relPath == "." || relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("无效的回收站相对路径: %s", rel)
+	}
+
+	dest := uniqueDest(filepath.Join(trashDir, relPath))
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return fmt.Errorf("创建回收站目录失败: %w", err)
 	}
@@ -530,7 +551,16 @@ func ListRecycleItems() []RecycleItem {
 		times := readTrashTimes(normalized)
 
 		for rel, original := range manifest {
-			item := filepath.Join(normalized, rel)
+			// Only list entries that resolve strictly inside the recycle root;
+			// skip tampered/legacy entries whose ".." would escape it (they are
+			// also skipped by the auto-purge, so listing them would be misleading).
+			if rel == "" || strings.ContainsAny(rel, "\x00\r\n") {
+				continue
+			}
+			item := filepath.Clean(filepath.Join(normalized, rel))
+			if item != normalized && !strings.HasPrefix(item, normalized+"/") {
+				continue
+			}
 			info, err := os.Stat(item)
 			if err != nil {
 				continue
@@ -610,16 +640,22 @@ func RestoreRecycleItems(root string, rels []string) (restored int, errors []str
 	manifest := readTrashManifest(normalized)
 	times := readTrashTimes(normalized)
 	for _, rel := range rels {
+		// rels come from the client but are matched against manifest keys.
+		// Reject empty/absolute/traversal values up front so they can never
+		// alias the recycle root itself (an empty rel would resolve src to the
+		// root, and the "srcSafe != normalized" guard alone would not reject it).
+		if rel == "" || rel == "." || filepath.IsAbs(rel) || strings.ContainsAny(rel, "\x00\r\n") {
+			errors = append(errors, fmt.Sprintf("拒绝还原非法路径: %s", rel))
+			continue
+		}
 		original, ok := manifest[rel]
 		if !ok {
 			errors = append(errors, fmt.Sprintf("未找到回收站记录: %s", rel))
 			continue
 		}
 		// Resolve the on-disk source path the same way ListRecycleItems builds
-		// it: relative to the trash root. rel may be an absolute path rooted at
-		// "/" (new style) OR a bare "@appdata/xunlei" key (legacy entries
-		// written before the rel format was corrected). filepath.Join collapses
-		// either form to the correct path inside the trash dir.
+		// it: relative to the trash root. filepath.Join collapses any ".." that
+		// a tampered key might contain.
 		src := filepath.Join(normalized, rel)
 		// Defense in depth: src must resolve to a path strictly inside the
 		// recycle root (no ".." traversal, no escape), and original must be a
@@ -814,13 +850,18 @@ func (rc *recycleCleaner) cleanExpired() {
 			// tampered entry using ".." to escape the recycle root and point
 			// RemoveAll at an arbitrary path — mirror the safety checks used by
 			// RestoreRecycleItems. Never follow symlinks out of the tree either.
-			relSafe := utils.SafePath(rel)
-			if relSafe == "" {
+			//
+			// The manifest key is a path RELATIVE to the recycle root, so
+			// utils.SafePath cannot be applied directly: it rejects non-absolute
+			// paths, which would silently reject EVERY legitimate entry and
+			// permanently disable the 24h auto-purge (reported bug). Resolve
+			// the absolute path and validate the RESULT stays inside the root.
+			if rel == "" || strings.ContainsAny(rel, "\x00\r\n") {
 				slog.Warn("回收站清扫拒绝非法相对路径", "rel", rel)
 				continue
 			}
-			item := filepath.Join(normalized, relSafe)
-			if !strings.HasPrefix(item, normalized+"/") && item != normalized {
+			item := filepath.Clean(filepath.Join(normalized, rel))
+			if item != normalized && !strings.HasPrefix(item, normalized+"/") {
 				slog.Warn("回收站清扫拒绝越界路径", "rel", rel)
 				continue
 			}
