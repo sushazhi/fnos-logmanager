@@ -52,6 +52,13 @@ if [ "$BACKUP_ACTION" = "yes" ] && [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; the
         exit 1
     fi
 
+    # 校验关键配置文件已成功备份：若源数据目录存在通知配置而备份缺失，
+    # 说明复制未覆盖该文件（可能被通配符遗漏或权限问题），中止升级以防数据丢失。
+    if [ -f "$DATA_DIR/notifications/notification-config.json" ] && [ ! -f "$BACKUP_DIR/notifications/notification-config.json" ]; then
+        echo "Error: 通知配置备份失败，已中止升级以避免数据丢失" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    fi
+
     echo "数据已备份到 $BACKUP_DIR"
 fi
 

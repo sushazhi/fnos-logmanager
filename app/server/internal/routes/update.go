@@ -459,6 +459,7 @@ func performUpdate() {
 	configContent := fmt.Sprintf(`# 更新配置文件
 wizard_app_port=%s
 wizard_data_action=keep
+wizard_backup_before_upgrade=yes
 `, port)
 	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
 		setUpdateError("创建配置文件失败: " + err.Error())

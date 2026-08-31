@@ -27,6 +27,12 @@ restore_needed() {
     if ! ls -A "$DATA_DIR" >/dev/null 2>&1; then
         return 0
     fi
+    # 关键配置文件缺失/损坏时也要恢复：fnOS 升级可能"部分保留" @appdata
+    # （目录残留但 notifications/ 等子目录丢失），此时只看目录非空会误判为
+    # 已保留数据而跳过恢复，导致通知渠道/规则/设置升级后丢失。
+    if [ ! -f "$DATA_DIR/notifications/notification-config.json" ]; then
+        return 0
+    fi
     return 1
 }
 
