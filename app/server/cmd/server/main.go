@@ -75,7 +75,7 @@ func main() {
 		slog.Error("自动清理服务初始化失败", "error", err)
 	}
 
-	// Initialize recycle-bin cleaner (24h auto-purge for moved app leftovers)
+	// Initialize recycle-bin cleaner (auto-purges moved app leftovers past the configurable retention)
 	if err := services.InitRecycleCleaner(cfg.DataDir); err != nil {
 		slog.Error("回收站清理服务初始化失败", "error", err)
 	}
@@ -132,7 +132,7 @@ func main() {
 		slog.Warn("自动清理调度启动失败", "error", err)
 	}
 
-	// Start recycle-bin auto-purge scheduler (24h retention)
+	// Start recycle-bin auto-purge scheduler (retention is user-configurable)
 	if err := services.StartRecycleCleaner(); err != nil {
 		slog.Warn("回收站自动清空调度启动失败", "error", err)
 	}

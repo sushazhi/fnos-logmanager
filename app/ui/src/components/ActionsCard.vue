@@ -24,7 +24,7 @@
       <button class="warning" @click="$emit('showAutoClean')" title="配置定时自动清理策略">
         自动清理
       </button>
-      <button class="warning" @click="$emit('showUninstalledClean')" title="清理已卸载应用的残留：空文件夹直接删除，非空残留目录移入回收站（24小时后自动清空）">
+      <button class="warning" @click="$emit('showUninstalledClean')" title="清理已卸载应用的残留：空文件夹直接删除，其余残留移入回收站，保留时长可设置，到期自动清空">
         清理已卸载应用
       </button>
       <button class="btn-primary" @click="$emit('backup')" title="备份日志到指定目录">

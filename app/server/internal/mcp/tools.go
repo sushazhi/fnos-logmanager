@@ -491,26 +491,72 @@ func registerTools() {
 			return jsonStr(result), nil
 		})
 
-	// ---- 已卸载应用残留清理（移入回收站 + 还原） ----
-	registerTool("clean_uninstalled_dirs", "将已卸载应用的非空残留目录移入回收站（24小时后自动清空）。只处理不在已安装应用列表中的目录，已安装应用绝不触碰。",
+	// ---- 已卸载应用残留清理（扫描预览 + 移入回收站 + 还原） ----
+	registerTool("scan_uninstalled_leftovers", "扫描已卸载应用的残留（数据目录/符号链接/孤儿用户），不执行任何清理，返回带大小与风险等级的候选列表，供确认后再清理",
 		objectSchema(nil, map[string]map[string]interface{}{}),
 		func(args json.RawMessage) (string, error) {
-			result, err := services.CleanUninstalledAppDirsToTrash("")
+			res, err := services.ScanUninstalledLeftovers()
+			if err != nil {
+				return "", err
+			}
+			return jsonStr(map[string]interface{}{
+				"dirs":           res.Dirs,
+				"links":          res.Links,
+				"users":          res.Users,
+				"retentionHours": res.RetentionHours,
+				"errors":         res.Errors,
+			}), nil
+		})
+
+	registerTool("clean_uninstalled_dirs", "将已卸载应用的残留目录移入回收站（超过保留期后自动清空），可选同时删除残留符号链接与孤儿用户。不带参数时清理全部扫描到的残留目录（不删链接与用户）。绝不触碰已安装应用。",
+		objectSchema(nil, map[string]map[string]interface{}{
+			"dirs":  strProp("要清理的残留目录路径列表，如 [\"/vol1/@appdata/redis\"]；省略则清理全部扫描到的残留目录"),
+			"links": strProp("要删除的残留符号链接路径列表，如 [\"/usr/local/bin/redis-cli\"]；省略则不清理链接"),
+			"users": strProp("要删除的孤儿系统用户列表（docker-* 用户），如 [\"docker-redis\"]；省略则不清理用户"),
+		}),
+		func(args json.RawMessage) (string, error) {
+			var in struct {
+				Dirs  []string `json:"dirs"`
+				Links []string `json:"links"`
+				Users []string `json:"users"`
+			}
+			if len(args) > 0 {
+				_ = json.Unmarshal(args, &in)
+			}
+			dirs, links, users := in.Dirs, in.Links, in.Users
+			if len(dirs) == 0 && len(links) == 0 && len(users) == 0 {
+				// Backwards-compatible default: clean every leftover dir found
+				// by a fresh scan (links/users are left alone).
+				scan, err := services.ScanUninstalledLeftovers()
+				if err != nil {
+					return "", err
+				}
+				for _, d := range scan.Dirs {
+					dirs = append(dirs, d.Path)
+				}
+			}
+			result, err := services.CleanUninstalledLeftovers("", dirs, links, users)
 			if err != nil {
 				return "", err
 			}
 			services.AddSecurityAuditLog("MCP_DIRS_CLEAN_UNINSTALLED", map[string]interface{}{
 				"moved": result.Moved,
 				"dirs":  result.Dirs,
+				"links": result.Links,
+				"users": result.Users,
 			}, nil)
 			return jsonStr(result), nil
 		})
 
-	registerTool("list_recycle_items", "列出当前回收站中的项目，包括每个项目移入前的原始位置（用于确认还原目标）",
+	registerTool("list_recycle_items", "列出当前回收站中的项目，包括每个项目移入前的原始位置（用于确认还原目标）与当前保留时长",
 		objectSchema(nil, map[string]map[string]interface{}{}),
 		func(args json.RawMessage) (string, error) {
 			items := services.ListRecycleItems()
-			return jsonStr(map[string]interface{}{"total": len(items), "items": items}), nil
+			return jsonStr(map[string]interface{}{
+				"total":          len(items),
+				"retentionHours": config.Get().RecycleRetentionHours,
+				"items":          items,
+			}), nil
 		})
 
 	registerTool("restore_recycle_item", "将一个或多个回收站项目还原回其原始位置。需提供回收站根路径（root）和项目相对路径（rels），可从 list_recycle_items 获取。",

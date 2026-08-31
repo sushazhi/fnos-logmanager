@@ -118,11 +118,14 @@ type CleanLogResult struct {
 	Errors  []string `json:"errors,omitempty"`
 }
 
-// RecycleCleanResult represents the result of moving leftover directories of
-// uninstalled apps into the recycle bin.
+// RecycleCleanResult represents the result of cleaning up leftovers of
+// uninstalled apps: data dirs are moved into the recycle bin, residual
+// symlinks and orphan users are removed directly.
 type RecycleCleanResult struct {
 	Moved  int      `json:"moved"`
 	Dirs   []string `json:"dirs,omitempty"`
+	Links  []string `json:"linksRemoved,omitempty"`
+	Users  []string `json:"usersRemoved,omitempty"`
 	Errors []string `json:"errors,omitempty"`
 }
 

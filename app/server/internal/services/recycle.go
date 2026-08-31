@@ -17,9 +17,15 @@ import (
 	"github.com/sushazhi/fnos-logmanager/internal/utils"
 )
 
-// recycleRetention is how long moved items stay in the recycle bin before
-// being permanently removed. 默认 24 小时自动清空。
-const recycleRetention = 24 * time.Hour
+// recycleRetentionDuration returns the current recycle-bin retention period.
+// 默认 24 小时自动清空，用户可在设置中调整（最低 1 小时）。
+func recycleRetentionDuration() time.Duration {
+	h := config.Get().RecycleRetentionHours
+	if h < 1 {
+		h = 1
+	}
+	return time.Duration(h) * time.Hour
+}
 
 // recycleSubDir is the app-specific subfolder inside the user's trash folder.
 // Using a dedicated subfolder keeps items moved by this app separate from
@@ -30,18 +36,6 @@ const recycleSubDir = "logmanager_cleanup"
 // defaultRecycleUID is the fallback uid used when the current request does not
 // carry an fnOS gateway uid. 用户级回收站路径形如 /vol1/1000/.@#local/trash。
 const defaultRecycleUID = "1000"
-
-// appDataDirsToRecycle are the app-data roots whose uninstalled-app leftover
-// directories can be moved into the recycle bin. @appcenter (the app store
-// itself) is intentionally excluded to avoid touching system bookkeeping.
-var appDataDirsToRecycle = []string{
-	"/vol1/@appdata",
-	"/vol1/@appshare",
-	"/vol1/@appconf",
-	"/vol1/@apphome",
-	"/vol1/@apptemp",
-	"/vol1/@appmeta",
-}
 
 // reservedAppDirs are top-level directory names under @app* that must never be
 // treated as uninstalled-app leftovers (system dirs, our own data, shared
@@ -434,39 +428,214 @@ func isReservedAppDir(name string) bool {
 	return false
 }
 
-// CleanUninstalledAppDirsToTrash moves non-empty leftover directories of
-// uninstalled applications into the fnOS per-user recycle bin so they can be
-// recovered. It only ever touches directories whose name is NOT in the
-// currently installed app set, and every target is verified again before
-// moving. Items are auto-purged by the recycle cleaner after 24 hours.
-func CleanUninstalledAppDirsToTrash(uid string) (types.RecycleCleanResult, error) {
-	result := types.RecycleCleanResult{}
-	if uid == "" {
-		uid = defaultRecycleUID
-	}
+// LeftoverCandidate describes one detected leftover of an uninstalled app.
+// Kind is "dir" (data directory), "link" (residual symlink) or "user"
+// (orphaned docker-* system user). Path is the dir/link path, or the user
+// name for user candidates.
+type LeftoverCandidate struct {
+	Kind          string `json:"kind"`
+	App           string `json:"app"`
+	Path          string `json:"path"`
+	RootType      string `json:"rootType,omitempty"`
+	Size          int64  `json:"size,omitempty"`
+	SizeFormatted string `json:"sizeFormatted,omitempty"`
+	Risk          string `json:"risk"`
+	Detail        string `json:"detail,omitempty"`
+}
 
-	// Critical safety: only ever clean leftover dirs of apps we KNOW are
-	// uninstalled. Fetch the installed set directly and abort the whole clean
-	// if we cannot reliably determine it, otherwise we might move directories
-	// of installed apps into the recycle bin.
-	installedApps, err := execAppcenterList()
-	if err != nil {
-		return result, fmt.Errorf("无法获取已安装应用列表，已取消清理: %w", err)
-	}
-	installedSet := make(map[string]bool, len(installedApps))
-	for _, app := range installedApps {
-		installedSet[app] = true
-	}
+// LeftoverScanResult is the full scan output used for the preview UI.
+type LeftoverScanResult struct {
+	Dirs           []LeftoverCandidate `json:"dirs"`
+	Links          []LeftoverCandidate `json:"links"`
+	Users          []LeftoverCandidate `json:"users"`
+	RetentionHours int                 `json:"retentionHours"`
+	Errors         []string            `json:"errors,omitempty"`
+}
 
-	// Consider any configured @app* data root, including custom volumes.
-	dirsToScan := append([]string{}, appDataDirsToRecycle...)
-	for _, dir := range config.Get().LogDirs {
-		if isAppDataRoot(dir) && !containsStr(dirsToScan, dir) {
-			dirsToScan = append(dirsToScan, dir)
+// lowerSet builds a case-insensitive lookup set. appcenter-cli 输出的应用名与
+// @app* 目录名可能大小写不一致，比较必须归一化，否则已安装应用的目录会被误判
+// 为残留。
+func lowerSet(list []string) map[string]bool {
+	m := make(map[string]bool, len(list))
+	for _, s := range list {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			m[strings.ToLower(s)] = true
 		}
 	}
+	return m
+}
 
-	for _, baseDir := range dirsToScan {
+// collectAppDataRoots enumerates every app-data root that should be scanned:
+// all @app* data roots on every /volN storage volume, merged with custom
+// roots configured in LogDirs (e.g. non-standard volume layouts).
+func collectAppDataRoots() []string {
+	seen := map[string]bool{}
+	var roots []string
+	add := func(r string) {
+		if !seen[r] {
+			seen[r] = true
+			roots = append(roots, r)
+		}
+	}
+	if entries, err := os.ReadDir("/"); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() || !volRe.MatchString("/"+e.Name()+"/") {
+				continue
+			}
+			for _, name := range appDataRootNames {
+				add("/" + e.Name() + "/" + name)
+			}
+		}
+	}
+	for _, dir := range config.Get().LogDirs {
+		if isAppDataRoot(dir) {
+			add(dir)
+		}
+	}
+	return roots
+}
+
+// riskOfRoot grades how sensitive a leftover is: temp data is disposable,
+// config/meta may hold reusable settings, data/home/share can contain
+// irreplaceable user content.
+func riskOfRoot(rootName string) string {
+	switch rootName {
+	case "@apptemp":
+		return "low"
+	case "@appconf", "@appmeta":
+		return "medium"
+	default:
+		return "high"
+	}
+}
+
+// collectUsedShares returns the realpath set of shared folders declared by
+// installed apps (/var/apps/{app}/shares/* symlink targets). An @appshare
+// directory referenced by any installed app must never be treated as a
+// leftover — its name does not have to match the app name.
+func collectUsedShares() map[string]bool {
+	used := map[string]bool{}
+	apps, err := os.ReadDir("/var/apps")
+	if err != nil {
+		return used
+	}
+	for _, app := range apps {
+		links, err := os.ReadDir(filepath.Join("/var/apps", app.Name(), "shares"))
+		if err != nil {
+			continue
+		}
+		for _, link := range links {
+			lp := filepath.Join("/var/apps", app.Name(), "shares", link.Name())
+			if fi, err := os.Lstat(lp); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+				continue
+			}
+			if rp, err := filepath.EvalSymlinks(lp); err == nil {
+				used[rp] = true
+			}
+		}
+	}
+	return used
+}
+
+// isShareReferenced reports whether p (or a parent/child of it) is one of the
+// shared folders declared by installed apps.
+func isShareReferenced(p string, usedShares map[string]bool) bool {
+	rp, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		rp = p
+	}
+	for u := range usedShares {
+		if u == rp || strings.HasPrefix(u, rp+string(filepath.Separator)) || strings.HasPrefix(rp, u+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// collectInstalledUsers returns the set of system user names that belong to
+// installed apps (appname, docker-<appname>, and the privilege username).
+func collectInstalledUsers(installedApps []string) map[string]bool {
+	users := map[string]bool{}
+	for _, app := range installedApps {
+		l := strings.ToLower(strings.TrimSpace(app))
+		if l == "" {
+			continue
+		}
+		users[l] = true
+		users["docker-"+l] = true
+		data, err := os.ReadFile(filepath.Join("/var/apps", app, "config", "privilege"))
+		if err != nil {
+			continue
+		}
+		var priv struct {
+			Username string `json:"username"`
+			Defaults struct {
+				Username string `json:"username"`
+			} `json:"defaults"`
+		}
+		if json.Unmarshal(data, &priv) == nil {
+			if priv.Username != "" {
+				users[strings.ToLower(priv.Username)] = true
+			}
+			if priv.Defaults.Username != "" {
+				users[strings.ToLower(priv.Defaults.Username)] = true
+			}
+		}
+	}
+	return users
+}
+
+// uidToName resolves a numeric uid to a user name via /etc/passwd.
+func uidToName(uid string) string {
+	if uid == "" {
+		return ""
+	}
+	data, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Split(line, ":")
+		if len(fields) >= 3 && fields[2] == uid {
+			return fields[0]
+		}
+	}
+	return ""
+}
+
+// dirSizeCapped is dirSize with an entry-count cap so a pathological huge
+// tree cannot stall a scan.
+func dirSizeCapped(path string, maxEntries int) int64 {
+	var size int64
+	count := 0
+	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		count++
+		if count > maxEntries {
+			return filepath.SkipAll
+		}
+		if err == nil && info != nil && !info.IsDir() {
+			size += info.Size()
+		}
+		return nil
+	})
+	return size
+}
+
+// scanLeftoverDirs finds leftover data directories of uninstalled apps on
+// every app-data root. Only dirs NOT in the installed set (case-insensitive),
+// not reserved, not symlinks and not empty qualify; @appshare dirs get an
+// additional ownership check.
+func scanLeftoverDirs(installedSet, usedShares, installedUsers map[string]bool) ([]LeftoverCandidate, []string) {
+	return scanLeftoverDirsOnRoots(collectAppDataRoots(), installedSet, usedShares, installedUsers)
+}
+
+// scanLeftoverDirsOnRoots is scanLeftoverDirs over an explicit root list; the
+// split keeps the safety rules testable without a real fnOS volume layout.
+func scanLeftoverDirsOnRoots(roots []string, installedSet, usedShares, installedUsers map[string]bool) ([]LeftoverCandidate, []string) {
+	var candidates []LeftoverCandidate
+	var errors []string
+	for _, baseDir := range roots {
 		normalizedBase := utils.SafePath(baseDir)
 		if normalizedBase == "" {
 			continue
@@ -477,17 +646,18 @@ func CleanUninstalledAppDirsToTrash(uid string) (types.RecycleCleanResult, error
 
 		entries, err := os.ReadDir(normalizedBase)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", baseDir, err.Error()))
+			errors = append(errors, fmt.Sprintf("%s: %s", baseDir, err.Error()))
 			continue
 		}
 
+		rootName := filepath.Base(normalizedBase)
 		for _, entry := range entries {
 			if !entry.IsDir() {
 				continue
 			}
 			appName := entry.Name()
 			// MUST be an uninstalled app — never touch anything installed.
-			if installedSet[appName] {
+			if installedSet[strings.ToLower(appName)] {
 				continue
 			}
 			if isReservedAppDir(appName) {
@@ -495,20 +665,207 @@ func CleanUninstalledAppDirsToTrash(uid string) (types.RecycleCleanResult, error
 			}
 
 			src := filepath.Join(normalizedBase, appName)
+			if utils.IsSymlinkPath(src) {
+				continue
+			}
+			// @appshare ownership check: a share dir may have any name, so
+			// "not in installed list" alone is NOT sufficient — skip shares
+			// referenced by installed apps or owned by their runtime users.
+			if rootName == "@appshare" {
+				if isShareReferenced(src, usedShares) {
+					continue
+				}
+				if owner := uidToName(fileOwnerUID(src)); owner != "" && installedUsers[strings.ToLower(owner)] {
+					continue
+				}
+			}
+			// Empty dirs are handled by the dedicated empty-folder cleanup.
+			if dirIsEmpty(src) {
+				continue
+			}
+
+			size := dirSizeCapped(src, 100000)
+			candidates = append(candidates, LeftoverCandidate{
+				Kind:          "dir",
+				App:           appName,
+				Path:          src,
+				RootType:      strings.TrimPrefix(rootName, "@app"),
+				Size:          size,
+				SizeFormatted: utils.FormatBytes(size),
+				Risk:          riskOfRoot(rootName),
+			})
+		}
+	}
+	return candidates, errors
+}
+
+// linkScanRoots are the system locations scanned for symlinks left behind by
+// uninstalled apps.
+var linkScanRoots = []string{
+	"/usr/local/bin", "/usr/local/lib", "/usr/local/libexec",
+	"/usr/local/sbin", "/usr/local/share", "/usr/local/include", "/opt",
+}
+
+// linkTargetRe extracts the app name from a symlink target pointing into an
+// app install location (/var/apps/{app}/... or /volN/@app*/{app}/...).
+var linkTargetRe = regexp.MustCompile(`/(?:var/apps|vol\d+/@app[A-Za-z0-9_-]+)/([^/]+)`)
+
+// scanLinkResiduals finds symlinks whose target belongs to an uninstalled app.
+func scanLinkResiduals(installedSet map[string]bool) []LeftoverCandidate {
+	var links []LeftoverCandidate
+	seen := map[string]bool{}
+	for _, root := range linkScanRoots {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			lp := filepath.Join(root, e.Name())
+			if seen[lp] {
+				continue
+			}
+			seen[lp] = true
+			fi, err := os.Lstat(lp)
+			if err != nil || fi.Mode()&os.ModeSymlink == 0 {
+				continue
+			}
+			target, err := os.Readlink(lp)
+			if err != nil {
+				continue
+			}
+			m := linkTargetRe.FindStringSubmatch(target)
+			if m == nil {
+				continue
+			}
+			app := m[1]
+			if installedSet[strings.ToLower(app)] {
+				continue
+			}
+			// Verify the target really exists so we only flag real leftovers.
+			abs := target
+			if !filepath.IsAbs(abs) {
+				abs = filepath.Join(filepath.Dir(lp), abs)
+			}
+			if _, err := os.Lstat(abs); err != nil {
+				continue
+			}
+			links = append(links, LeftoverCandidate{
+				Kind:   "link",
+				App:    app,
+				Path:   lp,
+				Risk:   "low",
+				Detail: target,
+			})
+		}
+	}
+	return links
+}
+
+// scanOrphanUsers finds docker-* system users whose app is no longer installed.
+func scanOrphanUsers(installedSet map[string]bool) []LeftoverCandidate {
+	var users []LeftoverCandidate
+	data, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return users
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Split(line, ":")
+		name := fields[0]
+		if !strings.HasPrefix(name, "docker-") {
+			continue
+		}
+		app := strings.TrimPrefix(name, "docker-")
+		if installedSet[strings.ToLower(name)] || installedSet[strings.ToLower(app)] {
+			continue
+		}
+		users = append(users, LeftoverCandidate{
+			Kind:   "user",
+			App:    app,
+			Path:   name,
+			Risk:   "medium",
+			Detail: "已卸载应用的残留系统用户",
+		})
+	}
+	return users
+}
+
+// ScanUninstalledLeftovers scans for all leftover kinds of uninstalled apps
+// without modifying anything. It aborts with an error when the installed-app
+// list cannot be determined — scanning must never run on a guess.
+func ScanUninstalledLeftovers() (LeftoverScanResult, error) {
+	res := LeftoverScanResult{
+		RetentionHours: config.Get().RecycleRetentionHours,
+	}
+	installedApps, err := execAppcenterList()
+	if err != nil {
+		return res, fmt.Errorf("无法获取已安装应用列表: %w", err)
+	}
+	installedSet := lowerSet(installedApps)
+	usedShares := collectUsedShares()
+	installedUsers := collectInstalledUsers(installedApps)
+
+	var dirErrs []string
+	res.Dirs, dirErrs = scanLeftoverDirs(installedSet, usedShares, installedUsers)
+	res.Errors = append(res.Errors, dirErrs...)
+	res.Links = scanLinkResiduals(installedSet)
+	res.Users = scanOrphanUsers(installedSet)
+	return res, nil
+}
+
+// allowedSet converts a selection list into a lookup set; nil means "no
+// filter supplied" (caller decides the semantics).
+func allowedSet(list []string) map[string]bool {
+	if len(list) == 0 {
+		return nil
+	}
+	m := make(map[string]bool, len(list))
+	for _, s := range list {
+		m[s] = true
+	}
+	return m
+}
+
+// CleanUninstalledLeftovers cleans the given leftovers of uninstalled apps:
+// dirs are moved into the recycle bin, residual symlinks and orphaned users
+// are removed. Every requested target is re-validated against a FRESH scan,
+// so an app installed between scan and clean is never touched. Empty
+// selections clean nothing of that kind.
+func CleanUninstalledLeftovers(uid string, dirs, links, users []string) (types.RecycleCleanResult, error) {
+	result := types.RecycleCleanResult{}
+	if uid == "" {
+		uid = defaultRecycleUID
+	}
+
+	// Critical safety: only ever clean leftovers of apps we KNOW are
+	// uninstalled. Fetch the installed set directly and abort the whole clean
+	// if we cannot reliably determine it.
+	installedApps, err := execAppcenterList()
+	if err != nil {
+		return result, fmt.Errorf("无法获取已安装应用列表，已取消清理: %w", err)
+	}
+	installedSet := lowerSet(installedApps)
+	usedShares := collectUsedShares()
+	installedUsers := collectInstalledUsers(installedApps)
+
+	// ---- dirs -> recycle bin ----
+	if len(dirs) > 0 {
+		dirAllowed := allowedSet(dirs)
+		candDirs, errs := scanLeftoverDirs(installedSet, usedShares, installedUsers)
+		result.Errors = append(result.Errors, errs...)
+		for _, cand := range candDirs {
+			if !dirAllowed[cand.Path] {
+				continue
+			}
+			src := cand.Path
 			// Defense in depth: re-verify symlink safety before moving.
 			if utils.IsSymlinkPath(src) {
 				continue
 			}
-			trashDir := recycleDirForPath(normalizedBase, uid)
-			// rel MUST be an absolute path rooted at "/", because
-			// RestoreRecycleItems re-validates it via utils.SafePath which
-			// rejects anything not starting with "/". Using only
-			// filepath.Base(normalizedBase) produced a bare "@appdata/xunlei"
-			// key that always failed SafePath, making every restore
-			// impossible. Build rel from the full absolute normalizedBase so
-			// it is both a legal SafePath and stays strictly inside trashDir.
-			rel := filepath.Join(normalizedBase, appName)
-			if err := moveToTrash(src, trashDir, rel); err != nil {
+			// rel is the full absolute source path; moveToTrash normalizes it
+			// to a volume-root-relative path inside the recycle dir and the
+			// manifest records the exact original location for restore.
+			trashDir := recycleDirForPath(src, uid)
+			if err := moveToTrash(src, trashDir, src); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", src, err.Error()))
 				continue
 			}
@@ -517,7 +874,69 @@ func CleanUninstalledAppDirsToTrash(uid string) (types.RecycleCleanResult, error
 		}
 	}
 
+	// ---- residual symlinks -> unlink the link itself only ----
+	if len(links) > 0 {
+		linkAllowed := allowedSet(links)
+		for _, cand := range scanLinkResiduals(installedSet) {
+			if !linkAllowed[cand.Path] {
+				continue
+			}
+			if err := removeResidualLink(cand.Path); err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", cand.Path, err.Error()))
+				continue
+			}
+			result.Links = append(result.Links, cand.Path)
+		}
+	}
+
+	// ---- orphaned docker-* users -> userdel ----
+	if len(users) > 0 {
+		userAllowed := allowedSet(users)
+		for _, cand := range scanOrphanUsers(installedSet) {
+			if !userAllowed[cand.Path] {
+				continue
+			}
+			if err := deleteOrphanUser(cand.Path, installedSet); err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", cand.Path, err.Error()))
+				continue
+			}
+			result.Users = append(result.Users, cand.Path)
+		}
+	}
+
 	return result, nil
+}
+
+// removeResidualLink removes a residual symlink — and only a symlink; it
+// never follows or touches the target.
+func removeResidualLink(lp string) error {
+	fi, err := os.Lstat(lp)
+	if err != nil {
+		return err
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		return fmt.Errorf("不是符号链接，拒绝删除")
+	}
+	return os.Remove(lp)
+}
+
+// orphanUserNameRe is the strict allow-list of user names we may ever delete.
+var orphanUserNameRe = regexp.MustCompile(`^docker-[A-Za-z0-9_.-]+$`)
+
+// deleteOrphanUser removes an orphaned docker-* system user after re-checking
+// it still belongs to no installed app.
+func deleteOrphanUser(name string, installedSet map[string]bool) error {
+	if !orphanUserNameRe.MatchString(name) {
+		return fmt.Errorf("用户名不合法")
+	}
+	app := strings.TrimPrefix(name, "docker-")
+	if installedSet[strings.ToLower(name)] || installedSet[strings.ToLower(app)] {
+		return fmt.Errorf("应用已安装，拒绝删除用户")
+	}
+	if _, err := execCommand("userdel", []string{name}, 15000); err != nil {
+		return fmt.Errorf("userdel 失败: %w", err)
+	}
+	return nil
 }
 
 // RecycleItem describes one item currently sitting in a recycle dir.
@@ -754,17 +1173,8 @@ func isAppDataRoot(dir string) bool {
 	return false
 }
 
-func containsStr(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
 // ---------------------------------------------------------------------------
-// Auto-purge: permanently remove recycle items older than 24 hours.
+// Auto-purge: permanently remove recycle items past the retention period.
 // ---------------------------------------------------------------------------
 
 type recycleCleaner struct {
@@ -792,7 +1202,7 @@ func StartRecycleCleaner() error {
 		return fmt.Errorf("回收站清理器未初始化")
 	}
 	go globalRecycleCleaner.run()
-	slog.Info("回收站自动清空调度已启动", "retention", recycleRetention.String())
+	slog.Info("回收站自动清空调度已启动", "retention", recycleRetentionDuration().String())
 	return nil
 }
 
@@ -830,7 +1240,7 @@ func (rc *recycleCleaner) cleanExpired() {
 		roots = []string{recycleDirForPath("/vol1", defaultRecycleUID)}
 	}
 
-	cutoff := time.Now().Add(-recycleRetention)
+	cutoff := time.Now().Add(-recycleRetentionDuration())
 	for _, root := range roots {
 		normalized := utils.SafePath(root)
 		if normalized == "" {

@@ -263,26 +263,52 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
-  async function cleanUninstalledDirs(): Promise<void> {
+  interface UninstalledCleanSelection {
+    dirs: string[]
+    links: string[]
+    users: string[]
+    retentionHours: number
+  }
+
+  async function cleanUninstalledDirs(sel?: UninstalledCleanSelection): Promise<void> {
     const { setStatus, confirm } = useStatusStore()
     showUninstalledCleanModal.value = false
+    const dirs = sel?.dirs || []
+    const links = sel?.links || []
+    const users = sel?.users || []
+    const retentionHours = sel?.retentionHours || 24
+
+    const parts: string[] = []
+    if (dirs.length) parts.push(`${dirs.length} 个残留目录（移入回收站）`)
+    if (links.length) parts.push(`${links.length} 个残留符号链接（直接删除）`)
+    if (users.length) parts.push(`${users.length} 个孤儿系统用户（直接删除）`)
+    if (parts.length === 0) return
+
     const confirmed = await confirm({
-      title: '清理已卸载应用残留文件',
-      message: '将把已卸载应用的非空残留目录移入回收站（可恢复），24小时后自动清空。\n\n只会处理已卸载应用，不会影响已安装应用。',
+      title: '清理已卸载应用残留',
+      message: `将清理已卸载应用的：\n${parts.join('\n')}\n\n残留目录在 ${retentionHours} 小时内可从回收站还原，到期自动清空。\n只会处理已卸载应用，不会影响已安装应用。`,
       type: 'danger',
-      confirmText: '移入回收站'
+      confirmText: '确认清理'
     })
     if (!confirmed) return
 
-    setStatus('正在将已卸载应用残留目录移入回收站...', 'loading')
+    setStatus('正在清理已卸载应用残留...', 'loading')
     try {
-      const data = await api.post<{ moved: number; dirs: string[]; errors: string[]; message: string }>('/api/dirs/clean-uninstalled-trash')
+      const data = await api.post<{
+        moved: number
+        dirs: string[]
+        linksRemoved: string[]
+        usersRemoved: string[]
+        errors: string[]
+        message: string
+      }>('/api/dirs/clean-uninstalled-trash', { dirs, links, users })
+      const total = data.moved + (data.linksRemoved?.length || 0) + (data.usersRemoved?.length || 0)
       if (data.errors && data.errors.length > 0) {
-        setStatus(`已移动 ${data.moved} 个目录到回收站，但有 ${data.errors.length} 个错误：${data.errors.join('；')}`, 'warning')
-      } else if (data.moved === 0) {
-        setStatus('没有找到已卸载应用的非空残留目录', 'success')
+        setStatus(`已清理 ${total} 项，但有 ${data.errors.length} 个错误：${data.errors.join('；')}`, 'warning')
+      } else if (total === 0) {
+        setStatus('没有找到需要清理的残留', 'success')
       } else {
-        setStatus(data.message || `已将 ${data.moved} 个残留目录移入回收站，24小时后自动清空`, 'success')
+        setStatus(data.message || `已清理 ${total} 项残留`, 'success')
       }
     } catch (e) {
       setStatus('清理失败: ' + safeErrorMessage(e), 'error')

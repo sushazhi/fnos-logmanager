@@ -67,9 +67,12 @@ func RegisterLogRoutes(rg *gin.RouterGroup) {
 
 	// Dirs
 	rg.POST("/dirs/clean-empty", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanEmptyDirsHandler)
+	rg.GET("/dirs/clean-uninstalled-scan", middleware.ValidateToken, scanUninstalledLeftoversHandler)
 	rg.POST("/dirs/clean-uninstalled-trash", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanUninstalledTrashHandler)
 	rg.GET("/dirs/recycle-list", middleware.ValidateToken, listRecycleItemsHandler)
 	rg.POST("/dirs/recycle-restore", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), restoreRecycleItemsHandler)
+	rg.GET("/dirs/recycle-settings", middleware.ValidateToken, getRecycleSettingsHandler)
+	rg.POST("/dirs/recycle-settings", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), updateRecycleSettingsHandler)
 	rg.POST("/dirs/unauthorize", middleware.ValidateToken, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(10, 300000), unauthorizeDirHandler)
 
 	// P2: Shared (app-level) directory authorization management
@@ -1503,8 +1506,28 @@ func cleanEmptyDirsHandler(c *gin.Context) {
 }
 
 // ---------------------------------------------------------------------------
-// Clean uninstalled-app leftovers into the recycle bin
+// Clean uninstalled-app leftovers (scan preview + selective clean)
 // ---------------------------------------------------------------------------
+
+// scanUninstalledLeftoversHandler previews all detected leftovers of
+// uninstalled apps (dirs / residual symlinks / orphaned users) without
+// modifying anything.
+func scanUninstalledLeftoversHandler(c *gin.Context) {
+	res, err := services.ScanUninstalledLeftovers()
+	if err != nil {
+		slog.Error("failed to scan uninstalled app leftovers", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success":        true,
+		"dirs":           res.Dirs,
+		"links":          res.Links,
+		"users":          res.Users,
+		"retentionHours": res.RetentionHours,
+		"errors":         res.Errors,
+	})
+}
 
 func cleanUninstalledTrashHandler(c *gin.Context) {
 	gatewayUID, _ := c.Get("gatewayUID")
@@ -1514,25 +1537,61 @@ func cleanUninstalledTrashHandler(c *gin.Context) {
 		sessionTokenToString(sessionToken),
 	)
 
-	result, err := services.CleanUninstalledAppDirsToTrash(uid)
+	var req struct {
+		Dirs  []string `json:"dirs"`
+		Links []string `json:"links"`
+		Users []string `json:"users"`
+	}
+	// Empty body is allowed for backwards compatibility with older clients
+	// whose one-click clean only moved leftover DIRS into the recycle bin.
+	// Links and users are therefore only ever removed when the request
+	// explicitly lists them — an empty body must never escalate into deleting
+	// things the caller never opted into.
+	_ = c.ShouldBindJSON(&req)
+
+	dirs, links, users := req.Dirs, req.Links, req.Users
+	if len(dirs) == 0 && len(links) == 0 && len(users) == 0 {
+		scan, err := services.ScanUninstalledLeftovers()
+		if err != nil {
+			slog.Error("failed to scan uninstalled app leftovers", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		for _, d := range scan.Dirs {
+			dirs = append(dirs, d.Path)
+		}
+	}
+
+	result, err := services.CleanUninstalledLeftovers(uid, dirs, links, users)
 	if err != nil {
-		slog.Error("failed to clean uninstalled app dirs into trash", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "清理已卸载应用残余目录失败"})
+		slog.Error("failed to clean uninstalled app leftovers", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "清理已卸载应用残余失败"})
 		return
 	}
 
 	services.AddAuditLog("dirs_clean_uninstalled_trash", map[string]interface{}{
 		"moved": result.Moved,
 		"dirs":  result.Dirs,
+		"links": result.Links,
+		"users": result.Users,
 	}, c)
 
-	message := fmt.Sprintf("已将 %d 个已卸载应用残留目录移入回收站，24小时后自动清空", result.Moved)
+	retention := config.Get().RecycleRetentionHours
+	message := fmt.Sprintf("已将 %d 个已卸载应用残留目录移入回收站，%d 小时后自动清空", result.Moved, retention)
+	if len(result.Links) > 0 {
+		message += fmt.Sprintf("，删除 %d 个残留符号链接", len(result.Links))
+	}
+	if len(result.Users) > 0 {
+		message += fmt.Sprintf("，删除 %d 个孤儿用户", len(result.Users))
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"moved":   result.Moved,
-		"dirs":    result.Dirs,
-		"errors":  result.Errors,
-		"message": message,
+		"success":      true,
+		"moved":        result.Moved,
+		"dirs":         result.Dirs,
+		"linksRemoved": result.Links,
+		"usersRemoved": result.Users,
+		"errors":       result.Errors,
+		"message":      message,
 	})
 }
 
@@ -1541,8 +1600,37 @@ func cleanUninstalledTrashHandler(c *gin.Context) {
 func listRecycleItemsHandler(c *gin.Context) {
 	items := services.ListRecycleItems()
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"items":   items,
+		"success":        true,
+		"items":          items,
+		"retentionHours": config.Get().RecycleRetentionHours,
+	})
+}
+
+func getRecycleSettingsHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"success":        true,
+		"retentionHours": config.Get().RecycleRetentionHours,
+	})
+}
+
+func updateRecycleSettingsHandler(c *gin.Context) {
+	var req struct {
+		RetentionHours int `json:"retentionHours"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := config.UpdateRecycleRetention(req.RetentionHours); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	services.AddAuditLog("recycle_settings_update", map[string]interface{}{
+		"retentionHours": req.RetentionHours,
+	}, c)
+	c.JSON(http.StatusOK, gin.H{
+		"success":        true,
+		"retentionHours": req.RetentionHours,
 	})
 }
 

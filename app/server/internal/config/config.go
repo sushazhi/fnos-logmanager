@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -28,6 +29,9 @@ type Config struct {
 	Notify NotifyConfig `json:"notify"`
 	EventLogger EventLoggerConfig `json:"eventLogger"`
 	SensitivePatterns []string `json:"sensitivePatterns"`
+	// RecycleRetentionHours is how long uninstalled-app leftovers stay in the
+	// recycle bin before being auto-purged. User-adjustable via the UI.
+	RecycleRetentionHours int `json:"recycleRetentionHours"`
 	GatewaySocket string `json:"-"`
 	GatewayPrefix string `json:"-"`
 	AuditLogFile string `json:"auditLogFile"`
@@ -181,6 +185,7 @@ func loadConfig() *Config {
 	// Load config from JSON file for overrides
 	var fileConfig struct {
 		LogDirs     []string `json:"log_dirs"`
+		RecycleRetentionHours *int `json:"recycle_retention_hours"`
 		EventLogger *struct {
 			Enabled             *bool    `json:"enabled"`
 			DBPath              *string  `json:"dbPath"`
@@ -305,12 +310,16 @@ func loadConfig() *Config {
 			`-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----`,
 			`eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_.+/]*`,
 		},
+		RecycleRetentionHours: getEnvInt("RECYCLE_RETENTION_HOURS", 24),
 		MCP: LoadMCPConfig(),
 	}
 
 	// Apply JSON config file overrides
 	if len(fileConfig.LogDirs) > 0 {
 		cfg.LogDirs = fileConfig.LogDirs
+	}
+	if fileConfig.RecycleRetentionHours != nil && *fileConfig.RecycleRetentionHours > 0 {
+		cfg.RecycleRetentionHours = *fileConfig.RecycleRetentionHours
 	}
 	if fileConfig.EventLogger != nil {
 		if fileConfig.EventLogger.Enabled != nil {
@@ -366,6 +375,17 @@ func loadConfig() *Config {
 		}
 	}
 
+	// Load recycle-bin retention set by the user via the UI (highest priority).
+	recycleCfgPath := filepath.Join(dataDir, "recycle-config.json")
+	if rData, err := os.ReadFile(recycleCfgPath); err == nil {
+		var rCfg struct {
+			RetentionHours *int `json:"retentionHours"`
+		}
+		if json.Unmarshal(rData, &rCfg) == nil && rCfg.RetentionHours != nil && *rCfg.RetentionHours > 0 {
+			cfg.RecycleRetentionHours = *rCfg.RetentionHours
+		}
+	}
+
 	return cfg
 }
 
@@ -388,6 +408,27 @@ func saveEventLoggerConfig(el EventLoggerConfig) error {
 		return err
 	}
 	return os.WriteFile(configPath, data, 0644)
+}
+
+// UpdateRecycleRetention updates the recycle-bin retention (in hours) in memory
+// and persists it so the auto-purge schedule honors the user's choice.
+func UpdateRecycleRetention(hours int) error {
+	if hours < 1 || hours > 24*365 {
+		return fmt.Errorf("保留时长需在 1 到 8760 小时之间")
+	}
+	Get().RecycleRetentionHours = hours
+
+	data, err := json.MarshalIndent(struct {
+		RetentionHours int `json:"retentionHours"`
+	}{hours}, "", "  ")
+	if err != nil {
+		return err
+	}
+	dataDir := Get().DataDir
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dataDir, "recycle-config.json"), data, 0644)
 }
 
 // GetGatewayPrefix returns the gateway URL prefix.
