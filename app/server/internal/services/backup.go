@@ -334,20 +334,10 @@ func ListBackups() []types.BackupInfo {
 
 // DeleteBackup deletes a backup file.
 func DeleteBackup(backupPath string) error {
-	safePath := utils.SafePath(backupPath)
-	if safePath == "" {
-		return fmt.Errorf("无效的路径")
+	safePath, err := ValidateBackupFilePath(backupPath)
+	if err != nil {
+		return err
 	}
-
-	cfg := config.Get()
-	if !strings.HasPrefix(safePath, cfg.Backup.BaseDir) {
-		return fmt.Errorf("只能删除备份目录下的文件")
-	}
-
-	if !strings.HasSuffix(safePath, ".tar.gz") {
-		return fmt.Errorf("只能删除备份文件")
-	}
-
 	return os.Remove(safePath)
 }
 

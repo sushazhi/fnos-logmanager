@@ -27,7 +27,7 @@
       <button class="warning" @click="$emit('showUninstalledClean')" title="清理已卸载应用的残留：空文件夹直接删除，其余残留移入回收站，保留时长可设置，到期自动清空">
         清理已卸载应用
       </button>
-      <button class="btn-primary" @click="$emit('backup')" title="备份日志到指定目录">
+      <button class="btn-primary" @click="$emit('backup')" title="打开备份管理：创建备份、预览内容并恢复到原位置、删除备份">
         备份
       </button>
     </div>

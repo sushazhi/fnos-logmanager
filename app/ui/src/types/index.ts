@@ -130,6 +130,46 @@ export interface BackupResponse {
   success: boolean
 }
 
+export interface BackupListItem {
+  name: string
+  path: string
+  size: string
+  created: string
+}
+
+export interface BackupPreviewEntry {
+  name: string
+  targetPath: string
+  size: number
+  sizeFormatted: string
+  exists: boolean
+  denied: boolean
+}
+
+export interface BackupPreview {
+  backupPath: string
+  totalFiles: number
+  totalSize: number
+  totalSizeFormatted: string
+  deniedFiles: number
+  entries: BackupPreviewEntry[]
+  truncated: boolean
+}
+
+export interface RestoreItemResult {
+  path: string
+  status: 'restored' | 'skipped' | 'failed'
+  message?: string
+}
+
+export interface RestoreResult {
+  restored: number
+  skipped: number
+  failed: number
+  errors?: string[]
+  details: RestoreItemResult[]
+}
+
 // ==================== 更新类型 ====================
 
 export interface UpdateInfo {

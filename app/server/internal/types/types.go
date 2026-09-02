@@ -60,6 +60,48 @@ type BackupResult struct {
 	Errors     []string `json:"errors,omitempty"`
 }
 
+// BackupPreviewEntry represents a file entry inside a backup archive.
+type BackupPreviewEntry struct {
+	Name          string `json:"name"`
+	TargetPath    string `json:"targetPath"`
+	Size          int64  `json:"size"`
+	SizeFormatted string `json:"sizeFormatted"`
+	Exists        bool   `json:"exists"`
+	Denied        bool   `json:"denied"`
+}
+
+// BackupPreview represents the content preview of a backup archive.
+type BackupPreview struct {
+	BackupPath         string               `json:"backupPath"`
+	TotalFiles         int                  `json:"totalFiles"`
+	TotalSize          int64                `json:"totalSize"`
+	TotalSizeFormatted string               `json:"totalSizeFormatted"`
+	DeniedFiles        int                  `json:"deniedFiles"`
+	Entries            []BackupPreviewEntry `json:"entries"`
+	Truncated          bool                 `json:"truncated"`
+}
+
+// RestoreOptions controls how a backup is restored.
+type RestoreOptions struct {
+	Overwrite bool `json:"overwrite"`
+}
+
+// RestoreItemResult represents the outcome of restoring a single file.
+type RestoreItemResult struct {
+	Path    string `json:"path"`
+	Status  string `json:"status"` // restored | skipped | failed
+	Message string `json:"message,omitempty"`
+}
+
+// RestoreResult represents the result of a backup restore operation.
+type RestoreResult struct {
+	Restored int                 `json:"restored"`
+	Skipped  int                 `json:"skipped"`
+	Failed   int                 `json:"failed"`
+	Errors   []string            `json:"errors,omitempty"`
+	Details  []RestoreItemResult `json:"details"`
+}
+
 // AuditLogEntry represents an audit log entry.
 type AuditLogEntry struct {
 	Timestamp string                 `json:"timestamp"`

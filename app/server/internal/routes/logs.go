@@ -56,6 +56,8 @@ func RegisterLogRoutes(rg *gin.RouterGroup) {
 	rg.GET("/backups/list", middleware.ValidateToken, listBackupsHandler)
 	rg.POST("/backups/delete", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(5, 300000), deleteBackupHandler)
 	rg.POST("/backups/clean", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 300000), cleanBackupsHandler)
+	rg.GET("/backups/preview", middleware.ValidateToken, middleware.APIRateLimit(10, 60000), previewBackupHandler)
+	rg.POST("/backups/restore", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, middleware.SensitiveActionRateLimit(3, 600000), restoreBackupHandler)
 
 	// Archives
 	rg.GET("/archives/list", middleware.ValidateToken, listArchivesHandler)
@@ -200,10 +202,7 @@ func getDirsHandler(c *gin.Context) {
 			defaultSet[utils.SafePath(d)] = true
 		}
 
-		allowedDirs := config.Get().LogDirs
-		if len(userPaths) > 0 {
-			allowedDirs = append(allowedDirs, userPaths...)
-		}
+		allowedDirs := unionDirs(config.Get().LogDirs, userPaths)
 		filtered := make([]types.DirInfo, 0, len(dirs))
 		for _, dir := range dirs {
 			if defaultSet[utils.SafePath(dir.Path)] {
@@ -425,7 +424,7 @@ func listLogsHandler(c *gin.Context) {
 		}
 	}
 
-	logs, err := services.ListLogFiles(q.Dir, limit)
+	logs, err := services.ListLogFiles(q.Dir, limit, uidFromRequest(c))
 	if err != nil {
 		slog.Error("failed to list log files", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取日志列表失败"})
@@ -766,7 +765,7 @@ func getLogContentHandler(c *gin.Context) {
 		Tail:     tail,
 	}
 
-	result, err := services.ReadLogFile(q.Path, options)
+	result, err := services.ReadLogFile(q.Path, options, uidFromRequest(c))
 	if err != nil {
 		// Check if it's a file-too-large error with size info
 		slog.Error("failed to read log file", "path", q.Path, "error", err)
@@ -827,7 +826,7 @@ func exportLogHandler(c *gin.Context) {
 	options := types.ReadLogOptions{
 		MaxLines: 200000,
 	}
-	result, err := services.ReadLogFile(q.Path, options)
+	result, err := services.ReadLogFile(q.Path, options, uidFromRequest(c))
 	if err != nil {
 		slog.Error("failed to read log file for export", "path", q.Path, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "导出失败"})
@@ -932,7 +931,7 @@ func truncateLogHandler(c *gin.Context) {
 		return
 	}
 
-	if err := services.TruncateLogFile(body.Path); err != nil {
+	if err := services.TruncateLogFile(body.Path, uidFromRequest(c)); err != nil {
 		slog.Error("failed to truncate log file", "path", body.Path, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -968,7 +967,7 @@ func deleteLogHandler(c *gin.Context) {
 		return
 	}
 
-	if err := services.DeleteLogFile(body.Path); err != nil {
+	if err := services.DeleteLogFile(body.Path, uidFromRequest(c)); err != nil {
 		slog.Error("failed to delete log file", "path", body.Path, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -1133,19 +1132,8 @@ func deleteBackupHandler(c *gin.Context) {
 		return
 	}
 
-	safePath := utils.SafePath(body.Path)
-	if safePath == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的备份路径"})
-		return
-	}
-	cfg := config.Get()
-	// 修复：目录边界校验，防止 /vol1/@appshare/logmanager/backup_evil/x.tar.gz 通过前缀检查
-	baseDir := cfg.Backup.BaseDir
-	if !strings.HasSuffix(baseDir, string(os.PathSeparator)) {
-		baseDir += string(os.PathSeparator)
-	}
-	if !strings.HasPrefix(safePath, baseDir) || !strings.HasSuffix(safePath, ".tar.gz") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "只能删除备份目录下的 .tar.gz 文件"})
+	if _, err := services.ValidateBackupFilePath(body.Path); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -1166,6 +1154,70 @@ func deleteBackupHandler(c *gin.Context) {
 
 type cleanBackupsBody struct {
 	Days int `json:"days"`
+}
+
+func previewBackupHandler(c *gin.Context) {
+	backupPath := c.Query("path")
+	if backupPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少备份文件路径"})
+		return
+	}
+	limit := 200
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+
+	preview, err := services.PreviewBackup(backupPath, limit)
+	if err != nil {
+		slog.Warn("failed to preview backup", "path", backupPath, "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"preview": preview})
+}
+
+type restoreBackupBody struct {
+	Path      string `json:"path"`
+	Overwrite bool   `json:"overwrite"`
+}
+
+func restoreBackupHandler(c *gin.Context) {
+	var body restoreBackupBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的参数"})
+		return
+	}
+	if body.Path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少备份文件路径"})
+		return
+	}
+
+	result, err := services.RestoreBackup(body.Path, types.RestoreOptions{Overwrite: body.Overwrite})
+	if err != nil {
+		slog.Error("failed to restore backup", "path", body.Path, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	services.AddAuditLog("backup_restore", map[string]interface{}{
+		"path":      body.Path,
+		"overwrite": body.Overwrite,
+		"restored":  result.Restored,
+		"skipped":   result.Skipped,
+		"failed":    result.Failed,
+	}, c)
+
+	slog.Info("backup restored", "path", body.Path,
+		"restored", result.Restored, "skipped", result.Skipped, "failed", result.Failed)
+	c.JSON(http.StatusOK, gin.H{
+		"success": result.Failed == 0,
+		"result":  result,
+	})
 }
 
 func cleanBackupsHandler(c *gin.Context) {
@@ -1435,7 +1487,7 @@ func deleteArchiveHandler(c *gin.Context) {
 		return
 	}
 
-	if err := services.DeleteLogFile(body.Path); err != nil {
+	if err := services.DeleteLogFile(body.Path, uidFromRequest(c)); err != nil {
 		slog.Error("failed to delete archive file", "path", body.Path, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -2063,31 +2115,50 @@ func parseInt64OrZero(s string) int64 {
 	return n
 }
 
+// uidFromRequest extracts the current user's ID from gateway or session context.
+func uidFromRequest(c *gin.Context) string {
+	gatewayUID, _ := c.Get("gatewayUID")
+	sessionToken, _ := c.Get("sessionToken")
+	return utils.GetUserIDFromContext(
+		gatewayUIDToString(gatewayUID),
+		sessionTokenToString(sessionToken),
+	)
+}
+
 // checkFileACL is a centralized helper that performs path whitelist + ACL check.
 // It extracts user info from gin.Context and returns true if access is allowed.
 // P0: Integrated ACL permission check via fnOS trim API.
 //
+// The path whitelist is config LogDirs ∪ the user's trim-authorized folders:
+// custom dirs added via the file picker are stored in the user's trim
+// authorization (getUserAccessibleFolders), not in LogDirs, so the union is
+// required for picker-added dirs to pass here — matching getDirsHandler.
+//
 // Admins (x-trim-isadmin=true) bypass the trim ACL so they can manage system
 // log directories under @appdata/@appconf/etc. The path whitelist (IsAllowedPath)
-// is still enforced to prevent access outside the configured log dirs.
+// is still enforced to prevent access outside the allowed dirs.
 func checkFileACL(c *gin.Context, filePath string, action string) bool {
+	uid := uidFromRequest(c)
+
+	allowedDirs := config.Get().LogDirs
+	if !utils.IsAllowedPath(filePath, allowedDirs) {
+		// Only hit the trim API when the path is outside LogDirs, so system
+		// dir requests keep their zero-extra-RPC fast path.
+		if folders := services.UserAuthorizedDirs(uid); len(folders) > 0 {
+			allowedDirs = unionDirs(allowedDirs, folders)
+		}
+	}
+
 	// Admins have full access to system log directories. The x-trim-isadmin
 	// header is only trusted when it was injected by the trusted gateway, i.e.
 	// when the request genuinely arrived via the loopback unix-socket proxy.
 	// Trusting this header on a directly-reachable connection would let a
 	// remote client forge it and bypass the per-user ACL.
 	if config.IsGatewayMode() && c.GetHeader("x-trim-isadmin") == "true" && utils.IsLoopbackAddr(c.Request.RemoteAddr) {
-		return utils.IsAllowedPath(filePath, config.Get().LogDirs)
+		return utils.IsAllowedPath(filePath, allowedDirs)
 	}
 
-	gatewayUID, _ := c.Get("gatewayUID")
-	sessionToken, _ := c.Get("sessionToken")
-	uid := utils.GetUserIDFromContext(
-		gatewayUIDToString(gatewayUID),
-		sessionTokenToString(sessionToken),
-	)
-
-	allowed, reason := utils.CheckUserFileACL(uid, filePath, config.Get().LogDirs, action)
+	allowed, reason := utils.CheckUserFileACL(uid, filePath, allowedDirs, action)
 	if !allowed {
 		if reason == "" {
 			reason = "不允许访问此文件"
@@ -2095,6 +2166,17 @@ func checkFileACL(c *gin.Context, filePath string, action string) bool {
 		return false
 	}
 	return true
+}
+
+// unionDirs returns base ∪ extra as a new slice — never appends into base's
+// backing array, which for config.LogDirs is shared across all requests.
+func unionDirs(base, extra []string) []string {
+	if len(extra) == 0 {
+		return base
+	}
+	out := make([]string, 0, len(base)+len(extra))
+	out = append(out, base...)
+	return append(out, extra...)
 }
 
 // convertPathToDisplay converts an internal path to a user-friendly display path.

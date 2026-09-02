@@ -51,7 +51,7 @@
       @show-search="showSearchModal = true"
       @show-clean="showCleanModal = true"
       @show-uninstalled-clean="showUninstalledCleanModal = true"
-      @backup="backupLogs"
+      @backup="showBackupManage = true"
       @list-archives="listArchives"
       @list-docker="listDockerContainers"
       @toggle-filter="toggleFilter"
@@ -102,13 +102,18 @@
       @execute="executeClean"
     />
     
-    <UninstalledCleanModal 
+    <UninstalledCleanModal
       v-if="showUninstalledCleanModal"
       @close="showUninstalledCleanModal = false"
       @clean-empty="cleanEmptyDirs"
       @clean-trash="cleanUninstalledDirs"
     />
-    
+
+    <BackupManageModal
+      v-if="showBackupManage"
+      @close="showBackupManage = false"
+    />
+
     <SearchModal 
       v-if="showSearchModal"
       @close="showSearchModal = false"
@@ -173,6 +178,7 @@ import AppFooter from './components/AppFooter.vue'
 import LogModal from './components/LogModal.vue'
 import CleanModal from './components/CleanModal.vue'
 import UninstalledCleanModal from './components/UninstalledCleanModal.vue'
+import BackupManageModal from './components/BackupManageModal.vue'
 import SearchModal from './components/SearchModal.vue'
 import UpdateNotification from './components/UpdateNotification.vue'
 import SettingsModal from './components/SettingsModal.vue'
@@ -222,7 +228,6 @@ const {
   truncateLog,
   listDockerContainers,
   viewDockerLogs,
-  backupLogs,
   removeTab,
   switchTab,
   executeClean,
@@ -243,6 +248,7 @@ const showEventLogger = ref(false)
 const showAutoClean = ref(false)
 const showKernelModules = ref(false)
 const showProcesses = ref(false)
+const showBackupManage = ref(false)
 const loadingAllLines = ref(false)
 const bookmarks = ref([])
 
