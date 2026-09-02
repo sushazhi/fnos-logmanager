@@ -62,6 +62,11 @@ func ServeStatic(root string) gin.HandlerFunc {
 		//   root/logmanager/assets/foo.js      → not found
 		//   root/assets/foo.js                 → FOUND ✓
 		if file, found := findFile(absRoot, cleaned); found {
+			// HTML 入口不缓存：升级后移动 WebView 必须立即拿到新 index.html，
+			// 否则继续跑旧 JS（assets 文件名带 hash，缓存无害）。
+			if strings.HasSuffix(strings.ToLower(file), ".html") {
+				c.Header("Cache-Control", "no-cache")
+			}
 			c.File(file)
 			c.Abort()
 			return
@@ -117,6 +122,7 @@ func ServeIndexWithBase(uiDir, baseHref string) gin.HandlerFunc {
 		// No base tag needed, serve directly
 		htmlPath := filepath.Join(uiDir, "index.html")
 		return func(c *gin.Context) {
+			c.Header("Cache-Control", "no-cache")
 			c.File(htmlPath)
 		}
 	}
@@ -142,6 +148,7 @@ func ServeIndexWithBase(uiDir, baseHref string) gin.HandlerFunc {
 	})
 
 	return func(c *gin.Context) {
+		c.Header("Cache-Control", "no-cache")
 		if len(indexHTMLCache) > 0 {
 			c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTMLCache)
 		} else {

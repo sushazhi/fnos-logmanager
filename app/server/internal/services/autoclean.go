@@ -2,7 +2,6 @@ package services
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -17,11 +16,6 @@ import (
 	"github.com/sushazhi/fnos-logmanager/internal/utils"
 )
 
-// errMaxFilesReached is a sentinel used to stop directory traversal once a rule
-// hits MaxFilesToClean. Reaching the cap is a successful (bounded) run, so the
-// sentinel is never surfaced to callers as an error. FIX(bug 33).
-var errMaxFilesReached = errors.New("reached max files limit")
-
 // CleanRule represents a scheduled cleanup rule.
 type CleanRule struct {
 	ID              string   `json:"id"`
@@ -31,7 +25,7 @@ type CleanRule struct {
 	Enabled         *bool    `json:"enabled"`
 	Schedule        string   `json:"schedule"`        // cron expression or seconds interval (e.g. "30s")
 	LogDirs         []string `json:"logDirs"`          // empty = all dirs
-	FilePattern     string   `json:"filePattern"`      // regex to match filenames
+	FilePattern     string   `json:"filePattern"`      // regex to match filenames; empty = logs/archives only (see cleanNameMatcher)
 	MinSizeBytes    int64    `json:"minSizeBytes"`     // 0 = no min
 	MaxSizeBytes    int64    `json:"maxSizeBytes"`     // 0 = no max
 	RetentionDays   int      `json:"retentionDays"`    // 0 = no date limit
@@ -386,42 +380,60 @@ func RunCleanRuleNow(id string) (types.CleanLogResult, error) {
 	return executeCleanRule(&ru)
 }
 
-func executeCleanRule(rule *CleanRule) (types.CleanLogResult, error) {
-	result := types.CleanLogResult{}
-	now := time.Now()
+// cleanMatch is one candidate file collected during the scan phase of a clean
+// rule run. It carries everything the execute phase needs; nothing is modified
+// during the scan.
+type cleanMatch struct {
+	Path    string
+	Size    int64
+	ModTime time.Time
+}
 
-	searchDirs := rule.LogDirs
-	if len(searchDirs) == 0 {
-		searchDirs = config.Get().LogDirs
-	}
-
-	var nameRe *regexp.Regexp
-	if rule.FilePattern != "" {
-		var err error
-		nameRe, err = regexp.Compile(rule.FilePattern)
+// cleanNameMatcher builds the filename matcher for a clean rule. An explicit
+// filePattern regex is the user's own scope and is honored as-is. Without one,
+// a rule would match EVERY file under the scan dirs — user data included
+// (e.g. qBittorrent's BT_backup .torrent/.fastresume files under
+// /vol1/@appdata) — so fall back to the same log/archive scope as
+// CleanLogFiles: delete targets logs and archives, truncate only live logs
+// (truncating an archive corrupts it while it stays removable via delete).
+func cleanNameMatcher(filePattern, action string) (func(string) bool, error) {
+	if filePattern != "" {
+		re, err := regexp.Compile(filePattern)
 		if err != nil {
-			return result, fmt.Errorf("无效的文件匹配模式: %s", err.Error())
+			return nil, fmt.Errorf("无效的文件匹配模式: %s", err.Error())
 		}
+		return re.MatchString, nil
 	}
+	return func(name string) bool {
+		if action == "truncate" {
+			return isLogFile(name) && !isArchiveFile(name)
+		}
+		return isLogFile(name) || isArchiveFile(name)
+	}, nil
+}
 
+// matchCleanFiles walks searchDirs (already normalized absolute paths) and
+// collects files passing every filter WITHOUT touching them:
+//   - matchName: filename matcher (see cleanNameMatcher)
+//   - minSize / maxSize: byte bounds; 0 = unbounded on that side
+//   - retentionDays: only files older than N days; 0 = no date filter
+//
+// Scan-only, so the collection phase and the destructive phase stay separable
+// (and testable). Symlinks are never followed or collected, and known
+// non-log directories (venv, node_modules, ...) are skipped like findFiles.
+func matchCleanFiles(searchDirs []string, matchName func(string) bool, minSize, maxSize int64, retentionDays int) []cleanMatch {
 	var cutoffTime time.Time
-	if rule.RetentionDays > 0 {
-		cutoffTime = now.AddDate(0, 0, -rule.RetentionDays)
+	if retentionDays > 0 {
+		cutoffTime = time.Now().AddDate(0, 0, -retentionDays)
 	}
 
-	cleanedCount := 0
-	var errList []string
-
+	var matches []cleanMatch
 	for _, dir := range searchDirs {
-		normalizedDir := utils.SafePath(dir)
-		if normalizedDir == "" {
-			continue
-		}
-		if _, err := os.Stat(normalizedDir); os.IsNotExist(err) {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			continue
 		}
 
-		walkErr := filepath.Walk(normalizedDir, func(path string, info os.FileInfo, err error) error {
+		walkErr := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				if os.IsPermission(err) {
 					return nil
@@ -429,6 +441,9 @@ func executeCleanRule(rule *CleanRule) (types.CleanLogResult, error) {
 				return err
 			}
 			if info.IsDir() {
+				if isIgnoredLogDir(info.Name()) {
+					return filepath.SkipDir
+				}
 				return nil
 			}
 			// Never follow/act on symlinks: truncating or removing a link would
@@ -438,61 +453,96 @@ func executeCleanRule(rule *CleanRule) (types.CleanLogResult, error) {
 				return nil
 			}
 
-			// Check file pattern
-			if nameRe != nil && !nameRe.MatchString(info.Name()) {
+			if !matchName(info.Name()) {
+				return nil
+			}
+			if minSize > 0 && info.Size() < minSize {
+				return nil
+			}
+			if maxSize > 0 && info.Size() > maxSize {
+				return nil
+			}
+			if retentionDays > 0 && info.ModTime().After(cutoffTime) {
 				return nil
 			}
 
-			// Check size constraints
-			if rule.MinSizeBytes > 0 && info.Size() < rule.MinSizeBytes {
-				return nil
+			matches = append(matches, cleanMatch{Path: path, Size: info.Size(), ModTime: info.ModTime()})
+			if len(matches) >= findFilesHardCap {
+				return filepath.SkipDir
 			}
-			if rule.MaxSizeBytes > 0 && info.Size() > rule.MaxSizeBytes {
-				return nil
-			}
-
-			// Check retention days
-			if rule.RetentionDays > 0 && info.ModTime().After(cutoffTime) {
-				return nil
-			}
-
-			// Perform action
-			var actionErr error
-			switch rule.Action {
-			case "delete":
-				actionErr = os.Remove(path)
-			case "truncate":
-				actionErr = os.WriteFile(path, []byte{}, 0644)
-			default:
-				actionErr = fmt.Errorf("unknown action: %s", rule.Action)
-			}
-
-			if actionErr != nil {
-				errList = append(errList, fmt.Sprintf("%s: %s", path, actionErr.Error()))
-			} else {
-				cleanedCount++
-			}
-
-			// Limit check. FIX(bug 33): reaching the cap is a SUCCESSFUL run
-			// (the rule did its job and stopped), not a failure. Use a sentinel
-			// error only to stop the walk, and swallow it below so the run is
-			// not recorded as "错误: reached max files limit".
-			if rule.MaxFilesToClean > 0 && cleanedCount >= rule.MaxFilesToClean {
-				return errMaxFilesReached
-			}
-
 			return nil
 		})
+		if walkErr != nil {
+			slog.Warn("clean rule scan aborted for dir", "dir", dir, "error", walkErr)
+		}
+	}
 
-		if walkErr != nil && errors.Is(walkErr, errMaxFilesReached) {
-			// Stop scanning further dirs; this is not an error.
+	return matches
+}
+
+// executeCleanMatches applies the rule action to collected matches. Reaching
+// MaxFilesToClean is a successful bounded run (FIX bug 33): the cap only stops
+// further processing and is never surfaced as an error.
+func executeCleanMatches(matches []cleanMatch, action string, maxFiles int) types.CleanLogResult {
+	result := types.CleanLogResult{}
+
+	for _, m := range matches {
+		var actionErr error
+		switch action {
+		case "delete":
+			actionErr = os.Remove(m.Path)
+		case "truncate":
+			actionErr = os.WriteFile(m.Path, []byte{}, 0644)
+		default:
+			actionErr = fmt.Errorf("unknown action: %s", action)
+		}
+
+		if actionErr != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", m.Path, actionErr.Error()))
+		} else {
+			result.Cleaned++
+		}
+
+		if maxFiles > 0 && result.Cleaned >= maxFiles {
 			break
 		}
 	}
 
-	result.Cleaned = cleanedCount
-	result.Errors = errList
-	return result, nil
+	return result
+}
+
+func executeCleanRule(rule *CleanRule) (types.CleanLogResult, error) {
+	// Scheduled uninstalled-app cleanup delegates to the one-shot
+	// implementation: it needs the installed-apps check and has no
+	// pattern/size/date dimensions of its own. Without this branch the rule
+	// validated at creation time then failed every run with "unknown action".
+	if rule.Action == "deleteUninstalled" {
+		return CleanUninstalledLogs()
+	}
+
+	// Validate the pattern up-front so an invalid pattern aborts the run with
+	// an error instead of silently matching nothing.
+	matchName, err := cleanNameMatcher(rule.FilePattern, rule.Action)
+	if err != nil {
+		return types.CleanLogResult{}, err
+	}
+
+	searchDirs := rule.LogDirs
+	if len(searchDirs) == 0 {
+		searchDirs = config.Get().LogDirs
+	}
+
+	normalizedDirs := make([]string, 0, len(searchDirs))
+	for _, dir := range searchDirs {
+		normalizedDir := utils.SafePath(dir)
+		if normalizedDir == "" {
+			continue
+		}
+		normalizedDirs = append(normalizedDirs, normalizedDir)
+	}
+
+	matches := matchCleanFiles(normalizedDirs, matchName, rule.MinSizeBytes, rule.MaxSizeBytes, rule.RetentionDays)
+	return executeCleanMatches(matches, rule.Action, rule.MaxFilesToClean), nil
 }
 
 // StartAutoClean starts the auto-clean scheduler.

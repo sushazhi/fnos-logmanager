@@ -22,10 +22,11 @@
             <div class="form-row">
               <label>清理类型</label>
               <select v-model="newRule.type">
-                <option value="truncateLarge">清空大文件内容</option>
-                <option value="deleteOld">删除旧归档文件</option>
+                <option value="truncateLarge">清空过大的日志文件</option>
+                <option value="deleteOld">删除旧日志和归档文件</option>
                 <option value="deleteUninstalled">删除未安装应用日志</option>
               </select>
+              <span class="hint">规则作用于所有日志目录，仅匹配日志/归档文件</span>
             </div>
             <div class="form-row" v-if="newRule.type === 'truncateLarge'">
               <label>大小阈值</label>
@@ -52,8 +53,8 @@
               <span class="hint" v-if="newRule.schedule === 'cron'">格式: 分(0-59) 时(0-23) 日(1-31) 月(1-12) 周(0-6,0=周日)</span>
             </div>
             <div class="form-actions">
-              <button class="secondary" @click="showAddForm = false">取消</button>
-              <button class="primary" @click="addRule" :disabled="!canAddRule">添加</button>
+              <button class="secondary" @click="closeForm">取消</button>
+              <button class="primary" @click="saveRule" :disabled="!canAddRule">{{ editingRuleId ? '保存' : '添加' }}</button>
             </div>
           </div>
 
@@ -232,8 +233,8 @@ const canAddRule = computed(() => {
 
 function typeLabel(type: string): string {
   switch (type) {
-    case 'truncateLarge': return '清空大文件'
-    case 'deleteOld': return '删除旧文件'
+    case 'truncateLarge': return '清空大日志'
+    case 'deleteOld': return '删除旧日志/归档'
     case 'deleteUninstalled': return '删除未安装应用'
     default: return type
   }
@@ -281,32 +282,44 @@ async function loadRules(): Promise<void> {
   }
 }
 
-async function addRule(): Promise<void> {
+function closeForm(): void {
+  showAddForm.value = false
+  // Reset the edit target too, otherwise the next "+ 添加规则" would silently
+  // overwrite the rule that was being edited
+  editingRuleId.value = null
+  newRule.value = {
+    name: '',
+    type: 'truncateLarge',
+    threshold: '100M',
+    days: 7,
+    schedule: 'daily',
+    customInterval: 3600,
+    cronExpression: '0 3 * * *'
+  }
+}
+
+async function saveRule(): Promise<void> {
   try {
     const payload: AutoCleanRuleInput = {
       name: newRule.value.name,
-      enabled: true,
       action: typeToAction[newRule.value.type],
       schedule: scheduleToBackend(newRule.value.schedule, newRule.value.customInterval, newRule.value.cronExpression),
       minSizeBytes: newRule.value.type === 'truncateLarge' ? parseSizeToBytes(newRule.value.threshold || '') : 0,
       retentionDays: newRule.value.type === 'deleteOld' ? (newRule.value.days || 0) : 0
     }
-    await autoCleanApi.addRule(payload)
-    showAddForm.value = false
-    newRule.value = {
-      name: '',
-      type: 'truncateLarge',
-      threshold: '100M',
-      days: 7,
-      schedule: 'daily',
-      customInterval: 3600,
-      cronExpression: '0 3 * * *'
+    if (editingRuleId.value) {
+      // Omit enabled so saving an edit never flips the rule's toggle state
+      await autoCleanApi.updateRule(editingRuleId.value, payload)
+      statusMsg.value = '保存规则成功'
+    } else {
+      await autoCleanApi.addRule({ ...payload, enabled: true })
+      statusMsg.value = '添加规则成功'
     }
-    statusMsg.value = '添加规则成功'
     statusType.value = 'success'
+    closeForm()
     await loadRules()
   } catch (e) {
-    statusMsg.value = getErrorMessage(e, '添加规则失败')
+    statusMsg.value = getErrorMessage(e, '保存规则失败')
     statusType.value = 'error'
   }
 }

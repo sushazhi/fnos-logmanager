@@ -190,12 +190,26 @@ const mergedDirs = computed<Array<{ path: string; displayPath?: string }>>(() =>
 
 
 
-function confirmCustomDir(): void {
+async function confirmCustomDir(): Promise<void> {
   const path = customDirInput.value.trim()
   if (!path) return
   addCustomDir(path)
-  emit('selectDir', path)
   customDirInput.value = ''
+  // 添加后立即申请授权；否则要等下次打开应用才由 restoreCustomDirAuth 补做
+  if (isFnosEnvironment()) {
+    const auth = await authorizeUserFile(path)
+    if (!auth || auth.code !== 0) {
+      // 手机壳 SDK 对按路径授权有 appApi 版本门槛，不足时直接抛错（封装吞成
+      // null）。trim 授权按账号跨端共享，在桌面端添加一次即可两端通用。
+      await confirmDialog.value?.show({
+        title: '授权未成功',
+        message: `目录已添加，但 fnOS 授权未完成，暂时无法读取该目录。\n可能是手机端不支持按路径授权，请在电脑端打开本应用重新添加一次（授权按账号生效，两端通用）。\n${path}`,
+        type: 'warning',
+        confirmText: '知道了'
+      })
+    }
+  }
+  emit('selectDir', path)
 }
 
 function addCustomDir(path: string): void {
@@ -305,16 +319,22 @@ const displayedDirs = computed(() => {
     ).map(d => ({ ...d, isCustom: false }))
   }
 
-  // 合并自定义目录（设置面板添加的，来自 localStorage）
-  const customDirs_: Array<DirWithDisplay & { isCustom?: boolean }> = customDirs.value.map(d => ({
-    path: d.path,
-    displayName: d.displayPath || dirNames[d.path] || d.path,
-    displayPath: d.displayPath,
-    logCount: 0,
-    totalSize: '0B',
-    exists: true,
-    isCustom: true
-  }))
+  // 合并自定义目录（设置面板添加的，来自 localStorage）。
+  // 后端已合并用户授权目录的真实统计，能对上路径就用真实值；
+  // 对不上（尚未授权 / 独立模式）才兜底显示 0。
+  const customDirs_: Array<DirWithDisplay & { isCustom?: boolean }> = customDirs.value.map(d => {
+    const real = allDirs.value.find(x => x.path === d.path)
+    return {
+      path: d.path,
+      displayName: d.displayPath || dirNames[d.path] || d.path,
+      displayPath: d.displayPath,
+      logCount: real?.logCount ?? 0,
+      archiveCount: real?.archiveCount ?? 0,
+      totalSize: real?.totalSize ?? '0B',
+      exists: real?.exists ?? true,
+      isCustom: true
+    }
+  })
 
   return [...baseDirs, ...customDirs_]
 })

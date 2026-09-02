@@ -270,8 +270,33 @@ func GetAppNames() ([]string, error) {
 	return result, nil
 }
 
+// UserAuthorizedDirs returns the folders the user authorized via the fnOS
+// file picker (trim.file.getUserAccessibleFolders). Returns nil when the user
+// is unknown or the trim service is unavailable.
+func UserAuthorizedDirs(uid string) []string {
+	if uid == "" {
+		return nil
+	}
+	folders, err := GetTrimClient().GetUserAccessibleFolders(uid)
+	if err != nil {
+		return nil
+	}
+	return folders
+}
+
+// IsAllowedPathForUser extends the config LogDirs whitelist with the user's
+// trim-authorized folders. Services-level gates must use this instead of bare
+// IsAllowedPath against LogDirs, otherwise picker-added custom dirs that pass
+// the route-level ACL get silently filtered here.
+func IsAllowedPathForUser(uid, path string) bool {
+	if utils.IsAllowedPath(path, config.Get().LogDirs) {
+		return true
+	}
+	return utils.IsAllowedPath(path, UserAuthorizedDirs(uid))
+}
+
 // ListLogFiles lists log files in the specified directories.
-func ListLogFiles(dir string, limit int) ([]types.LogFile, error) {
+func ListLogFiles(dir string, limit int, uid string) ([]types.LogFile, error) {
 	searchDirs := config.Get().LogDirs
 	if dir != "" {
 		searchDirs = []string{dir}
@@ -296,7 +321,7 @@ func ListLogFiles(dir string, limit int) ([]types.LogFile, error) {
 		if _, err := os.Stat(normalizedDir); os.IsNotExist(err) {
 			continue
 		}
-		if dir != "" && !utils.IsAllowedPath(dir, config.Get().LogDirs) {
+		if dir != "" && !IsAllowedPathForUser(uid, dir) {
 			continue
 		}
 
@@ -650,9 +675,9 @@ func countLinesInContent(s string) int {
 }
 
 // ReadLogFile reads content from a log file.
-func ReadLogFile(filePath string, options types.ReadLogOptions) (types.ReadLogResult, error) {
+func ReadLogFile(filePath string, options types.ReadLogOptions, uid string) (types.ReadLogResult, error) {
 	normalizedPath := utils.SafePath(filePath)
-	if normalizedPath == "" || !utils.IsAllowedPath(filePath, config.Get().LogDirs) {
+	if normalizedPath == "" || !IsAllowedPathForUser(uid, filePath) {
 		return types.ReadLogResult{}, fmt.Errorf("不允许访问此文件")
 	}
 
@@ -784,9 +809,9 @@ func readLargeFileStreaming(filePath string, options types.ReadLogOptions, fileS
 }
 
 // TruncateLogFile empties a log file.
-func TruncateLogFile(filePath string) error {
+func TruncateLogFile(filePath string, uid string) error {
 	normalizedPath := utils.SafePath(filePath)
-	if normalizedPath == "" || !utils.IsAllowedPath(filePath, config.Get().LogDirs) {
+	if normalizedPath == "" || !IsAllowedPathForUser(uid, filePath) {
 		return fmt.Errorf("不允许访问此文件")
 	}
 
@@ -803,7 +828,7 @@ func TruncateLogFile(filePath string) error {
 
 	// Re-validate after Stat to prevent TOCTOU (symlink substitution between
 	// the initial check and the write operation).
-	if !utils.IsAllowedPath(normalizedPath, config.Get().LogDirs) {
+	if !IsAllowedPathForUser(uid, normalizedPath) {
 		return fmt.Errorf("不允许访问此文件")
 	}
 
@@ -811,9 +836,9 @@ func TruncateLogFile(filePath string) error {
 }
 
 // DeleteLogFile deletes a log file.
-func DeleteLogFile(filePath string) error {
+func DeleteLogFile(filePath string, uid string) error {
 	normalizedPath := utils.SafePath(filePath)
-	if normalizedPath == "" || !utils.IsAllowedPath(filePath, config.Get().LogDirs) {
+	if normalizedPath == "" || !IsAllowedPathForUser(uid, filePath) {
 		return fmt.Errorf("不允许访问此文件")
 	}
 
@@ -826,7 +851,7 @@ func DeleteLogFile(filePath string) error {
 	}
 
 	// Re-validate after Stat (TOCTOU protection).
-	if !utils.IsAllowedPath(normalizedPath, config.Get().LogDirs) {
+	if !IsAllowedPathForUser(uid, normalizedPath) {
 		return fmt.Errorf("不允许访问此文件")
 	}
 

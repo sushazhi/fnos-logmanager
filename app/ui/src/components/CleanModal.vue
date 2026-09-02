@@ -6,8 +6,8 @@
         <div class="form-group">
           <label>清理方式</label>
           <select v-model="cleanType">
-            <option value="truncate">清空大文件内容</option>
-            <option value="deleteOld">删除旧归档文件</option>
+            <option value="truncate">清空过大的日志文件</option>
+            <option value="deleteOld">删除旧日志和归档文件</option>
             <option value="deleteUninstalled">删除未安装应用日志</option>
           </select>
         </div>
@@ -18,7 +18,7 @@
         </div>
         
         <div class="form-group" v-if="cleanType === 'deleteOld'">
-          <label>删除多少天前的文件</label>
+          <label>删除多少天前的日志和归档文件</label>
           <input type="number" v-model="days" placeholder="例如: 7">
         </div>
         

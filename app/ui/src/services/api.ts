@@ -331,6 +331,9 @@ export const autoCleanApi = {
   addRule: (rule: AutoCleanRuleInput) =>
     api.post<{ rule: AutoCleanRule }>('/api/auto-clean/rules', rule),
 
+  updateRule: (id: string, rule: AutoCleanRuleInput) =>
+    api.put<{ rule: AutoCleanRule }>(`/api/auto-clean/rules/${id}`, rule),
+
   deleteRule: (id: string) =>
     api.delete<{ success: boolean }>(`/api/auto-clean/rules/${id}`),
 

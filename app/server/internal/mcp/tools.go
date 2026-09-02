@@ -195,7 +195,7 @@ func registerTools() {
 			if p.Limit > 0 {
 				limit = clamp(p.Limit, 1, 500)
 			}
-			logs, err := services.ListLogFiles(p.Dir, limit)
+			logs, err := services.ListLogFiles(p.Dir, limit, "")
 			if err != nil {
 				return "", err
 			}
@@ -288,7 +288,7 @@ func registerTools() {
 				MaxLines: maxLines,
 				Offset:   p.Offset,
 				Tail:     p.Tail,
-			})
+			}, "")
 			if err != nil {
 				return "", err
 			}
@@ -394,7 +394,7 @@ func registerTools() {
 			if _, err := safeLogPath(p.Path); err != nil {
 				return "", err
 			}
-			if err := services.TruncateLogFile(p.Path); err != nil {
+			if err := services.TruncateLogFile(p.Path, ""); err != nil {
 				return "", err
 			}
 			services.AddSecurityAuditLog("MCP_LOG_TRUNCATE", map[string]interface{}{"path": p.Path}, nil)
@@ -415,7 +415,7 @@ func registerTools() {
 			if _, err := safeLogPath(p.Path); err != nil {
 				return "", err
 			}
-			if err := services.DeleteLogFile(p.Path); err != nil {
+			if err := services.DeleteLogFile(p.Path, ""); err != nil {
 				return "", err
 			}
 			services.AddSecurityAuditLog("MCP_LOG_DELETE", map[string]interface{}{"path": p.Path}, nil)
