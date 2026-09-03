@@ -31,9 +31,17 @@ import (
 const (
 	githubRepo  = "sushazhi/fnos-logmanager"
 	githubAPI   = "https://api.github.com"
-	binaryProxy = "https://ghfast.top/"
 	rawProxyURL = "https://ghfast.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/version.json"
 )
+
+// apiProxyURL 是支持转发 api.github.com 的镜像前缀（实测 ghfast.top 对 API 返回 403，勿用）。
+const apiProxyURL = "https://gh-proxy.com/"
+
+// mirrorProxies 是文件下载镜像前缀，按顺序尝试（直连失败后使用）。
+var mirrorProxies = []string{
+	"https://gh-proxy.com/",
+	"https://ghfast.top/",
+}
 
 var allowedGitHubHosts = []string{
 	"github.com",
@@ -41,6 +49,7 @@ var allowedGitHubHosts = []string{
 	"raw.githubusercontent.com",
 	"objects.githubusercontent.com",
 	"ghfast.top",
+	"gh-proxy.com",
 }
 
 type updateState struct {
@@ -181,26 +190,49 @@ type configAsset struct {
 	Size               *int64
 }
 
+// fetchReleaseInfo 获取带完整 assets 的 release 信息（安装用）：直连优先，镜像次之。
+// version.json 兜底不含 assets，不在此使用。
+func fetchReleaseInfo() (*releaseInfo, error) {
+	release, directErr := fetchFromGitHubAPI(githubAPI)
+	if directErr == nil {
+		return release, nil
+	}
+	slog.Warn("直连 GitHub API 失败，尝试镜像", "error", directErr)
+
+	proxyRelease, proxyErr := fetchFromGitHubAPI(apiProxyURL + githubAPI)
+	if proxyErr == nil {
+		return proxyRelease, nil
+	}
+	return nil, fmt.Errorf("直连和镜像均不可用: %v / %v", directErr, proxyErr)
+}
+
+// fetchLatestRelease 用于版本检查：直连优先，镜像次之，version.json 最后兜底。
 func fetchLatestRelease() (*releaseInfo, bool, error) {
 	// Try GitHub API first
-	release, err := fetchFromGitHubAPI()
+	release, err := fetchFromGitHubAPI(githubAPI)
 	if err == nil {
 		return release, false, nil
 	}
 
 	slog.Warn("GitHub API check failed, falling back to proxy", "error", err)
 
-	// Fallback to proxy version.json
-	proxyRelease, proxyErr := fetchFromProxy()
-	if proxyErr != nil {
-		return nil, false, fmt.Errorf("GitHub API 和代理均不可用: %v / %v", err, proxyErr)
+	// Fallback to full API via mirror
+	proxyRelease, proxyErr := fetchFromGitHubAPI(apiProxyURL + githubAPI)
+	if proxyErr == nil {
+		return proxyRelease, true, nil
 	}
 
-	return proxyRelease, true, nil
+	// Last resort: version.json via ghfast.top (version only)
+	proxyVer, verErr := fetchFromProxy()
+	if verErr != nil {
+		return nil, false, fmt.Errorf("直连与代理均不可用: %v / %v / %v", err, proxyErr, verErr)
+	}
+
+	return proxyVer, true, nil
 }
 
-func fetchFromGitHubAPI() (*releaseInfo, error) {
-	url := fmt.Sprintf("%s/repos/%s/releases/latest", githubAPI, githubRepo)
+func fetchFromGitHubAPI(baseURL string) (*releaseInfo, error) {
+	url := fmt.Sprintf("%s/repos/%s/releases/latest", baseURL, githubRepo)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -320,7 +352,7 @@ func performUpdate() {
 	globalUpdateState.updateProgress = 5
 	globalUpdateState.mu.Unlock()
 
-	releaseInfo, err := fetchFromGitHubAPI()
+	releaseInfo, err := fetchReleaseInfo()
 	if err != nil {
 		setUpdateError("获取更新信息失败: " + err.Error())
 		return
@@ -394,13 +426,19 @@ func performUpdate() {
 	globalUpdateState.updateProgress = 20
 	globalUpdateState.mu.Unlock()
 
-	downloadURL := binaryProxy + asset.BrowserDownloadURL
-	if !isHTTPSURL(downloadURL) || !isAllowedHost(downloadURL) {
-		setUpdateError("更新代理链接不安全")
-		return
+	// 直连优先，失败后依次尝试镜像
+	downloadURLs := []string{asset.BrowserDownloadURL}
+	for _, p := range mirrorProxies {
+		downloadURLs = append(downloadURLs, p+asset.BrowserDownloadURL)
+	}
+	for _, u := range downloadURLs {
+		if !isHTTPSURL(u) || !isAllowedHost(u) {
+			setUpdateError("更新下载链接不安全")
+			return
+		}
 	}
 
-	if err := downloadFile(downloadURL, fpkFile, func(progress float64) {
+	if err := downloadFile(downloadURLs, fpkFile, func(progress float64) {
 		globalUpdateState.mu.Lock()
 		globalUpdateState.updateProgress = 20 + int(progress*40)
 		globalUpdateState.mu.Unlock()
@@ -792,11 +830,16 @@ func verifyUpdateChecksum(info *releaseInfo, asset *configAsset, fpkFile, update
 	checksumFile := filepath.Join(updateDir, "update.checksums")
 	defer os.Remove(checksumFile)
 
-	downloadURL := binaryProxy + checksumAsset.BrowserDownloadURL
-	if !isHTTPSURL(downloadURL) || !isAllowedHost(downloadURL) {
-		return fmt.Errorf("校验文件链接不安全")
+	checksumURLs := []string{checksumAsset.BrowserDownloadURL}
+	for _, p := range mirrorProxies {
+		checksumURLs = append(checksumURLs, p+checksumAsset.BrowserDownloadURL)
 	}
-	if err := downloadFile(downloadURL, checksumFile, nil); err != nil {
+	for _, u := range checksumURLs {
+		if !isHTTPSURL(u) || !isAllowedHost(u) {
+			return fmt.Errorf("校验文件链接不安全")
+		}
+	}
+	if err := downloadFile(checksumURLs, checksumFile, nil); err != nil {
 		return fmt.Errorf("下载校验文件失败: %w", err)
 	}
 
@@ -826,7 +869,21 @@ func verifyUpdateChecksum(info *releaseInfo, asset *configAsset, fpkFile, update
 	return nil
 }
 
-func downloadFile(url, dest string, onProgress func(float64)) error {
+// downloadFile 依次尝试 urls（前一个失败后尝试下一个），任一成功即写入 dest。
+func downloadFile(urls []string, dest string, onProgress func(float64)) error {
+	var lastErr error
+	for _, u := range urls {
+		if err := attemptDownloadFile(u, dest, onProgress); err != nil {
+			lastErr = err
+			slog.Warn("下载失败，尝试下一个地址", "url", u, "error", err)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+func attemptDownloadFile(url, dest string, onProgress func(float64)) error {
 	if !isHTTPSURL(url) {
 		return fmt.Errorf("仅允许HTTPS下载")
 	}
