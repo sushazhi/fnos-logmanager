@@ -623,10 +623,10 @@ func tailLogHandler(c *gin.Context) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			c.JSON(http.StatusOK, gin.H{
-				"content":    "",
-				"offset":     0,
-				"totalSize":  0,
-				"deleted":    true,
+				"content":   "",
+				"offset":    0,
+				"totalSize": 0,
+				"deleted":   true,
 			})
 			return
 		}
@@ -878,10 +878,10 @@ func exportLogHandler(c *gin.Context) {
 			})
 		}
 		exportJSON := gin.H{
-			"source":      utils.SafePath(q.Path),
-			"exportedAt":  time.Now().Format(time.RFC3339),
-			"totalLines":  result.TotalLines,
-			"lines":       data,
+			"source":     utils.SafePath(q.Path),
+			"exportedAt": time.Now().Format(time.RFC3339),
+			"totalLines": result.TotalLines,
+			"lines":      data,
 		}
 		c.Header("Content-Type", "application/json; charset=utf-8")
 		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.json"`, exportName))
@@ -1010,11 +1010,26 @@ func cleanLogsHandler(c *gin.Context) {
 		return
 	}
 
-	// deleteUninstalled does not need threshold/days
+	// deleteUninstalled/cleanEmpty do not need threshold/days
 	if action == "deleteUninstalled" {
 		result, err := services.CleanUninstalledLogs()
 		if err != nil {
 			slog.Error("failed to clean uninstalled logs", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "清理失败"})
+			return
+		}
+		services.AddAuditLog("logs_clean", map[string]interface{}{
+			"action":  action,
+			"cleaned": result.Cleaned,
+		}, c)
+		c.JSON(http.StatusOK, result)
+		return
+	}
+
+	if action == "cleanEmpty" {
+		result, err := services.CleanEmptyLogItems()
+		if err != nil {
+			slog.Error("failed to clean empty items", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "清理失败"})
 			return
 		}
@@ -1061,10 +1076,10 @@ func cleanLogsHandler(c *gin.Context) {
 	}
 
 	services.AddAuditLog("logs_clean", map[string]interface{}{
-		"action":   action,
+		"action":    action,
 		"threshold": body.Threshold,
-		"days":     body.Days,
-		"cleaned":  result.Cleaned,
+		"days":      body.Days,
+		"cleaned":   result.Cleaned,
 	}, c)
 
 	c.JSON(http.StatusOK, result)
@@ -1634,7 +1649,7 @@ func cleanUninstalledTrashHandler(c *gin.Context) {
 		message += fmt.Sprintf("，删除 %d 个残留符号链接", len(result.Links))
 	}
 	if len(result.Users) > 0 {
-		message += fmt.Sprintf("，删除 %d 个孤儿用户", len(result.Users))
+		message += fmt.Sprintf("，删除 %d 个遗留系统账号", len(result.Users))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success":      true,

@@ -46,10 +46,10 @@ func (c *WechatBot) Send(text, desp string) notify.NotifyResult {
 	content := text + "\n\n" + desp
 
 	body := map[string]interface{}{
-		"bot_id":    botID,
+		"bot_id":     botID,
 		"bot_secret": botSecret,
-		"chat_id":   chatID,
-		"msg_type":  "markdown",
+		"chat_id":    chatID,
+		"msg_type":   "markdown",
 		"markdown": map[string]string{
 			"content": "**" + text + "**\n\n" + desp,
 		},

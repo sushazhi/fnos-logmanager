@@ -51,11 +51,11 @@ type ChannelConfig struct {
 	DD_BOT_TOKEN  string `json:"DD_BOT_TOKEN,omitempty"`
 
 	// Feishu
-	FSKEY            string `json:"FSKEY,omitempty"`
-	FSSECRET         string `json:"FSSECRET,omitempty"`
-	FEISHU_APP_ID    string `json:"FEISHU_APP_ID,omitempty"`
+	FSKEY             string `json:"FSKEY,omitempty"`
+	FSSECRET          string `json:"FSSECRET,omitempty"`
+	FEISHU_APP_ID     string `json:"FEISHU_APP_ID,omitempty"`
 	FEISHU_APP_SECRET string `json:"FEISHU_APP_SECRET,omitempty"`
-	FEISHU_USER_ID   string `json:"FEISHU_USER_ID,omitempty"`
+	FEISHU_USER_ID    string `json:"FEISHU_USER_ID,omitempty"`
 
 	// Gotify
 	GOTIFY_URL      string `json:"GOTIFY_URL,omitempty"`
@@ -77,13 +77,13 @@ type ChannelConfig struct {
 	CHAT_TOKEN string `json:"CHAT_TOKEN,omitempty"`
 
 	// PushPlus
-	PUSH_PLUS_TOKEN      string `json:"PUSH_PLUS_TOKEN,omitempty"`
-	PUSH_PLUS_USER       string `json:"PUSH_PLUS_USER,omitempty"`
-	PUSH_PLUS_TEMPLATE   string `json:"PUSH_PLUS_TEMPLATE,omitempty"`
-	PUSH_PLUS_CHANNEL    string `json:"PUSH_PLUS_CHANNEL,omitempty"`
-	PUSH_PLUS_WEBHOOK    string `json:"PUSH_PLUS_WEBHOOK,omitempty"`
+	PUSH_PLUS_TOKEN       string `json:"PUSH_PLUS_TOKEN,omitempty"`
+	PUSH_PLUS_USER        string `json:"PUSH_PLUS_USER,omitempty"`
+	PUSH_PLUS_TEMPLATE    string `json:"PUSH_PLUS_TEMPLATE,omitempty"`
+	PUSH_PLUS_CHANNEL     string `json:"PUSH_PLUS_CHANNEL,omitempty"`
+	PUSH_PLUS_WEBHOOK     string `json:"PUSH_PLUS_WEBHOOK,omitempty"`
 	PUSH_PLUS_CALLBACKURL string `json:"PUSH_PLUS_CALLBACKURL,omitempty"`
-	PUSH_PLUS_TO         string `json:"PUSH_PLUS_TO,omitempty"`
+	PUSH_PLUS_TO          string `json:"PUSH_PLUS_TO,omitempty"`
 
 	// WePlusBot
 	WE_PLUS_BOT_TOKEN    string `json:"WE_PLUS_BOT_TOKEN,omitempty"`
@@ -119,10 +119,10 @@ type ChannelConfig struct {
 	PUSHME_KEY string `json:"PUSHME_KEY,omitempty"`
 
 	// Webhook
-	WEBHOOK_URL         string `json:"WEBHOOK_URL,omitempty"`
-	WEBHOOK_BODY        string `json:"WEBHOOK_BODY,omitempty"`
-	WEBHOOK_HEADERS     string `json:"WEBHOOK_HEADERS,omitempty"`
-	WEBHOOK_METHOD      string `json:"WEBHOOK_METHOD,omitempty"`
+	WEBHOOK_URL          string `json:"WEBHOOK_URL,omitempty"`
+	WEBHOOK_BODY         string `json:"WEBHOOK_BODY,omitempty"`
+	WEBHOOK_HEADERS      string `json:"WEBHOOK_HEADERS,omitempty"`
+	WEBHOOK_METHOD       string `json:"WEBHOOK_METHOD,omitempty"`
 	WEBHOOK_CONTENT_TYPE string `json:"WEBHOOK_CONTENT_TYPE,omitempty"`
 
 	// Ntfy
@@ -140,10 +140,10 @@ type ChannelConfig struct {
 	WXPUSHER_UIDS      string `json:"WXPUSHER_UIDS,omitempty"`
 
 	// QQ Bot
-	QQ_APP_ID        string `json:"QQ_APP_ID,omitempty"`
-	QQ_APP_SECRET    string `json:"QQ_APP_SECRET,omitempty"`
-	QQ_OPENID        string `json:"QQ_OPENID,omitempty"`
-	QQ_GROUP_OPENID  string `json:"QQ_GROUP_OPENID,omitempty"`
+	QQ_APP_ID       string `json:"QQ_APP_ID,omitempty"`
+	QQ_APP_SECRET   string `json:"QQ_APP_SECRET,omitempty"`
+	QQ_OPENID       string `json:"QQ_OPENID,omitempty"`
+	QQ_GROUP_OPENID string `json:"QQ_GROUP_OPENID,omitempty"`
 
 	// WeChat ClawBot
 	WECHAT_CLAWBOT_BOT_TOKEN  string `json:"WECHAT_CLAWBOT_BOT_TOKEN,omitempty"`

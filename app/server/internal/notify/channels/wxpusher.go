@@ -68,13 +68,13 @@ func (c *WxPusher) Send(text, desp string) notify.NotifyResult {
 
 	url := "https://wxpusher.zjiecode.com/api/send/message"
 	body := map[string]interface{}{
-		"appToken":       wxpusherAppToken,
-		"content":        fmt.Sprintf("<h1>%s</h1><br/><div style='white-space: pre-wrap;'>%s</div>", html.EscapeString(text), html.EscapeString(desp)),
-		"summary":        html.EscapeString(text),
-		"contentType":    2, // HTML format
-		"topicIds":       topicIds,
-		"uids":           uids,
-		"verifyPayType":  0,
+		"appToken":      wxpusherAppToken,
+		"content":       fmt.Sprintf("<h1>%s</h1><br/><div style='white-space: pre-wrap;'>%s</div>", html.EscapeString(text), html.EscapeString(desp)),
+		"summary":       html.EscapeString(text),
+		"contentType":   2, // HTML format
+		"topicIds":      topicIds,
+		"uids":          uids,
+		"verifyPayType": 0,
 	}
 
 	resp, err := notify.HTTPPost(url, notify.HttpRequestOptions{

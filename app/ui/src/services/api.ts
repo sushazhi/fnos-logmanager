@@ -311,7 +311,7 @@ export interface AutoCleanRule {
   minSizeBytes: number
   maxSizeBytes: number
   retentionDays: number
-  action: string // truncate | delete | deleteUninstalled
+  action: string // truncate | delete | deleteUninstalled | cleanEmpty
   maxFilesToClean: number
   description: string
   lastRun?: string

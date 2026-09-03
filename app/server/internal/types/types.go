@@ -25,10 +25,10 @@ type ArchiveFile struct {
 
 // LogStats represents aggregated log statistics.
 type LogStats struct {
-	TotalLogs        int    `json:"totalLogs"`
-	TotalArchives    int    `json:"totalArchives"`
-	LargeFiles       int    `json:"largeFiles"`
-	TotalSize        int64  `json:"totalSize"`
+	TotalLogs          int    `json:"totalLogs"`
+	TotalArchives      int    `json:"totalArchives"`
+	LargeFiles         int    `json:"largeFiles"`
+	TotalSize          int64  `json:"totalSize"`
 	TotalSizeFormatted string `json:"totalSizeFormatted"`
 }
 
@@ -139,25 +139,28 @@ type ReadLogOptions struct {
 
 // ReadLogResult represents the result of reading a log file.
 type ReadLogResult struct {
-	Content        string `json:"content"`
-	TotalLines     int    `json:"totalLines"`
-	Size           int64  `json:"size"`
-	SizeFormatted  string `json:"sizeFormatted"`
-	Truncated      bool   `json:"truncated"`
-	HasMore        bool   `json:"hasMore"`
+	Content       string `json:"content"`
+	TotalLines    int    `json:"totalLines"`
+	Size          int64  `json:"size"`
+	SizeFormatted string `json:"sizeFormatted"`
+	Truncated     bool   `json:"truncated"`
+	HasMore       bool   `json:"hasMore"`
 }
 
 // CleanLogOptions represents options for cleaning log files.
 type CleanLogOptions struct {
 	ThresholdBytes *int64
 	Days           *int
-	Action         string // "truncate", "delete", "deleteUninstalled"
+	Action         string // "truncate", "delete", "deleteUninstalled", "cleanEmpty"
 }
 
 // CleanLogResult represents the result of a log cleaning operation.
 type CleanLogResult struct {
 	Cleaned int      `json:"cleaned"`
 	Errors  []string `json:"errors,omitempty"`
+	// Reminded lists non-empty leftover dirs of uninstalled apps that were
+	// reported via notification instead of being auto-deleted.
+	Reminded []string `json:"reminded,omitempty"`
 }
 
 // RecycleCleanResult represents the result of cleaning up leftovers of
@@ -203,11 +206,11 @@ type GitHubAsset struct {
 
 // EventLoggerConfig holds configuration for the event logger.
 type EventLoggerConfig struct {
-	DBPath              string   `json:"dbPath"`
-	Enabled             bool     `json:"enabled"`
-	CheckInterval       int      `json:"checkInterval"`
-	EventTypes          []string `json:"eventTypes"`
-	MinSeverity         string   `json:"minSeverity"`
+	DBPath               string   `json:"dbPath"`
+	Enabled              bool     `json:"enabled"`
+	CheckInterval        int      `json:"checkInterval"`
+	EventTypes           []string `json:"eventTypes"`
+	MinSeverity          string   `json:"minSeverity"`
 	NotificationChannels []string `json:"notificationChannels"`
 }
 
@@ -233,18 +236,18 @@ var SeverityOrder = map[EventSeverity]int{
 
 // EnhancedEventLogEntry represents a detailed system event log entry.
 type EnhancedEventLogEntry struct {
-	ID        int64          `json:"id"`
-	Timestamp string         `json:"timestamp"`
-	Source    string         `json:"source,omitempty"`
-	EventType string         `json:"eventType,omitempty"`
-	Severity  EventSeverity  `json:"severity,omitempty"`
-	Message   string         `json:"message,omitempty"`
-	Template  string         `json:"template,omitempty"`
-	Param     string         `json:"param,omitempty"`
-	Metadata  interface{}    `json:"metadata,omitempty"`
-	User      string         `json:"user,omitempty"`
-	EventCode string         `json:"eventCode,omitempty"`
-	Cat       int            `json:"cat,omitempty"`
+	ID        int64                  `json:"id"`
+	Timestamp string                 `json:"timestamp"`
+	Source    string                 `json:"source,omitempty"`
+	EventType string                 `json:"eventType,omitempty"`
+	Severity  EventSeverity          `json:"severity,omitempty"`
+	Message   string                 `json:"message,omitempty"`
+	Template  string                 `json:"template,omitempty"`
+	Param     string                 `json:"param,omitempty"`
+	Metadata  interface{}            `json:"metadata,omitempty"`
+	User      string                 `json:"user,omitempty"`
+	EventCode string                 `json:"eventCode,omitempty"`
+	Cat       int                    `json:"cat,omitempty"`
 	Raw       map[string]interface{} `json:"-"`
 }
 
@@ -261,21 +264,21 @@ type EventLoggerStatus struct {
 
 // EventLoggerStats represents event logger statistics.
 type EventLoggerStats struct {
-	TotalEvents  int                   `json:"totalEvents"`
+	TotalEvents  int                     `json:"totalEvents"`
 	RecentEvents []EnhancedEventLogEntry `json:"recentEvents"`
 }
 
 // GetEventsRequest represents a request to query event logs.
 type GetEventsRequest struct {
-	Limit         int             `json:"limit,omitempty"`
-	Offset        int             `json:"offset,omitempty"`
-	Severity      EventSeverity   `json:"severity,omitempty"`
-	Source        string          `json:"source,omitempty"`
-	Template      string          `json:"template,omitempty"`
-	Search        string          `json:"search,omitempty"`
-	StartTime     int64           `json:"startTime,omitempty"`
-	EndTime       int64           `json:"endTime,omitempty"`
-	SortDirection string          `json:"sortDirection,omitempty"` // "asc" or "desc"
+	Limit         int           `json:"limit,omitempty"`
+	Offset        int           `json:"offset,omitempty"`
+	Severity      EventSeverity `json:"severity,omitempty"`
+	Source        string        `json:"source,omitempty"`
+	Template      string        `json:"template,omitempty"`
+	Search        string        `json:"search,omitempty"`
+	StartTime     int64         `json:"startTime,omitempty"`
+	EndTime       int64         `json:"endTime,omitempty"`
+	SortDirection string        `json:"sortDirection,omitempty"` // "asc" or "desc"
 }
 
 // GetEventsResponse represents the response to a GetEventsRequest.
@@ -287,12 +290,12 @@ type GetEventsResponse struct {
 
 // AutoCleanRule represents an auto-clean rule.
 type AutoCleanRule struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Enabled  bool   `json:"enabled"`
-	Type     string `json:"type"` // "truncateLarge", "deleteOld", "deleteUninstalled"
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Enabled   bool   `json:"enabled"`
+	Type      string `json:"type"` // "truncateLarge", "deleteOld", "deleteUninstalled", "cleanEmpty"
 	Threshold string `json:"threshold,omitempty"`
-	Days     *int   `json:"days,omitempty"`
-	Schedule string `json:"schedule"`
-	LastRun  string `json:"lastRun,omitempty"`
+	Days      *int   `json:"days,omitempty"`
+	Schedule  string `json:"schedule"`
+	LastRun   string `json:"lastRun,omitempty"`
 }

@@ -29,10 +29,10 @@ import (
 )
 
 const (
-	githubRepo   = "sushazhi/fnos-logmanager"
-	githubAPI    = "https://api.github.com"
-	binaryProxy  = "https://ghfast.top/"
-	rawProxyURL  = "https://ghfast.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/version.json"
+	githubRepo  = "sushazhi/fnos-logmanager"
+	githubAPI   = "https://api.github.com"
+	binaryProxy = "https://ghfast.top/"
+	rawProxyURL = "https://ghfast.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/version.json"
 )
 
 var allowedGitHubHosts = []string{
@@ -64,8 +64,8 @@ type cachedCheck struct {
 }
 
 var (
-	checkCache     *cachedCheck
-	checkCacheMu   sync.Mutex
+	checkCache   *cachedCheck
+	checkCacheMu sync.Mutex
 )
 
 // RegisterUpdateRoutes registers update routes under the given router group.
@@ -85,9 +85,9 @@ func updateVersionHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"version": currentVersion,
-		"appName": "飞牛日志管理",
+		"success":  true,
+		"version":  currentVersion,
+		"appName":  "飞牛日志管理",
 		"platform": os.Getenv("TRIM_ARCH"),
 	})
 }
@@ -95,10 +95,10 @@ func updateVersionHandler(c *gin.Context) {
 // ---------- Check Handler ----------
 
 type gitHubReleaseAPI struct {
-	TagName    string             `json:"tag_name"`
-	Body       string             `json:"body"`
-	PublishedAt string            `json:"published_at"`
-	Assets     []gitHubAssetAPI   `json:"assets"`
+	TagName     string           `json:"tag_name"`
+	Body        string           `json:"body"`
+	PublishedAt string           `json:"published_at"`
+	Assets      []gitHubAssetAPI `json:"assets"`
 }
 
 type gitHubAssetAPI struct {
@@ -146,13 +146,13 @@ func updateCheckHandler(c *gin.Context) {
 	}
 
 	payload := map[string]interface{}{
-		"success":       true,
+		"success":        true,
 		"currentVersion": currentVersion,
-		"latestVersion": latestRelease.Version,
-		"hasUpdate":     hasUpdate,
-		"changelog":     latestRelease.Changelog,
-		"publishedAt":   latestRelease.PublishedAt,
-		"message":       "已是最新版本",
+		"latestVersion":  latestRelease.Version,
+		"hasUpdate":      hasUpdate,
+		"changelog":      latestRelease.Changelog,
+		"publishedAt":    latestRelease.PublishedAt,
+		"message":        "已是最新版本",
 	}
 	if hasUpdate {
 		payload["message"] = "发现新版本"
@@ -835,7 +835,7 @@ func downloadFile(url, dest string, onProgress func(float64)) error {
 	}
 
 	client := &http.Client{
-		Timeout:   time.Duration(config.Get().Update.DownloadTimeoutMs) * time.Millisecond,
+		Timeout: time.Duration(config.Get().Update.DownloadTimeoutMs) * time.Millisecond,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) > config.Get().Update.MaxRedirects {
 				return fmt.Errorf("重定向次数过多")

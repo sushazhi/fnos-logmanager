@@ -15,11 +15,11 @@ import (
 const maxRateLimitEntries = 10000
 
 type rateLimitStore struct {
-	mu          sync.RWMutex
-	store       map[string]*types.RateLimitRecord
+	mu    sync.RWMutex
+	store map[string]*types.RateLimitRecord
 	// oldestKey tracks the oldest entry for deterministic LRU eviction.
-	oldestKey   string
-	oldestTime  int64
+	oldestKey  string
+	oldestTime int64
 }
 
 func newRateLimitStore() *rateLimitStore {
@@ -94,8 +94,8 @@ func (rls *rateLimitStore) cleanup() {
 }
 
 var (
-	globalRateLimit  = newRateLimitStore()
-	apiRateLimitStore = newRateLimitStore()
+	globalRateLimit    = newRateLimitStore()
+	apiRateLimitStore  = newRateLimitStore()
 	sensitiveRateLimit = newRateLimitStore()
 )
 

@@ -11,7 +11,7 @@
           <div class="option-item">
             <div class="option-info">
               <div class="option-title">清理空文件夹</div>
-              <div class="option-desc">直接删除已卸载应用留下的空文件夹，立即释放空间。</div>
+              <div class="option-desc">直接删除已卸载应用留下的空文件夹（不含任何数据），保持数据目录整洁。</div>
             </div>
             <button class="secondary hm-ripple-btn" :disabled="running" @click="run('empty')">
               执行
@@ -22,7 +22,7 @@
             <div class="option-info">
               <div class="option-title">扫描残留并选择性清理</div>
               <div class="option-desc">
-                扫描残留目录、符号链接与孤儿用户，预览确认后清理。目录移入回收站（{{ retentionHours }} 小时内可还原），链接与孤儿用户直接删除。
+                扫描已卸载应用遗留的数据目录、失效链接和系统账号（安装 Docker 应用时创建的 docker-* 账号），勾选确认后清理。目录移入回收站（{{ retentionHours }} 小时内可还原），链接和账号直接删除。
               </div>
             </div>
             <button class="danger hm-ripple-btn" :disabled="running || scanning" @click="scan">
@@ -81,8 +81,8 @@
 
             <div v-if="scanResult.users.length" class="scan-group">
               <div class="scan-group-title">
-                孤儿系统用户（{{ scanResult.users.length }}）
-                <span class="scan-group-hint">docker-* 用户，删除后不可恢复</span>
+                遗留系统账号（{{ scanResult.users.length }}）
+                <span class="scan-group-hint">Docker 应用卸载后遗留的 docker-* 账号，删除后不可恢复</span>
               </div>
               <label v-for="item in scanResult.users" :key="'u-' + item.path" class="scan-item">
                 <input type="checkbox" :value="item.path" v-model="selectedUsers" />

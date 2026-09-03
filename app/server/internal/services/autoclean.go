@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,22 +19,22 @@ import (
 
 // CleanRule represents a scheduled cleanup rule.
 type CleanRule struct {
-	ID              string   `json:"id"`
-	Name            string   `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 	// Enabled is a *bool so creation can distinguish "not sent" (nil, default
 	// to enabled) from an explicit "false" (create the rule disabled).
-	Enabled         *bool    `json:"enabled"`
-	Schedule        string   `json:"schedule"`        // cron expression or seconds interval (e.g. "30s")
-	LogDirs         []string `json:"logDirs"`          // empty = all dirs
-	FilePattern     string   `json:"filePattern"`      // regex to match filenames; empty = logs/archives only (see cleanNameMatcher)
-	MinSizeBytes    int64    `json:"minSizeBytes"`     // 0 = no min
-	MaxSizeBytes    int64    `json:"maxSizeBytes"`     // 0 = no max
-	RetentionDays   int      `json:"retentionDays"`    // 0 = no date limit
-	Action          string   `json:"action"`           // delete, truncate
-	MaxFilesToClean int      `json:"maxFilesToClean"`  // 0 = unlimited
-	Description     string   `json:"description"`
+	Enabled         *bool      `json:"enabled"`
+	Schedule        string     `json:"schedule"`        // cron expression or seconds interval (e.g. "30s")
+	LogDirs         []string   `json:"logDirs"`         // empty = all dirs
+	FilePattern     string     `json:"filePattern"`     // regex to match filenames; empty = logs/archives only (see cleanNameMatcher)
+	MinSizeBytes    int64      `json:"minSizeBytes"`    // 0 = no min
+	MaxSizeBytes    int64      `json:"maxSizeBytes"`    // 0 = no max
+	RetentionDays   int        `json:"retentionDays"`   // 0 = no date limit
+	Action          string     `json:"action"`          // delete, truncate
+	MaxFilesToClean int        `json:"maxFilesToClean"` // 0 = unlimited
+	Description     string     `json:"description"`
 	LastRun         *time.Time `json:"lastRun"`
-	LastResult      string   `json:"lastResult"`
+	LastResult      string     `json:"lastResult"`
 	CreatedAt       time.Time  `json:"createdAt"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
 }
@@ -541,8 +542,109 @@ func executeCleanRule(rule *CleanRule) (types.CleanLogResult, error) {
 		normalizedDirs = append(normalizedDirs, normalizedDir)
 	}
 
+	if rule.Action == "cleanEmpty" {
+		return cleanEmptyItems(normalizedDirs, matchName, rule.MaxFilesToClean), nil
+	}
+
 	matches := matchCleanFiles(normalizedDirs, matchName, rule.MinSizeBytes, rule.MaxSizeBytes, rule.RetentionDays)
 	return executeCleanMatches(matches, rule.Action, rule.MaxFilesToClean), nil
+}
+
+// cleanEmptyItems implements the "cleanEmpty" action: it removes 0-byte files
+// matching the rule's name matcher, then removes directories left empty that
+// belong to uninstalled apps (deepest-first, so emptied parents cascade).
+// Installed apps are never touched: their 0-byte files may be markers or locks
+// of a running app and hold no space anyway. When the installed-app list
+// cannot be determined, app-belonging files and all directories are skipped
+// and the skip is reported; nameless paths (non-app dirs) are still swept.
+func cleanEmptyItems(dirs []string, matchName func(string) bool, maxFiles int) types.CleanLogResult {
+	result := types.CleanLogResult{}
+
+	installedSet := make(map[string]bool)
+	haveInstalled := true
+	installedApps, err := getInstalledApps()
+	if err != nil {
+		haveInstalled = false
+		result.Errors = append(result.Errors, "无法获取已安装应用列表，应用目录相关的空文件和空目录已跳过")
+	} else {
+		for _, app := range installedApps {
+			installedSet[strings.ToLower(app)] = true
+		}
+	}
+
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			continue
+		}
+		walkErr := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				if os.IsPermission(err) {
+					return nil
+				}
+				return err
+			}
+			if info.IsDir() {
+				if isIgnoredLogDir(info.Name()) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			// Never follow/act on symlinks (see matchCleanFiles).
+			if info.Mode()&os.ModeSymlink != 0 {
+				return nil
+			}
+			if info.Size() != 0 || !matchName(info.Name()) {
+				return nil
+			}
+			if appName := extractAppNameFromPath(path); appName != "" {
+				if !haveInstalled || installedSet[strings.ToLower(appName)] {
+					return nil
+				}
+			}
+			if maxFiles > 0 && result.Cleaned >= maxFiles {
+				return filepath.SkipAll
+			}
+			if err := os.Remove(path); err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", path, err.Error()))
+			} else {
+				result.Cleaned++
+			}
+			return nil
+		})
+		if walkErr != nil {
+			slog.Warn("clean-empty rule scan aborted for dir", "dir", dir, "error", walkErr)
+		}
+	}
+
+	if maxFiles > 0 && result.Cleaned >= maxFiles {
+		return result
+	}
+	if !haveInstalled {
+		return result
+	}
+
+	removed, _ := removeEmptyUninstalledDirs(dirs, installedSet)
+	result.Cleaned += removed
+
+	return result
+}
+
+// CleanEmptyLogItems is the one-shot entry point for the cleanEmpty action
+// (manual clean API and MCP): it removes 0-byte log/archive files under the
+// configured log dirs (skipping installed apps' files) plus empty dirs of
+// uninstalled apps.
+func CleanEmptyLogItems() (types.CleanLogResult, error) {
+	matchName, err := cleanNameMatcher("", "cleanEmpty")
+	if err != nil {
+		return types.CleanLogResult{}, err
+	}
+	dirs := make([]string, 0, len(config.Get().LogDirs))
+	for _, dir := range config.Get().LogDirs {
+		if normalized := utils.SafePath(dir); normalized != "" {
+			dirs = append(dirs, normalized)
+		}
+	}
+	return cleanEmptyItems(dirs, matchName, 0), nil
 }
 
 // StartAutoClean starts the auto-clean scheduler.
@@ -708,7 +810,10 @@ func (ac *AutoCleanState) executeRuleAndRecord(rule *CleanRule) {
 		if err != nil {
 			live.LastResult = fmt.Sprintf("错误: %s", err.Error())
 		} else {
-			live.LastResult = fmt.Sprintf("已清理 %d 个文件", result.Cleaned)
+			live.LastResult = fmt.Sprintf("已清理 %d 项", result.Cleaned)
+			if len(result.Reminded) > 0 {
+				live.LastResult += fmt.Sprintf("，%d 个卸载残留目录待人工处理（已通知）", len(result.Reminded))
+			}
 		}
 		live.UpdatedAt = startTime
 	}

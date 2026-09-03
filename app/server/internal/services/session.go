@@ -187,8 +187,8 @@ func loadSessions() {
 
 	// Try new format (maps) first
 	var newFormat struct {
-		Sessions   map[string]*types.Session    `json:"sessions"`
-		CSRFTokens map[string]*types.CSRFToken    `json:"csrfTokens"`
+		Sessions   map[string]*types.Session   `json:"sessions"`
+		CSRFTokens map[string]*types.CSRFToken `json:"csrfTokens"`
 	}
 	if err := json.Unmarshal([]byte(plaintext), &newFormat); err == nil && newFormat.Sessions != nil {
 		for token, session := range newFormat.Sessions {
@@ -517,8 +517,8 @@ func flushSessionsLocked() {
 	mu.RUnlock()
 
 	data := struct {
-		Sessions    map[string]*types.Session   `json:"sessions"`
-		CSRFTokens  map[string]*types.CSRFToken `json:"csrfTokens"`
+		Sessions   map[string]*types.Session   `json:"sessions"`
+		CSRFTokens map[string]*types.CSRFToken `json:"csrfTokens"`
 	}{
 		Sessions:   sessionCopy,
 		CSRFTokens: csrfCopy,

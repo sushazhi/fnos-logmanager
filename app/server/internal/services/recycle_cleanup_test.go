@@ -62,12 +62,12 @@ func TestLinkTargetReExtractsAppName(t *testing.T) {
 
 func TestRiskOfRoot(t *testing.T) {
 	cases := map[string]string{
-		"@apptemp":   "low",
-		"@appconf":   "medium",
-		"@appmeta":   "medium",
-		"@appdata":   "high",
-		"@apphome":   "high",
-		"@appshare":  "high",
+		"@apptemp":  "low",
+		"@appconf":  "medium",
+		"@appmeta":  "medium",
+		"@appdata":  "high",
+		"@apphome":  "high",
+		"@appshare": "high",
 	}
 	for root, want := range cases {
 		if got := riskOfRoot(root); got != want {

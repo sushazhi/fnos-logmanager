@@ -28,25 +28,25 @@ type NotificationChannelConfig struct {
 
 // NotificationRule represents a notification rule.
 type NotificationRule struct {
-	ID               string    `json:"id"`
-	Name             string    `json:"name"`
-	Status           string    `json:"status"` // "enabled" or "disabled"
-	AppName          string    `json:"appName"`
-	LogLevel         string    `json:"logLevel"`
-	LogPaths         []string  `json:"logPaths,omitempty"`
-	Keywords         []string  `json:"keywords,omitempty"`
-	ExcludeKeywords  []string  `json:"excludeKeywords,omitempty"`
-	Pattern          string    `json:"pattern,omitempty"`
-	Channels         []string  `json:"channels"`
-	Cooldown         int       `json:"cooldown"`         // seconds
-	MaxNotifications int       `json:"maxNotifications"` // per hour
-	QuietHoursStart  string    `json:"quietHoursStart,omitempty"`
-	QuietHoursEnd    string    `json:"quietHoursEnd,omitempty"`
-	IPWhitelist      []string  `json:"ipWhitelist,omitempty"`      // CIDR/IP whitelist: login events from these IPs skip notification
-	TriggerCount     int       `json:"triggerCount"`
+	ID               string     `json:"id"`
+	Name             string     `json:"name"`
+	Status           string     `json:"status"` // "enabled" or "disabled"
+	AppName          string     `json:"appName"`
+	LogLevel         string     `json:"logLevel"`
+	LogPaths         []string   `json:"logPaths,omitempty"`
+	Keywords         []string   `json:"keywords,omitempty"`
+	ExcludeKeywords  []string   `json:"excludeKeywords,omitempty"`
+	Pattern          string     `json:"pattern,omitempty"`
+	Channels         []string   `json:"channels"`
+	Cooldown         int        `json:"cooldown"`         // seconds
+	MaxNotifications int        `json:"maxNotifications"` // per hour
+	QuietHoursStart  string     `json:"quietHoursStart,omitempty"`
+	QuietHoursEnd    string     `json:"quietHoursEnd,omitempty"`
+	IPWhitelist      []string   `json:"ipWhitelist,omitempty"` // CIDR/IP whitelist: login events from these IPs skip notification
+	TriggerCount     int        `json:"triggerCount"`
 	LastTriggeredAt  *time.Time `json:"lastTriggeredAt,omitempty"`
-	CreatedAt        time.Time `json:"createdAt"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	UpdatedAt        time.Time  `json:"updatedAt"`
 }
 
 // NotificationHistory represents a notification history entry.
@@ -71,20 +71,20 @@ type NotificationSettings struct {
 
 // NotificationConfigFile is the top-level structure of the config file.
 type NotificationConfigFile struct {
-	Version  string                    `json:"version"`
+	Version  string                      `json:"version"`
 	Channels []NotificationChannelConfig `json:"channels"`
-	Rules    []NotificationRule        `json:"rules"`
-	Settings NotificationSettings      `json:"settings"`
+	Rules    []NotificationRule          `json:"rules"`
+	Settings NotificationSettings        `json:"settings"`
 }
 
 // NotificationStats holds aggregated notification statistics.
 type NotificationStats struct {
-	TotalSent      int                                         `json:"totalSent"`
-	SuccessCount   int                                         `json:"successCount"`
-	FailCount      int                                         `json:"failCount"`
-	Last24Hours    int                                         `json:"last24Hours"`
-	ByChannel      map[string]ChannelStat                     `json:"byChannel"`
-	ByRule         map[string]ChannelStat                     `json:"byRule"`
+	TotalSent    int                    `json:"totalSent"`
+	SuccessCount int                    `json:"successCount"`
+	FailCount    int                    `json:"failCount"`
+	Last24Hours  int                    `json:"last24Hours"`
+	ByChannel    map[string]ChannelStat `json:"byChannel"`
+	ByRule       map[string]ChannelStat `json:"byRule"`
 }
 
 // ChannelStat holds per-channel or per-rule statistics.
@@ -119,9 +119,9 @@ type NotificationStore struct {
 	history        []NotificationHistory
 
 	// Frequency control (in-memory)
-	cooldowns   map[string]int64
-	counters    map[string]*notifCounter
-	countersMu  sync.Mutex
+	cooldowns  map[string]int64
+	counters   map[string]*notifCounter
+	countersMu sync.Mutex
 }
 
 type notifCounter struct {
@@ -151,64 +151,64 @@ var knownStructFields = map[string]bool{
 // frontendToConfigKey maps Node.js camelCase flat field names to UPPER_CASE config keys.
 // This is used to migrate Node.js-format JSON to Go format.
 var migrateFrontendKey = map[string]string{
-	"qqAppId":            "QQ_APP_ID",
-	"qqAppSecret":        "QQ_APP_SECRET",
-	"qqOpenId":           "QQ_OPENID",
-	"qqGroupOpenId":      "QQ_GROUP_OPENID",
-	"wechatClawBotToken": "WECHAT_CLAWBOT_BOT_TOKEN",
-	"wechatClawBaseUrl":  "WECHAT_CLAWBOT_BASE_URL",
-	"wechatClawToUser":   "WECHAT_CLAWBOT_TO_USER",
-	"wechatClawAccountId":"WECHAT_CLAWBOT_ACCOUNT_ID",
-	"barkPush":           "BARK_PUSH",
-	"barkSound":          "BARK_SOUND",
-	"barkGroup":          "BARK_GROUP",
-	"barkIcon":           "BARK_ICON",
-	"barkLevel":          "BARK_LEVEL",
-	"barkArchive":        "BARK_ARCHIVE",
-	"barkUrl":            "BARK_URL",
-	"ddBotToken":         "DD_BOT_TOKEN",
-	"ddBotSecret":        "DD_BOT_SECRET",
-	"fskey":              "FSKEY",
-	"fssecret":           "FSSECRET",
-	"feishuAppId":        "FEISHU_APP_ID",
-	"feishuAppSecret":    "FEISHU_APP_SECRET",
-	"feishuUserId":       "FEISHU_USER_ID",
-	"gotifyUrl":          "GOTIFY_URL",
-	"gotifyToken":        "GOTIFY_TOKEN",
-	"igotPushKey":        "IGOT_PUSH_KEY",
-	"pushKey":            "PUSH_KEY",
-	"deerKey":            "DEER_KEY",
-	"deerUrl":            "DEER_URL",
-	"chatUrl":            "CHAT_URL",
-	"chatToken":          "CHAT_TOKEN",
-	"pushPlusToken":      "PUSH_PLUS_TOKEN",
-	"pushPlusUser":       "PUSH_PLUS_USER",
-	"tgBotToken":         "TG_BOT_TOKEN",
-	"tgUserId":           "TG_USER_ID",
-	"tgApiHost":          "TG_API_HOST",
-	"aibotkKey":          "AIBOTK_KEY",
-	"aibotkType":         "AIBOTK_TYPE",
-	"aibotkName":         "AIBOTK_NAME",
-	"pushmeKey":          "PUSHME_KEY",
-	"webhookUrl":         "WEBHOOK_URL",
-	"webhookBody":        "WEBHOOK_BODY",
-	"webhookHeaders":     "WEBHOOK_HEADERS",
-	"webhookMethod":      "WEBHOOK_METHOD",
-	"ntfyUrl":            "NTFY_URL",
-	"ntfyTopic":          "NTFY_TOPIC",
-	"ntfyToken":          "NTFY_TOKEN",
-	"wxpusherAppToken":   "WXPUSHER_APP_TOKEN",
-	"wxpusherTopicIds":   "WXPUSHER_TOPIC_IDS",
-	"wxpusherUids":       "WXPUSHER_UIDS",
-	"weplusBotToken":     "WE_PLUS_BOT_TOKEN",
-	"weplusBotReceiver":  "WE_PLUS_BOT_RECEIVER",
-	"qmsgKey":            "QMSG_KEY",
-	"qmsgType":           "QMSG_TYPE",
-	"qywxAm":             "QYWX_AM",
-	"qywxKey":            "QYWX_KEY",
-	"wechatBotId":        "WECHAT_BOT_ID",
-	"wechatBotSecret":    "WECHAT_BOT_SECRET",
-	"wechatBotChatId":    "WECHAT_BOT_CHAT_ID",
+	"qqAppId":             "QQ_APP_ID",
+	"qqAppSecret":         "QQ_APP_SECRET",
+	"qqOpenId":            "QQ_OPENID",
+	"qqGroupOpenId":       "QQ_GROUP_OPENID",
+	"wechatClawBotToken":  "WECHAT_CLAWBOT_BOT_TOKEN",
+	"wechatClawBaseUrl":   "WECHAT_CLAWBOT_BASE_URL",
+	"wechatClawToUser":    "WECHAT_CLAWBOT_TO_USER",
+	"wechatClawAccountId": "WECHAT_CLAWBOT_ACCOUNT_ID",
+	"barkPush":            "BARK_PUSH",
+	"barkSound":           "BARK_SOUND",
+	"barkGroup":           "BARK_GROUP",
+	"barkIcon":            "BARK_ICON",
+	"barkLevel":           "BARK_LEVEL",
+	"barkArchive":         "BARK_ARCHIVE",
+	"barkUrl":             "BARK_URL",
+	"ddBotToken":          "DD_BOT_TOKEN",
+	"ddBotSecret":         "DD_BOT_SECRET",
+	"fskey":               "FSKEY",
+	"fssecret":            "FSSECRET",
+	"feishuAppId":         "FEISHU_APP_ID",
+	"feishuAppSecret":     "FEISHU_APP_SECRET",
+	"feishuUserId":        "FEISHU_USER_ID",
+	"gotifyUrl":           "GOTIFY_URL",
+	"gotifyToken":         "GOTIFY_TOKEN",
+	"igotPushKey":         "IGOT_PUSH_KEY",
+	"pushKey":             "PUSH_KEY",
+	"deerKey":             "DEER_KEY",
+	"deerUrl":             "DEER_URL",
+	"chatUrl":             "CHAT_URL",
+	"chatToken":           "CHAT_TOKEN",
+	"pushPlusToken":       "PUSH_PLUS_TOKEN",
+	"pushPlusUser":        "PUSH_PLUS_USER",
+	"tgBotToken":          "TG_BOT_TOKEN",
+	"tgUserId":            "TG_USER_ID",
+	"tgApiHost":           "TG_API_HOST",
+	"aibotkKey":           "AIBOTK_KEY",
+	"aibotkType":          "AIBOTK_TYPE",
+	"aibotkName":          "AIBOTK_NAME",
+	"pushmeKey":           "PUSHME_KEY",
+	"webhookUrl":          "WEBHOOK_URL",
+	"webhookBody":         "WEBHOOK_BODY",
+	"webhookHeaders":      "WEBHOOK_HEADERS",
+	"webhookMethod":       "WEBHOOK_METHOD",
+	"ntfyUrl":             "NTFY_URL",
+	"ntfyTopic":           "NTFY_TOPIC",
+	"ntfyToken":           "NTFY_TOKEN",
+	"wxpusherAppToken":    "WXPUSHER_APP_TOKEN",
+	"wxpusherTopicIds":    "WXPUSHER_TOPIC_IDS",
+	"wxpusherUids":        "WXPUSHER_UIDS",
+	"weplusBotToken":      "WE_PLUS_BOT_TOKEN",
+	"weplusBotReceiver":   "WE_PLUS_BOT_RECEIVER",
+	"qmsgKey":             "QMSG_KEY",
+	"qmsgType":            "QMSG_TYPE",
+	"qywxAm":              "QYWX_AM",
+	"qywxKey":             "QYWX_KEY",
+	"wechatBotId":         "WECHAT_BOT_ID",
+	"wechatBotSecret":     "WECHAT_BOT_SECRET",
+	"wechatBotChatId":     "WECHAT_BOT_CHAT_ID",
 }
 
 // load reads configuration and history from disk.
@@ -641,9 +641,9 @@ func (ns *NotificationStore) GetStats() NotificationStats {
 	defer ns.mu.RUnlock()
 
 	stats := NotificationStats{
-		TotalSent:    len(ns.history),
-		ByChannel:    make(map[string]ChannelStat),
-		ByRule:       make(map[string]ChannelStat),
+		TotalSent: len(ns.history),
+		ByChannel: make(map[string]ChannelStat),
+		ByRule:    make(map[string]ChannelStat),
 	}
 
 	cutoff := time.Now().Add(-24 * time.Hour)

@@ -165,7 +165,7 @@ func IsValidGitHubURL(rawURL string) bool {
 
 // IsValidAction checks if the action string is valid.
 func IsValidAction(action string) bool {
-	return action == "truncate" || action == "delete" || action == "deleteUninstalled"
+	return action == "truncate" || action == "delete" || action == "deleteUninstalled" || action == "cleanEmpty"
 }
 
 // IsValidDays checks if the days value is valid.

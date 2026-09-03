@@ -4,9 +4,9 @@ import "fmt"
 
 // AppError is the base application error.
 type AppError struct {
-	StatusCode int    `json:"statusCode"`
-	Code       string `json:"code"`
-	Message    string `json:"message"`
+	StatusCode int         `json:"statusCode"`
+	Code       string      `json:"code"`
+	Message    string      `json:"message"`
 	Details    interface{} `json:"details,omitempty"`
 }
 

@@ -19,8 +19,8 @@ func buildCleanTree(t *testing.T) (string, map[string]bool) {
 
 	root := t.TempDir()
 	files := map[string]bool{
-		"app.log":                    true,
-		"app.log.1":                  true,
+		"app.log":   true,
+		"app.log.1": true,
 		// dash-rotated names are NOT matched by isLogFile's existing contract
 		// (same as the one-time CleanLogFiles path) — documents that behavior
 		"nginx.log-20240101":         false,
@@ -237,4 +237,206 @@ func TestExecuteCleanRuleDeleteUninstalledDispatch(t *testing.T) {
 		t.Fatalf("scheduled deleteUninstalled rule must dispatch to CleanUninstalledLogs instead of failing, got: %v", err)
 	}
 	_ = result
+}
+
+// seedInstalledApps installs a fake installed-app list into the process-global
+// cache so dir-judging phases run deterministically without appcenter-cli.
+func seedInstalledApps(t *testing.T, apps []string) {
+	t.Helper()
+	cachedInstalledAppsMu.Lock()
+	prevApps, prevAt := cachedInstalledApps, installedAppsCacheAt
+	cachedInstalledApps = apps
+	installedAppsCacheAt = time.Now()
+	cachedInstalledAppsMu.Unlock()
+	t.Cleanup(func() {
+		cachedInstalledAppsMu.Lock()
+		cachedInstalledApps, installedAppsCacheAt = prevApps, prevAt
+		cachedInstalledAppsMu.Unlock()
+	})
+}
+
+func TestCleanEmptyItemsRemovesOnlyZeroByteLogFiles(t *testing.T) {
+	seedInstalledApps(t, []string{"myapp"})
+
+	root := t.TempDir()
+	zeroFiles := []string{"empty.log", "archives/old.gz"}
+	kept := map[string]string{
+		"app.log":                "data",
+		"archives/full.gz":       "data",
+		"BT_backup/seed.torrent": "", // 0-byte but outside the default log matcher
+	}
+	for rel, content := range kept {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, rel := range zeroFiles {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte{}, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	matchName, err := cleanNameMatcher("", "cleanEmpty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := cleanEmptyItems([]string{root}, matchName, 0)
+
+	if result.Cleaned != len(zeroFiles) {
+		t.Fatalf("cleaned=%d, want %d (errors: %v)", result.Cleaned, len(zeroFiles), result.Errors)
+	}
+	for _, rel := range zeroFiles {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); !os.IsNotExist(err) {
+			t.Errorf("%s should have been removed", rel)
+		}
+	}
+	for rel, content := range kept {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Errorf("%s must be kept: %v", rel, err)
+			continue
+		}
+		if string(data) != content {
+			t.Errorf("%s content changed: got %q", rel, data)
+		}
+	}
+}
+
+func TestCleanEmptyItemsExplicitPatternWidensScope(t *testing.T) {
+	seedInstalledApps(t, []string{"myapp"})
+
+	root := t.TempDir()
+	for _, rel := range []string{"placeholder.lock", "cache.torrent"} {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.WriteFile(path, []byte{}, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	matchName, err := cleanNameMatcher(`\.torrent$`, "cleanEmpty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := cleanEmptyItems([]string{root}, matchName, 0)
+
+	if result.Cleaned != 1 {
+		t.Fatalf("cleaned=%d, want 1 (errors: %v)", result.Cleaned, result.Errors)
+	}
+	if _, err := os.Stat(filepath.Join(root, "cache.torrent")); !os.IsNotExist(err) {
+		t.Error("cache.torrent should have been removed")
+	}
+	if _, err := os.Stat(filepath.Join(root, "placeholder.lock")); err != nil {
+		t.Error("placeholder.lock must be kept: pattern did not select it")
+	}
+}
+
+func TestCleanEmptyItemsSkipsInstalledAppsFiles(t *testing.T) {
+	// App-name extraction splits on "/", so only forward-slash (linux) paths
+	// yield app names; on Windows this test would silently do nothing.
+	if runtime.GOOS != "linux" {
+		t.Skip("requires forward-slash path parsing; run on linux/CI")
+	}
+	seedInstalledApps(t, []string{"myapp"})
+
+	root := t.TempDir()
+	appdata := filepath.Join(root, "@appdata")
+	for _, rel := range []string{"@appdata/myapp/empty.log", "@appdata/ghostapp/empty.log", "plain.log"} {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte{}, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(appdata, "ghostapp", "emptydir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	matchName, err := cleanNameMatcher("", "cleanEmpty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := cleanEmptyItems([]string{root}, matchName, 0)
+
+	// ghostapp/empty.log + plain.log (files) + ghostapp/emptydir + ghostapp
+	// (dirs, cascaded once their contents emptied)
+	if result.Cleaned != 4 {
+		t.Fatalf("cleaned=%d, want 4 (errors: %v)", result.Cleaned, result.Errors)
+	}
+	if _, err := os.Stat(filepath.Join(appdata, "myapp", "empty.log")); err != nil {
+		t.Error("installed app's 0-byte file must never be removed")
+	}
+	if _, err := os.Stat(filepath.Join(appdata, "ghostapp", "empty.log")); !os.IsNotExist(err) {
+		t.Error("uninstalled app's 0-byte file should have been removed")
+	}
+	if _, err := os.Stat(filepath.Join(appdata, "ghostapp")); !os.IsNotExist(err) {
+		t.Error("uninstalled app's emptied dir tree should have been removed")
+	}
+	if _, err := os.Stat(filepath.Join(root, "plain.log")); !os.IsNotExist(err) {
+		t.Error("non-app-dir 0-byte file should have been removed")
+	}
+}
+
+func TestRemoveEmptyUninstalledDirs(t *testing.T) {
+	// App-name extraction splits on "/", so only forward-slash (linux) paths
+	// yield app names; on Windows this test would silently do nothing.
+	if runtime.GOOS != "linux" {
+		t.Skip("requires forward-slash path parsing; run on linux/CI")
+	}
+
+	root := t.TempDir()
+	appdata := filepath.Join(root, "@appdata")
+	for _, rel := range []string{
+		"ghostapp/logs",
+		"ghostapp/data",
+		"ghostapp/empty/nested",
+		"myapp/logs",
+		"logmanager/keep",
+	} {
+		if err := os.MkdirAll(filepath.Join(appdata, filepath.FromSlash(rel)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(appdata, "ghostapp", "data", "db.sqlite"), []byte("db"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	installed := map[string]bool{"myapp": true}
+	removed, nonEmpty := removeEmptyUninstalledDirs([]string{root}, installed)
+
+	// ghostapp/logs, ghostapp/data/logs, ghostapp/empty/nested, ghostapp/empty
+	if removed != 4 {
+		t.Fatalf("removed=%d, want 4", removed)
+	}
+	for _, rel := range []string{"ghostapp/logs", "ghostapp/data/logs", "ghostapp/empty"} {
+		if _, err := os.Stat(filepath.Join(appdata, filepath.FromSlash(rel))); !os.IsNotExist(err) {
+			t.Errorf("%s should have been removed", rel)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(appdata, "ghostapp", "data", "db.sqlite")); err != nil {
+		t.Error("ghostapp/data must be kept: it is non-empty and only reported")
+	}
+	if _, err := os.Stat(filepath.Join(appdata, "myapp", "logs")); err != nil {
+		t.Error("dirs of an installed app must never be removed")
+	}
+	if _, err := os.Stat(filepath.Join(appdata, "logmanager", "keep")); err != nil {
+		t.Error("reserved app dirs must never be removed")
+	}
+	if _, err := os.Stat(root); err != nil {
+		t.Error("walk root must never be removed")
+	}
+
+	want := filepath.Join(appdata, "ghostapp")
+	if len(nonEmpty) != 1 || nonEmpty["ghostapp"] != want {
+		t.Fatalf("nonEmpty=%v, want map[ghostapp:%s]", nonEmpty, want)
+	}
 }

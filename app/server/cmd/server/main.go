@@ -305,11 +305,11 @@ func findUIDir() string {
 	// This ensures the production build (dist/index.html with hashed assets) is served,
 	// not the dev template (ui/index.html with /src/main.ts).
 	candidates := []string{
-		"../../ui/dist",         // from cmd/server/ (dev: Vite dist output)
-		"../../ui",              // from cmd/server/ (source)
-		"../ui/dist",            // from app/server/
-		"../ui",                 // from app/server/
-		"/app/logmanager/ui",    // fnOS install path
+		"../../ui/dist",      // from cmd/server/ (dev: Vite dist output)
+		"../../ui",           // from cmd/server/ (source)
+		"../ui/dist",         // from app/server/
+		"../ui",              // from app/server/
+		"/app/logmanager/ui", // fnOS install path
 	}
 
 	exe, err := os.Executable()

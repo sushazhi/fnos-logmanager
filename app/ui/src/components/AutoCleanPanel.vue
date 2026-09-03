@@ -24,9 +24,10 @@
               <select v-model="newRule.type">
                 <option value="truncateLarge">清空过大的日志文件</option>
                 <option value="deleteOld">删除旧日志和归档文件</option>
-                <option value="deleteUninstalled">删除未安装应用日志</option>
+                <option value="deleteUninstalled">清理未安装应用日志</option>
+                <option value="cleanEmptyFiles">清理空文件和空目录</option>
               </select>
-              <span class="hint">规则作用于所有日志目录，仅匹配日志/归档文件</span>
+              <span class="hint">{{ typeHint }}</span>
             </div>
             <div class="form-row" v-if="newRule.type === 'truncateLarge'">
               <label>大小阈值</label>
@@ -102,7 +103,7 @@ interface AutoCleanRule {
   id: string
   name: string
   enabled: boolean
-  type: 'truncateLarge' | 'deleteOld' | 'deleteUninstalled'
+  type: 'truncateLarge' | 'deleteOld' | 'deleteUninstalled' | 'cleanEmptyFiles'
   threshold?: string
   days?: number
   schedule: string
@@ -114,13 +115,15 @@ interface AutoCleanRule {
 const typeToAction: Record<AutoCleanRule['type'], string> = {
   truncateLarge: 'truncate',
   deleteOld: 'delete',
-  deleteUninstalled: 'deleteUninstalled'
+  deleteUninstalled: 'deleteUninstalled',
+  cleanEmptyFiles: 'cleanEmpty'
 }
 // 后端 action -> UI type
 const actionToType: Record<string, AutoCleanRule['type']> = {
   truncate: 'truncateLarge',
   delete: 'deleteOld',
-  deleteUninstalled: 'deleteUninstalled'
+  deleteUninstalled: 'deleteUninstalled',
+  cleanEmpty: 'cleanEmptyFiles'
 }
 
 // 阈值 量化字符串 -> 字节数，如 "100M" -> 104857600
@@ -214,12 +217,25 @@ const editingRuleId = ref<string | null>(null)
 
 const newRule = ref({
   name: '',
-  type: 'truncateLarge' as 'truncateLarge' | 'deleteOld' | 'deleteUninstalled',
+  type: 'truncateLarge' as 'truncateLarge' | 'deleteOld' | 'deleteUninstalled' | 'cleanEmptyFiles',
   threshold: '100M',
   days: 7,
   schedule: 'daily' as string,
   customInterval: 3600,
   cronExpression: '0 3 * * *'
+})
+
+// 各清理类型的说明需与后端实际行为一致（如未安装应用日志现移入回收站而非直接删除）
+const typeHint = computed(() => {
+  switch (newRule.value.type) {
+    case 'truncateLarge':
+    case 'deleteOld':
+      return '规则作用于所有日志目录，仅匹配日志/归档文件'
+    case 'deleteUninstalled':
+      return '已卸载应用的日志文件移入回收站，空文件夹直接清理，非空残留目录仅通知提醒'
+    case 'cleanEmptyFiles':
+      return '删除 0 字节的日志/归档文件（已安装应用的除外），及已卸载应用遗留的空文件夹'
+  }
 })
 
 const canAddRule = computed(() => {
@@ -235,7 +251,8 @@ function typeLabel(type: string): string {
   switch (type) {
     case 'truncateLarge': return '清空大日志'
     case 'deleteOld': return '删除旧日志/归档'
-    case 'deleteUninstalled': return '删除未安装应用'
+    case 'deleteUninstalled': return '清理未安装应用'
+    case 'cleanEmptyFiles': return '清理空文件'
     default: return type
   }
 }
@@ -345,7 +362,7 @@ async function executeRule(id: string): Promise<void> {
   try {
     const result = await autoCleanApi.executeRule(id)
     if (result.cleaned !== undefined) {
-      statusMsg.value = `执行完成，清理了 ${result.cleaned} 个文件`
+      statusMsg.value = `执行完成，清理了 ${result.cleaned} 项`
       statusType.value = 'success'
     }
     await loadRules()
@@ -461,7 +478,8 @@ onMounted(() => {
 }
 
 .add-btn {
-  width: 100%;
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: var(--spacing-sm) var(--spacing-lg);
   background: var(--primary-color);
   color: var(--text-color-on-primary);

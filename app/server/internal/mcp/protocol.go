@@ -17,24 +17,24 @@ import (
 
 // jsonRPCRequest is a JSON-RPC 2.0 request or notification.
 type jsonRPCRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
+	JSONRPC string           `json:"jsonrpc"`
 	ID      *json.RawMessage `json:"id,omitempty"` // nil => notification
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
+	Method  string           `json:"method"`
+	Params  json.RawMessage  `json:"params,omitempty"`
 }
 
 // jsonRPCResponse is a JSON-RPC 2.0 success response.
 type jsonRPCResponse struct {
-	JSONRPC string          `json:"jsonrpc"`
+	JSONRPC string           `json:"jsonrpc"`
 	ID      *json.RawMessage `json:"id"`
-	Result  interface{}     `json:"result,omitempty"`
+	Result  interface{}      `json:"result,omitempty"`
 }
 
 // jsonRPCErrorResponse is a JSON-RPC 2.0 error response.
 type jsonRPCErrorResponse struct {
-	JSONRPC string          `json:"jsonrpc"`
+	JSONRPC string           `json:"jsonrpc"`
 	ID      *json.RawMessage `json:"id"`
-	Error   *jsonRPCError   `json:"error"`
+	Error   *jsonRPCError    `json:"error"`
 }
 
 type jsonRPCError struct {
@@ -74,7 +74,7 @@ const (
 	protocolVersion20241105 = "2024-11-05"
 	protocolVersion20250326 = "2025-03-26"
 	protocolVersion20250618 = "2025-06-18"
-	defaultProtocolVersion   = protocolVersion20250326
+	defaultProtocolVersion  = protocolVersion20250326
 )
 
 // isSupportedProtocolVersion returns true if the version string is one we can

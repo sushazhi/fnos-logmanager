@@ -23,8 +23,8 @@ type NotifyClient struct {
 
 // NotifyHub manages all notification WebSocket connections.
 type NotifyHub struct {
-	mu      sync.RWMutex
-	clients map[*websocket.Conn]*NotifyClient
+	mu       sync.RWMutex
+	clients  map[*websocket.Conn]*NotifyClient
 	upgrader websocket.Upgrader
 }
 

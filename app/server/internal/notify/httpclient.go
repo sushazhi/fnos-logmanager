@@ -159,5 +159,3 @@ func HTTPGet(rawURL string, opts HttpRequestOptions) (*HttpResponse, error) {
 	opts.Method = "GET"
 	return httpRequest(rawURL, opts)
 }
-
-

@@ -426,7 +426,7 @@ func registerTools() {
 		objectSchema(nil, map[string]map[string]interface{}{
 			"threshold": strProp("大小阈值，如 10M、500M、1G；与 days 二选一"),
 			"days":      intProp("保留天数，超过该天数的日志将被清理；与 threshold 二选一"),
-			"action":    strProp("操作类型：truncate=清空、delete=删除、deleteUninstalled=删除已卸载应用的日志，默认truncate"),
+			"action":    strProp("操作类型：truncate=清空、delete=删除、deleteUninstalled=清理已卸载应用的日志（文件进回收站）、cleanEmpty=清理空文件（已安装应用的除外）和已卸载应用的空目录，默认truncate"),
 		}),
 		func(args json.RawMessage) (string, error) {
 			var p struct {
@@ -446,6 +446,14 @@ func registerTools() {
 			}
 			if action == "deleteUninstalled" {
 				res, err := services.CleanUninstalledLogs()
+				if err != nil {
+					return "", err
+				}
+				services.AddSecurityAuditLog("MCP_LOGS_CLEAN", map[string]interface{}{"action": action, "cleaned": res.Cleaned}, nil)
+				return jsonStr(res), nil
+			}
+			if action == "cleanEmpty" {
+				res, err := services.CleanEmptyLogItems()
 				if err != nil {
 					return "", err
 				}
@@ -492,7 +500,7 @@ func registerTools() {
 		})
 
 	// ---- 已卸载应用残留清理（扫描预览 + 移入回收站 + 还原） ----
-	registerTool("scan_uninstalled_leftovers", "扫描已卸载应用的残留（数据目录/符号链接/孤儿用户），不执行任何清理，返回带大小与风险等级的候选列表，供确认后再清理",
+	registerTool("scan_uninstalled_leftovers", "扫描已卸载应用的残留（数据目录/失效符号链接/docker-* 遗留系统账号），不执行任何清理，返回带大小与风险等级的候选列表，供确认后再清理",
 		objectSchema(nil, map[string]map[string]interface{}{}),
 		func(args json.RawMessage) (string, error) {
 			res, err := services.ScanUninstalledLeftovers()
@@ -508,11 +516,11 @@ func registerTools() {
 			}), nil
 		})
 
-	registerTool("clean_uninstalled_dirs", "将已卸载应用的残留目录移入回收站（超过保留期后自动清空），可选同时删除残留符号链接与孤儿用户。不带参数时清理全部扫描到的残留目录（不删链接与用户）。绝不触碰已安装应用。",
+	registerTool("clean_uninstalled_dirs", "将已卸载应用的残留目录移入回收站（超过保留期后自动清空），可选同时删除残留符号链接与 Docker 应用遗留的 docker-* 系统账号。不带参数时清理全部扫描到的残留目录（不删链接与账号）。绝不触碰已安装应用。",
 		objectSchema(nil, map[string]map[string]interface{}{
 			"dirs":  strProp("要清理的残留目录路径列表，如 [\"/vol1/@appdata/redis\"]；省略则清理全部扫描到的残留目录"),
 			"links": strProp("要删除的残留符号链接路径列表，如 [\"/usr/local/bin/redis-cli\"]；省略则不清理链接"),
-			"users": strProp("要删除的孤儿系统用户列表（docker-* 用户），如 [\"docker-redis\"]；省略则不清理用户"),
+			"users": strProp("要删除的遗留系统账号列表（Docker 应用卸载后遗留的 docker-* 账号），如 [\"docker-redis\"]；省略则不清理账号"),
 		}),
 		func(args json.RawMessage) (string, error) {
 			var in struct {
@@ -1169,9 +1177,9 @@ func readArchiveContent(path string, maxLines int) (string, bool, error) {
 // ---------------------------------------------------------------------------
 
 type kernelInfo struct {
-	Version        string `json:"version"`
-	IsCurrent      bool   `json:"isCurrent"`
-	TotalSize      int64  `json:"totalSize"`
+	Version            string `json:"version"`
+	IsCurrent          bool   `json:"isCurrent"`
+	TotalSize          int64  `json:"totalSize"`
 	TotalSizeFormatted string `json:"totalSizeFormatted"`
 }
 
@@ -1444,19 +1452,19 @@ func listProcesses() ([]map[string]interface{}, error) {
 		isSystem := isKernelThread || (cmdline == "" && pid > 1)
 
 		procs = append(procs, map[string]interface{}{
-			"pid":     pid,
-			"ppid":    readProcPPID(pid),
-			"user":    readProcUser(pid),
-			"name":    procDisplayName(comm, cmdline),
-			"state":   readProcState(pid),
-			"cpu":     round2(computeMCPCPU(pid, comm)),
-			"memory":  readProcMem(pid),
+			"pid":      pid,
+			"ppid":     readProcPPID(pid),
+			"user":     readProcUser(pid),
+			"name":     procDisplayName(comm, cmdline),
+			"state":    readProcState(pid),
+			"cpu":      round2(computeMCPCPU(pid, comm)),
+			"memory":   readProcMem(pid),
 			"memBytes": readProcMemBytes(pid),
-			"command": cmdline,
-			"exe":     readProcExe(pid),
-			"ports":   resolveMCPPorts(pid, portByInode),
-			"protect": isProtectedProc(pid),
-			"system":  isSystem,
+			"command":  cmdline,
+			"exe":      readProcExe(pid),
+			"ports":    resolveMCPPorts(pid, portByInode),
+			"protect":  isProtectedProc(pid),
+			"system":   isSystem,
 		})
 	}
 	return procs, nil

@@ -47,9 +47,9 @@ func DefaultWSConfig() WSClientConfig {
 
 // wsConnTracker tracks WebSocket connection counts per IP.
 type wsConnTracker struct {
-	mu        sync.Mutex
-	counts    map[string]int32
-	maxPerIP  int
+	mu       sync.Mutex
+	counts   map[string]int32
+	maxPerIP int
 }
 
 func newConnTracker(maxPerIP int) *wsConnTracker {
@@ -183,178 +183,178 @@ func (c *logStreamClient) wsWriteJSON(v interface{}) error {
 	return c.ws.WriteJSON(v)
 }
 
-	var (
-		logStreamUpgrader = wsUpgrader()
-		logStreamConns    = newWSConnCount(5) // max 5 connections per IP
-		logStreamClients  sync.Map            // map[*websocket.Conn]*logStreamClient
-	)
+var (
+	logStreamUpgrader = wsUpgrader()
+	logStreamConns    = newWSConnCount(5) // max 5 connections per IP
+	logStreamClients  sync.Map            // map[*websocket.Conn]*logStreamClient
+)
 
-	// ServeLogStreamWS handles the log file stream WebSocket connection.
-	func ServeLogStreamWS(w http.ResponseWriter, r *http.Request) {
-		clientIP := utils.GetClientIP(r)
+// ServeLogStreamWS handles the log file stream WebSocket connection.
+func ServeLogStreamWS(w http.ResponseWriter, r *http.Request) {
+	clientIP := utils.GetClientIP(r)
 
-		// Authenticate
-		if !authenticateWS(r, clientIP, "/api/logs/stream") {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
+	// Authenticate
+	if !authenticateWS(r, clientIP, "/api/logs/stream") {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-		// Rate limit per IP
-		if !logStreamConns.inc(clientIP) {
-			http.Error(w, "SSE 连接数超过限制", http.StatusTooManyRequests)
-			return
-		}
-		defer logStreamConns.dec(clientIP)
+	// Rate limit per IP
+	if !logStreamConns.inc(clientIP) {
+		http.Error(w, "SSE 连接数超过限制", http.StatusTooManyRequests)
+		return
+	}
+	defer logStreamConns.dec(clientIP)
 
-		conn, err := logStreamUpgrader.Upgrade(w, r, nil)
-		if err != nil {
-			slog.Warn("log stream WebSocket upgrade failed", "error", err, "clientIP", clientIP)
-			return
-		}
+	conn, err := logStreamUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		slog.Warn("log stream WebSocket upgrade failed", "error", err, "clientIP", clientIP)
+		return
+	}
 
-		slog.Info("log stream WebSocket client connected", "clientIP", clientIP)
+	slog.Info("log stream WebSocket client connected", "clientIP", clientIP)
 
-		conn.WriteJSON(map[string]string{"type": wsTypeConnected})
+	conn.WriteJSON(map[string]string{"type": wsTypeConnected})
 
-		cfg := DefaultWSConfig()
-		conn.SetReadLimit(cfg.ReadLimit)
+	cfg := DefaultWSConfig()
+	conn.SetReadLimit(cfg.ReadLimit)
+	conn.SetReadDeadline(time.Now().Add(cfg.ReadTimeout))
+	conn.SetPongHandler(func(string) error {
 		conn.SetReadDeadline(time.Now().Add(cfg.ReadTimeout))
-		conn.SetPongHandler(func(string) error {
-			conn.SetReadDeadline(time.Now().Add(cfg.ReadTimeout))
-			return nil
-		})
+		return nil
+	})
 
-		heartbeatTicker := time.NewTicker(cfg.HeartbeatInterval)
-		defer heartbeatTicker.Stop()
+	heartbeatTicker := time.NewTicker(cfg.HeartbeatInterval)
+	defer heartbeatTicker.Stop()
 
-		client := &logStreamClient{ws: conn, cancel: make(chan struct{})}
-		defer cleanupLogStream(client)
+	client := &logStreamClient{ws: conn, cancel: make(chan struct{})}
+	defer cleanupLogStream(client)
 
-		// Message handler goroutine
-		msgCh := make(chan []byte, 16)
-		go func() {
-			for {
-				_, msg, err := conn.ReadMessage()
-				if err != nil {
-					close(msgCh)
-					return
-				}
-				msgCh <- msg
-			}
-		}()
-
-		// Poll ticker channel: nil means not polling (select ignores nil channels)
-		var pollC <-chan time.Time
-
+	// Message handler goroutine
+	msgCh := make(chan []byte, 16)
+	go func() {
 		for {
-			select {
-			case msg, ok := <-msgCh:
-				if !ok {
-					return
-				}
-				pollC = handleLogStreamMessage(conn, msg, client, pollC)
-
-			case <-pollC:
-				pollLogFile(client)
-
-			case <-heartbeatTicker.C:
-				// FIX(bug 6): set the write deadline immediately before the write.
-				// Do not keep a long-lived deadline set at heartbeat time.
-				conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-					return
-				}
-
-			case <-client.cancel:
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				close(msgCh)
 				return
 			}
+			msgCh <- msg
+		}
+	}()
+
+	// Poll ticker channel: nil means not polling (select ignores nil channels)
+	var pollC <-chan time.Time
+
+	for {
+		select {
+		case msg, ok := <-msgCh:
+			if !ok {
+				return
+			}
+			pollC = handleLogStreamMessage(conn, msg, client, pollC)
+
+		case <-pollC:
+			pollLogFile(client)
+
+		case <-heartbeatTicker.C:
+			// FIX(bug 6): set the write deadline immediately before the write.
+			// Do not keep a long-lived deadline set at heartbeat time.
+			conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+
+		case <-client.cancel:
+			return
 		}
 	}
+}
 
-	// handleLogStreamMessage processes a log stream message and returns the updated poll channel.
-	func handleLogStreamMessage(conn *websocket.Conn, msg []byte, client *logStreamClient, currentPollC <-chan time.Time) <-chan time.Time {
-		var message struct {
-			Type         string `json:"type"`
-			FilePath     string `json:"filePath"`
-			PollInterval int    `json:"pollInterval"`
-		}
-		if err := json.Unmarshal(msg, &message); err != nil {
-			conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "Invalid message format"})
-			return currentPollC
-		}
-
-		switch message.Type {
-		case "ping":
-			conn.WriteJSON(map[string]string{"type": wsTypePong})
-			return currentPollC
-
-		case "subscribe":
-			if message.FilePath == "" {
-				conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "Missing filePath"})
-				return currentPollC
-			}
-
-			// Security check
-			if !utils.IsAllowedPath(message.FilePath, config.Get().LogDirs) {
-				conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "Path not allowed"})
-				return currentPollC
-			}
-
-			// FIX(bug 24): capture the stat result and reuse it; the previous
-			// code re-ran os.Stat and ignored its error, leaving info possibly
-			// nil (nil-pointer panic on info.Size()). We only accept regular
-			// files.
-			info, err := os.Stat(message.FilePath)
-			if err != nil || !info.Mode().IsRegular() {
-				if os.IsNotExist(err) {
-					conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "File not found"})
-				} else {
-					conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "文件不可读"})
-				}
-				return currentPollC
-			}
-
-			client.filePath = message.FilePath
-			client.lastSize = info.Size()
-
-			pollInterval := message.PollInterval
-			if pollInterval < 500 {
-				pollInterval = 1000
-			}
-
-			newTicker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
-			pollC := newTicker.C
-
-			logStreamClients.Store(conn, client)
-
-			// FIX(bug 22): track the active ticker on the client so cleanup can
-			// stop it, instead of spawning a goroutine that leaks (the old
-			// goroutine waited on client.cancel which was never closed). Use a
-			// single "poll ticker" field: stopping a stale one on re-subscribe
-			// is harmless.
-			client.pollTicker = newTicker
-
-			client.wsWriteJSON(map[string]interface{}{
-				"type":        wsTypeSubscribed,
-				"filePath":    message.FilePath,
-				"initialSize": info.Size(),
-			})
-
-			slog.Info("client subscribed to log stream", "filePath", message.FilePath)
-			return pollC
-
-		case "unsubscribe":
-			client.filePath = ""
-			logStreamClients.Delete(conn)
-			if client.pollTicker != nil {
-				client.pollTicker.Stop()
-				client.pollTicker = nil
-			}
-			client.wsWriteJSON(map[string]string{"type": wsTypeUnsubscribed})
-			return nil
-		}
+// handleLogStreamMessage processes a log stream message and returns the updated poll channel.
+func handleLogStreamMessage(conn *websocket.Conn, msg []byte, client *logStreamClient, currentPollC <-chan time.Time) <-chan time.Time {
+	var message struct {
+		Type         string `json:"type"`
+		FilePath     string `json:"filePath"`
+		PollInterval int    `json:"pollInterval"`
+	}
+	if err := json.Unmarshal(msg, &message); err != nil {
+		conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "Invalid message format"})
 		return currentPollC
 	}
+
+	switch message.Type {
+	case "ping":
+		conn.WriteJSON(map[string]string{"type": wsTypePong})
+		return currentPollC
+
+	case "subscribe":
+		if message.FilePath == "" {
+			conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "Missing filePath"})
+			return currentPollC
+		}
+
+		// Security check
+		if !utils.IsAllowedPath(message.FilePath, config.Get().LogDirs) {
+			conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "Path not allowed"})
+			return currentPollC
+		}
+
+		// FIX(bug 24): capture the stat result and reuse it; the previous
+		// code re-ran os.Stat and ignored its error, leaving info possibly
+		// nil (nil-pointer panic on info.Size()). We only accept regular
+		// files.
+		info, err := os.Stat(message.FilePath)
+		if err != nil || !info.Mode().IsRegular() {
+			if os.IsNotExist(err) {
+				conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "File not found"})
+			} else {
+				conn.WriteJSON(map[string]string{"type": wsTypeError, "message": "文件不可读"})
+			}
+			return currentPollC
+		}
+
+		client.filePath = message.FilePath
+		client.lastSize = info.Size()
+
+		pollInterval := message.PollInterval
+		if pollInterval < 500 {
+			pollInterval = 1000
+		}
+
+		newTicker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
+		pollC := newTicker.C
+
+		logStreamClients.Store(conn, client)
+
+		// FIX(bug 22): track the active ticker on the client so cleanup can
+		// stop it, instead of spawning a goroutine that leaks (the old
+		// goroutine waited on client.cancel which was never closed). Use a
+		// single "poll ticker" field: stopping a stale one on re-subscribe
+		// is harmless.
+		client.pollTicker = newTicker
+
+		client.wsWriteJSON(map[string]interface{}{
+			"type":        wsTypeSubscribed,
+			"filePath":    message.FilePath,
+			"initialSize": info.Size(),
+		})
+
+		slog.Info("client subscribed to log stream", "filePath", message.FilePath)
+		return pollC
+
+	case "unsubscribe":
+		client.filePath = ""
+		logStreamClients.Delete(conn)
+		if client.pollTicker != nil {
+			client.pollTicker.Stop()
+			client.pollTicker = nil
+		}
+		client.wsWriteJSON(map[string]string{"type": wsTypeUnsubscribed})
+		return nil
+	}
+	return currentPollC
+}
 
 func pollLogFile(client *logStreamClient) {
 	if client.filePath == "" {

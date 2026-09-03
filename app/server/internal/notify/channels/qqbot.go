@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sushazhi/fnos-logmanager/internal/notify"
 	"github.com/gorilla/websocket"
+	"github.com/sushazhi/fnos-logmanager/internal/notify"
 )
 
 const (
-	qqAPIBase    = "https://api.sgroup.qq.com"
-	qqTokenURL   = "https://bots.qq.com/app/getAppAccessToken"
+	qqAPIBase        = "https://api.sgroup.qq.com"
+	qqTokenURL       = "https://bots.qq.com/app/getAppAccessToken"
 	qqWSMaxReconnect = 5
 )
 
@@ -26,8 +26,8 @@ type qqTokenCache struct {
 }
 
 var (
-	qqCachedToken    *qqTokenCache
-	qqCachedTokenMu  sync.RWMutex
+	qqCachedToken   *qqTokenCache
+	qqCachedTokenMu sync.RWMutex
 )
 
 // Captured openIDs (from WebSocket events or configured)
@@ -39,10 +39,10 @@ var (
 
 // WebSocket listener state
 var (
-	qqWSClient           *websocket.Conn
-	qqWSHeartbeatStop    chan struct{}
+	qqWSClient            *websocket.Conn
+	qqWSHeartbeatStop     chan struct{}
 	qqWSReconnectAttempts int
-	qqWSMu               sync.Mutex
+	qqWSMu                sync.Mutex
 )
 
 // getQQAccessToken gets a cached or fresh access token for QQ Bot.
@@ -76,7 +76,7 @@ func getQQAccessToken(appID, appSecret string) (string, error) {
 
 	resp, err := notify.HTTPPost(qqTokenURL, notify.HttpRequestOptions{
 		JSON: map[string]string{
-			"appId":       appID,
+			"appId":        appID,
 			"clientSecret": appSecret,
 		},
 	})

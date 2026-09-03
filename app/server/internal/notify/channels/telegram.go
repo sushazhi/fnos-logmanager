@@ -36,8 +36,8 @@ func (c *Telegram) Send(text, desp string) notify.NotifyResult {
 	}
 
 	body := map[string]string{
-		"chat_id":    tgUserID,
-		"text":       content,
+		"chat_id": tgUserID,
+		"text":    content,
 		// Use MarkdownV2 which is safer for user-generated content.
 		// HTML parse_mode could allow injection if content contains <b>, <a>, etc.
 	}

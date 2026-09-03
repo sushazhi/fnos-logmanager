@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
 	"github.com/sushazhi/fnos-logmanager/internal/config"
 	"github.com/sushazhi/fnos-logmanager/internal/types"
 	"github.com/sushazhi/fnos-logmanager/internal/utils"
+	_ "modernc.org/sqlite"
 )
 
 // EventLogEntry represents a system event log entry (backward compatible).
@@ -309,7 +309,7 @@ func (el *EventLoggerState) pollNewEvents() {
 		// Fire notification for significant events
 		cfg := config.Get()
 		if cfg.EventLogger.Enabled && isSignificantEvent(entry) {
-				matchedRuleIDs := matchEventNotificationRules(entry)
+			matchedRuleIDs := matchEventNotificationRules(entry)
 			for _, ruleID := range matchedRuleIDs {
 				if ns := getNotifStore(); ns != nil {
 					rule := ns.GetRule(ruleID)
@@ -330,29 +330,29 @@ func (el *EventLoggerState) pollNewEvents() {
 						continue
 					}
 
-				// Map numeric type to readable category name, fallback to raw EventType
-				categoryName := entry.EventType
-				// Prefer the Cat field (parsed from the JSON parameter's "cat" field)
-				// which is more accurate than the DB type column (which may always be "1").
-				if entry.Cat > 0 {
-					if name, ok := categoryMessages[entry.Cat]; ok {
-						categoryName = name
-					}
-				} else {
-					var catNum int
-					if _, err := fmt.Sscanf(entry.EventType, "%d", &catNum); err == nil {
-						if name, ok := categoryMessages[catNum]; ok {
+					// Map numeric type to readable category name, fallback to raw EventType
+					categoryName := entry.EventType
+					// Prefer the Cat field (parsed from the JSON parameter's "cat" field)
+					// which is more accurate than the DB type column (which may always be "1").
+					if entry.Cat > 0 {
+						if name, ok := categoryMessages[entry.Cat]; ok {
 							categoryName = name
 						}
+					} else {
+						var catNum int
+						if _, err := fmt.Sscanf(entry.EventType, "%d", &catNum); err == nil {
+							if name, ok := categoryMessages[catNum]; ok {
+								categoryName = name
+							}
+						}
 					}
-				}
-				timeStr := entry.Timestamp
-				cst := time.FixedZone("CST", 8*3600)
-				if t, err := time.Parse(time.RFC3339, entry.Timestamp); err == nil {
-					timeStr = t.In(cst).Format("2006-01-02 15:04:05")
-				} else if t, err := time.Parse("2006-01-02 15:04:05", entry.Timestamp); err == nil {
-					timeStr = t.In(cst).Format("2006-01-02 15:04:05")
-				}
+					timeStr := entry.Timestamp
+					cst := time.FixedZone("CST", 8*3600)
+					if t, err := time.Parse(time.RFC3339, entry.Timestamp); err == nil {
+						timeStr = t.In(cst).Format("2006-01-02 15:04:05")
+					} else if t, err := time.Parse("2006-01-02 15:04:05", entry.Timestamp); err == nil {
+						timeStr = t.In(cst).Format("2006-01-02 15:04:05")
+					}
 					title := "系统通知"
 					message := fmt.Sprintf("[%s] %s\n%s", timeStr, categoryName, entry.Message)
 
@@ -616,14 +616,14 @@ var categoryMessages = map[int]string{
 
 // appActionMap maps application event IDs to Chinese descriptions.
 var appActionMap = map[string]string{
-	"APP_STARTED":                    "启用成功",
-	"APP_AUTO_STARTED":               "自动启动成功",
-	"APP_STOPPED":                    "停止成功",
-	"APP_INSTALLED":                  "安装成功",
-	"APP_UNINSTALLED":                "卸载成功",
-	"APP_UPDATED":                    "更新成功",
-	"APP_UPGRADED":                   "升级成功",
-	"APP_CRASH":                      "异常退出",
+	"APP_STARTED":      "启用成功",
+	"APP_AUTO_STARTED": "自动启动成功",
+	"APP_STOPPED":      "停止成功",
+	"APP_INSTALLED":    "安装成功",
+	"APP_UNINSTALLED":  "卸载成功",
+	"APP_UPDATED":      "更新成功",
+	"APP_UPGRADED":     "升级成功",
+	"APP_CRASH":        "异常退出",
 	"APP_START_FAILED_LOCAL_APP_RUN_EXCEPTION": "启用失败。原因：执行应用启动脚本失败。",
 }
 

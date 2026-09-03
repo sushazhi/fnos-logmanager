@@ -281,7 +281,7 @@ export const useLogsStore = defineStore('logs', () => {
     const parts: string[] = []
     if (dirs.length) parts.push(`${dirs.length} 个残留目录（移入回收站）`)
     if (links.length) parts.push(`${links.length} 个残留符号链接（直接删除）`)
-    if (users.length) parts.push(`${users.length} 个孤儿系统用户（直接删除）`)
+    if (users.length) parts.push(`${users.length} 个遗留系统账号（直接删除）`)
     if (parts.length === 0) return
 
     const confirmed = await confirm({

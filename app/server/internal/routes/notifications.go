@@ -59,7 +59,7 @@ var allowedConfigKeys = map[string]bool{
 	"FEISHU_WEBHOOK": true, "FEISHU_SECRET": true,
 	"WECOM_KEY": true, "WECOM_PROXY": true, "WECOM_QYDX_AGENT_ID": true, "WECOM_QYDX_CORP_ID": true, "WECOM_QYDX_SECRET": true, "WECOM_QYDX_TO_USER": true,
 	"WECHAT_BOT_KEY": true,
-	"TG_BOT_TOKEN": true, "TG_USER_ID": true, "TG_API_HOST": true,
+	"TG_BOT_TOKEN":   true, "TG_USER_ID": true, "TG_API_HOST": true,
 	"SERVERCHAN_KEY": true, "SERVERCHAN_URL": true,
 	"PUSHPLUS_TOKEN": true, "PUSHPLUS_TOPIC": true,
 	"WEBHOOK_URL": true, "WEBHOOK_METHOD": true, "WEBHOOK_CONTENT_TYPE": true,
@@ -69,11 +69,11 @@ var allowedConfigKeys = map[string]bool{
 	"QQ_APP_ID": true, "QQ_APP_SECRET": true, "QQ_OPENID": true, "QQ_GROUP_OPENID": true,
 	"WECHAT_CLAWBOT_BOT_TOKEN": true, "WECHAT_CLAWBOT_BASE_URL": true, "WECHAT_CLAWBOT_TO_USER": true, "WECHAT_CLAWBOT_ACCOUNT_ID": true,
 	"IGOT_PUSH_KEY": true,
-	"CHAT_URL": true, "CHAT_TOKEN": true,
+	"CHAT_URL":      true, "CHAT_TOKEN": true,
 	"QMSG_KEY": true, "QMSG_TYPE": true,
-	"PUSHME_KEY": true,
+	"PUSHME_KEY":         true,
 	"WXPUSHER_APP_TOKEN": true,
-	"AIBOTK_KEY": true, "AIBOTK_TYPE": true, "AIBOTK_NAME": true,
+	"AIBOTK_KEY":         true, "AIBOTK_TYPE": true, "AIBOTK_NAME": true,
 	"WE_PLUS_BOT_TOKEN": true,
 }
 
@@ -355,14 +355,14 @@ func updateChannel(c *gin.Context) {
 	// The frontend may send camelCase (e.g., qqOpenId) while the backend
 	// stores config under UPPER_CASE keys (e.g., QQ_OPENID).
 	var frontendToConfigKey = map[string]string{
-		"qqOpenId":           "QQ_OPENID",
-		"qqGroupOpenId":      "QQ_GROUP_OPENID",
-		"qqAppId":            "QQ_APP_ID",
-		"qqAppSecret":        "QQ_APP_SECRET",
-		"wechatClawBotToken": "WECHAT_CLAWBOT_BOT_TOKEN",
-		"wechatClawBaseUrl":  "WECHAT_CLAWBOT_BASE_URL",
-		"wechatClawToUser":   "WECHAT_CLAWBOT_TO_USER",
-		"wechatClawAccountId":"WECHAT_CLAWBOT_ACCOUNT_ID",
+		"qqOpenId":            "QQ_OPENID",
+		"qqGroupOpenId":       "QQ_GROUP_OPENID",
+		"qqAppId":             "QQ_APP_ID",
+		"qqAppSecret":         "QQ_APP_SECRET",
+		"wechatClawBotToken":  "WECHAT_CLAWBOT_BOT_TOKEN",
+		"wechatClawBaseUrl":   "WECHAT_CLAWBOT_BASE_URL",
+		"wechatClawToUser":    "WECHAT_CLAWBOT_TO_USER",
+		"wechatClawAccountId": "WECHAT_CLAWBOT_ACCOUNT_ID",
 	}
 
 	// Filter allowed fields.
@@ -433,10 +433,10 @@ func testChannel(c *gin.Context) {
 		if hasOpenID == "" && hasGroupOpenID == "" && (capturedOpenID != "" || capturedGroupOpenID != "") {
 			c.JSON(http.StatusOK, gin.H{
 				"result": map[string]interface{}{
-					"success":      false,
-					"message":      "已获取到 OpenID，请保存后再测试发送",
-					"openid":       capturedOpenID,
-					"groupOpenid":  capturedGroupOpenID,
+					"success":     false,
+					"message":     "已获取到 OpenID，请保存后再测试发送",
+					"openid":      capturedOpenID,
+					"groupOpenid": capturedGroupOpenID,
 				},
 			})
 			return
@@ -966,9 +966,9 @@ func getNotificationStats(c *gin.Context) {
 	historyCount := len(history)
 
 	stats := services.NotificationStats{
-		TotalSent:  historyCount,
-		ByChannel:  make(map[string]services.ChannelStat),
-		ByRule:     make(map[string]services.ChannelStat),
+		TotalSent: historyCount,
+		ByChannel: make(map[string]services.ChannelStat),
+		ByRule:    make(map[string]services.ChannelStat),
 	}
 
 	for _, h := range history {
@@ -990,12 +990,12 @@ func getNotificationStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"stats": map[string]interface{}{
-			"channelCount":  channelCount,
-			"ruleCount":     ruleCount,
-			"historyCount":  historyCount,
-			"totalSent":     stats.TotalSent,
-			"totalFailed":   stats.FailCount,
-			"enabled":       settings.Enabled,
+			"channelCount": channelCount,
+			"ruleCount":    ruleCount,
+			"historyCount": historyCount,
+			"totalSent":    stats.TotalSent,
+			"totalFailed":  stats.FailCount,
+			"enabled":      settings.Enabled,
 		},
 	})
 }

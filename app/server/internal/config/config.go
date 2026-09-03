@@ -12,30 +12,30 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	Port int `json:"port"`
-	DataDir string `json:"dataDir"`
-	SessionExpiry int64 `json:"sessionExpiry"` // milliseconds
-	RateLimit RateLimitConfig `json:"rateLimit"`
-	Auth AuthConfig `json:"auth"`
-	Audit AuditConfig `json:"audit"`
-	CSRF CSRFConfig `json:"csrf"`
-	Logging LoggingConfig `json:"logging"`
-	Update UpdateConfig `json:"update"`
-	Docker DockerConfig `json:"docker"`
-	Archive ArchiveConfig `json:"archive"`
-	LogFile LogFileConfig `json:"logFile"`
-	Backup BackupConfig `json:"backup"`
-	LogDirs []string `json:"logDirs"`
-	Notify NotifyConfig `json:"notify"`
-	EventLogger EventLoggerConfig `json:"eventLogger"`
-	SensitivePatterns []string `json:"sensitivePatterns"`
+	Port              int               `json:"port"`
+	DataDir           string            `json:"dataDir"`
+	SessionExpiry     int64             `json:"sessionExpiry"` // milliseconds
+	RateLimit         RateLimitConfig   `json:"rateLimit"`
+	Auth              AuthConfig        `json:"auth"`
+	Audit             AuditConfig       `json:"audit"`
+	CSRF              CSRFConfig        `json:"csrf"`
+	Logging           LoggingConfig     `json:"logging"`
+	Update            UpdateConfig      `json:"update"`
+	Docker            DockerConfig      `json:"docker"`
+	Archive           ArchiveConfig     `json:"archive"`
+	LogFile           LogFileConfig     `json:"logFile"`
+	Backup            BackupConfig      `json:"backup"`
+	LogDirs           []string          `json:"logDirs"`
+	Notify            NotifyConfig      `json:"notify"`
+	EventLogger       EventLoggerConfig `json:"eventLogger"`
+	SensitivePatterns []string          `json:"sensitivePatterns"`
 	// RecycleRetentionHours is how long uninstalled-app leftovers stay in the
 	// recycle bin before being auto-purged. User-adjustable via the UI.
-	RecycleRetentionHours int `json:"recycleRetentionHours"`
-	GatewaySocket string `json:"-"`
-	GatewayPrefix string `json:"-"`
-	AuditLogFile string `json:"auditLogFile"`
-	MCP MCPConfig `json:"mcp"`
+	RecycleRetentionHours int       `json:"recycleRetentionHours"`
+	GatewaySocket         string    `json:"-"`
+	GatewayPrefix         string    `json:"-"`
+	AuditLogFile          string    `json:"auditLogFile"`
+	MCP                   MCPConfig `json:"mcp"`
 }
 
 // MCPConfig holds the Model Context Protocol (Streamable HTTP) server settings.
@@ -79,11 +79,11 @@ type LoggingConfig struct {
 }
 
 type UpdateConfig struct {
-	CheckCacheMs     int64    `json:"checkCacheMs"`
-	DownloadTimeoutMs int64   `json:"downloadTimeoutMs"`
-	MaxDownloadBytes  int64   `json:"maxDownloadBytes"`
-	MaxAssetBytes     int64   `json:"maxAssetBytes"`
-	MaxRedirects      int     `json:"maxRedirects"`
+	CheckCacheMs      int64    `json:"checkCacheMs"`
+	DownloadTimeoutMs int64    `json:"downloadTimeoutMs"`
+	MaxDownloadBytes  int64    `json:"maxDownloadBytes"`
+	MaxAssetBytes     int64    `json:"maxAssetBytes"`
+	MaxRedirects      int      `json:"maxRedirects"`
 	AllowedHosts      []string `json:"allowedHosts"`
 	AllowedUpdateDirs []string `json:"allowedUpdateDirs"`
 }
@@ -107,10 +107,10 @@ type LogFileConfig struct {
 }
 
 type BackupConfig struct {
-	BaseDir         string `json:"baseDir"`
-	MaxFiles        int    `json:"maxFiles"`
-	MaxFileSizeBytes int64 `json:"maxFileSizeBytes"`
-	MaxTotalBytes   int64  `json:"maxTotalBytes"`
+	BaseDir          string `json:"baseDir"`
+	MaxFiles         int    `json:"maxFiles"`
+	MaxFileSizeBytes int64  `json:"maxFileSizeBytes"`
+	MaxTotalBytes    int64  `json:"maxTotalBytes"`
 }
 
 type NotifyConfig struct {
@@ -125,11 +125,11 @@ type NotifyConfig struct {
 }
 
 type EventLoggerConfig struct {
-	DBPath              string   `json:"dbPath"`
-	Enabled             bool     `json:"enabled"`
-	CheckInterval       int      `json:"checkInterval"`
-	EventTypes          []string `json:"eventTypes"`
-	MinSeverity         string   `json:"minSeverity"`
+	DBPath               string   `json:"dbPath"`
+	Enabled              bool     `json:"enabled"`
+	CheckInterval        int      `json:"checkInterval"`
+	EventTypes           []string `json:"eventTypes"`
+	MinSeverity          string   `json:"minSeverity"`
 	NotificationChannels []string `json:"notificationChannels"`
 }
 
@@ -184,14 +184,14 @@ func loadConfig() *Config {
 
 	// Load config from JSON file for overrides
 	var fileConfig struct {
-		LogDirs     []string `json:"log_dirs"`
-		RecycleRetentionHours *int `json:"recycle_retention_hours"`
-		EventLogger *struct {
-			Enabled             *bool    `json:"enabled"`
-			DBPath              *string  `json:"dbPath"`
-			CheckInterval       *int     `json:"checkInterval"`
-			EventTypes          []string `json:"eventTypes"`
-			MinSeverity         *string  `json:"minSeverity"`
+		LogDirs               []string `json:"log_dirs"`
+		RecycleRetentionHours *int     `json:"recycle_retention_hours"`
+		EventLogger           *struct {
+			Enabled              *bool    `json:"enabled"`
+			DBPath               *string  `json:"dbPath"`
+			CheckInterval        *int     `json:"checkInterval"`
+			EventTypes           []string `json:"eventTypes"`
+			MinSeverity          *string  `json:"minSeverity"`
 			NotificationChannels []string `json:"notificationChannels"`
 		} `json:"event_logger"`
 	}
@@ -208,12 +208,12 @@ func loadConfig() *Config {
 	}
 
 	cfg := &Config{
-		Port:           getEnvInt("PORT", 8090),
-		DataDir:        dataDir,
-		SessionExpiry:  int64(getEnvInt("SESSION_EXPIRY", 86400000)),
-		GatewaySocket:  gatewaySocket,
-		GatewayPrefix:  "/app/logmanager",
-		AuditLogFile:   filepath.Join(dataDir, "audit.log"),
+		Port:          getEnvInt("PORT", 8090),
+		DataDir:       dataDir,
+		SessionExpiry: int64(getEnvInt("SESSION_EXPIRY", 86400000)),
+		GatewaySocket: gatewaySocket,
+		GatewayPrefix: "/app/logmanager",
+		AuditLogFile:  filepath.Join(dataDir, "audit.log"),
 		RateLimit: RateLimitConfig{
 			WindowMs:    60000,
 			MaxRequests: 300,
@@ -284,8 +284,8 @@ func loadConfig() *Config {
 			"/vol1/@appshare",
 			"/var/log/apps",
 			// fnOS 系统服务散落日志（root 私有，logmanager 以 root 运行可读）
-			"/var/log/trim_app_center", // 应用中心
-			"/var/log/trim-connect",     // 连接/代理服务
+			"/var/log/trim_app_center",   // 应用中心
+			"/var/log/trim-connect",      // 连接/代理服务
 			"/var/log/trim_open_gateway", // 开放平台网关
 			"/var/log/accountsrv",        // 账号服务
 			"/var/log/updatemgr",         // 系统更新管理
@@ -311,7 +311,7 @@ func loadConfig() *Config {
 			`eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_.+/]*`,
 		},
 		RecycleRetentionHours: getEnvInt("RECYCLE_RETENTION_HOURS", 24),
-		MCP: LoadMCPConfig(),
+		MCP:                   LoadMCPConfig(),
 	}
 
 	// Apply JSON config file overrides
@@ -346,11 +346,11 @@ func loadConfig() *Config {
 	elConfigPath := filepath.Join(dataDir, "eventlogger-config.json")
 	if elData, err := os.ReadFile(elConfigPath); err == nil {
 		var elConfig struct {
-			DBPath              *string  `json:"dbPath"`
-			Enabled             *bool    `json:"enabled"`
-			CheckInterval       *int     `json:"checkInterval"`
-			EventTypes          []string `json:"eventTypes"`
-			MinSeverity         *string  `json:"minSeverity"`
+			DBPath               *string  `json:"dbPath"`
+			Enabled              *bool    `json:"enabled"`
+			CheckInterval        *int     `json:"checkInterval"`
+			EventTypes           []string `json:"eventTypes"`
+			MinSeverity          *string  `json:"minSeverity"`
 			NotificationChannels []string `json:"notificationChannels"`
 		}
 		if json.Unmarshal(elData, &elConfig) == nil {

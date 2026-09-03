@@ -21,15 +21,15 @@ import (
 
 // MonitorRule represents a log monitoring rule.
 type MonitorRule struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Pattern     string   `json:"pattern"`
-	LogPaths    []string `json:"logPaths"`
-	NotifyType  string   `json:"notifyType"` // webhook, email, syslog
-	NotifyURL   string   `json:"notifyUrl"`
-	Enabled     bool     `json:"enabled"`
-	CooldownSec int      `json:"cooldownSec"` // minimum seconds between notifications
-	Description string   `json:"description"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Pattern     string    `json:"pattern"`
+	LogPaths    []string  `json:"logPaths"`
+	NotifyType  string    `json:"notifyType"` // webhook, email, syslog
+	NotifyURL   string    `json:"notifyUrl"`
+	Enabled     bool      `json:"enabled"`
+	CooldownSec int       `json:"cooldownSec"` // minimum seconds between notifications
+	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -47,17 +47,17 @@ type AlertEvent struct {
 }
 
 type MonitorState struct {
-	mu            sync.RWMutex
-	rules         map[string]*MonitorRule
-	lastAlerted   map[string]time.Time // ruleID+logPath -> last alert time
-	lastOffset    map[string]int64     // ruleID+logPath -> last read byte offset
-	lastLine      map[string]int64     // ruleID+logPath -> last scanned line number
-	alertHistory  []AlertEvent
-	running       bool
-	stopCh        chan struct{}
-	monitorFile   string
-	rulesFile     string
-	maxHistory    int
+	mu           sync.RWMutex
+	rules        map[string]*MonitorRule
+	lastAlerted  map[string]time.Time // ruleID+logPath -> last alert time
+	lastOffset   map[string]int64     // ruleID+logPath -> last read byte offset
+	lastLine     map[string]int64     // ruleID+logPath -> last scanned line number
+	alertHistory []AlertEvent
+	running      bool
+	stopCh       chan struct{}
+	monitorFile  string
+	rulesFile    string
+	maxHistory   int
 }
 
 var globalMonitor *MonitorState
@@ -714,5 +714,3 @@ func notifyWebhook(payload, url string) {
 	defer resp.Body.Close()
 	slog.Debug("webhook notification sent", "status", resp.StatusCode)
 }
-
-

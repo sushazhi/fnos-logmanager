@@ -46,3 +46,6 @@ pnpm-lock.yaml
 
 # CodeArts
 .codeartsdoer/
+
+# Local verification scratch data
+.local-testdata/

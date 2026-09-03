@@ -54,8 +54,8 @@ var volRe = regexp.MustCompile(`^/(vol\d+)(?:/|$)`)
 // It is persisted so the background auto-purge task can operate without a
 // request context and across restarts.
 var (
-	trashStateMu sync.Mutex
-	trashRoots   = map[string]bool{}
+	trashStateMu   sync.Mutex
+	trashRoots     = map[string]bool{}
 	trashRootsFile string
 )
 
@@ -783,7 +783,7 @@ func scanOrphanUsers(installedSet map[string]bool) []LeftoverCandidate {
 			App:    app,
 			Path:   name,
 			Risk:   "medium",
-			Detail: "已卸载应用的残留系统用户",
+			Detail: "已卸载应用遗留的系统账号",
 		})
 	}
 	return users

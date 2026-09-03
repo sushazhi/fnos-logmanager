@@ -18,18 +18,18 @@ import (
 
 // kernelVersion represents an installed Linux kernel version.
 type kernelVersion struct {
-	Version    string `json:"version"`
-	IsCurrent  bool   `json:"isCurrent"`
-	BootSize   int64  `json:"bootSize"`
-	BootSizeFormatted string `json:"bootSizeFormatted"`
-	ModulesSize int64  `json:"modulesSize"`
+	Version              string `json:"version"`
+	IsCurrent            bool   `json:"isCurrent"`
+	BootSize             int64  `json:"bootSize"`
+	BootSizeFormatted    string `json:"bootSizeFormatted"`
+	ModulesSize          int64  `json:"modulesSize"`
 	ModulesSizeFormatted string `json:"modulesSizeFormatted"`
-	SrcSize    int64  `json:"srcSize"`
-	SrcSizeFormatted string `json:"srcSizeFormatted"`
-	TotalSize  int64  `json:"totalSize"`
-	TotalSizeFormatted string `json:"totalSizeFormatted"`
-	HasModules bool   `json:"hasModules"`
-	HasSrc     bool   `json:"hasSrc"`
+	SrcSize              int64  `json:"srcSize"`
+	SrcSizeFormatted     string `json:"srcSizeFormatted"`
+	TotalSize            int64  `json:"totalSize"`
+	TotalSizeFormatted   string `json:"totalSizeFormatted"`
+	HasModules           bool   `json:"hasModules"`
+	HasSrc               bool   `json:"hasSrc"`
 }
 
 // RegisterKernelRoutes registers kernel-related routes under the given router group.
@@ -65,14 +65,14 @@ func kernelVersionsHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"versions":           installed,
-		"total":              len(installed),
-		"current":            currentKernel,
-		"unusedCount":        countNonCurrent(installed),
-		"unusedSize":         unusedSize,
+		"versions":            installed,
+		"total":               len(installed),
+		"current":             currentKernel,
+		"unusedCount":         countNonCurrent(installed),
+		"unusedSize":          unusedSize,
 		"unusedSizeFormatted": formatBytes(unusedSize),
-		"totalSize":          totalSize,
-		"totalSizeFormatted": formatBytes(totalSize),
+		"totalSize":           totalSize,
+		"totalSizeFormatted":  formatBytes(totalSize),
 	})
 }
 
@@ -263,18 +263,18 @@ func getInstalledKernels(currentKernel string) ([]kernelVersion, error) {
 		totalSize := bootSize + modulesSize + srcSize
 
 		versions = append(versions, kernelVersion{
-			Version:    ver,
-			IsCurrent:  isCurrent,
-			BootSize:   bootSize,
-			BootSizeFormatted: formatBytes(bootSize),
-			ModulesSize: modulesSize,
+			Version:              ver,
+			IsCurrent:            isCurrent,
+			BootSize:             bootSize,
+			BootSizeFormatted:    formatBytes(bootSize),
+			ModulesSize:          modulesSize,
 			ModulesSizeFormatted: formatBytes(modulesSize),
-			SrcSize:    srcSize,
-			SrcSizeFormatted: formatBytes(srcSize),
-			TotalSize:  totalSize,
-			TotalSizeFormatted: formatBytes(totalSize),
-			HasModules: hasModules,
-			HasSrc:     hasSrc,
+			SrcSize:              srcSize,
+			SrcSizeFormatted:     formatBytes(srcSize),
+			TotalSize:            totalSize,
+			TotalSizeFormatted:   formatBytes(totalSize),
+			HasModules:           hasModules,
+			HasSrc:               hasSrc,
 		})
 	}
 
@@ -311,8 +311,9 @@ func calcBootSize(version string) int64 {
 
 // calcSrcSize calculates the total size of /usr/src headers for a kernel version.
 // Looks for directories named after the version, e.g.:
-//   /usr/src/linux-headers-6.12.41
-//   /usr/src/c790
+//
+//	/usr/src/linux-headers-6.12.41
+//	/usr/src/c790
 func calcSrcSize(version string) int64 {
 	srcEntries, err := os.ReadDir("/usr/src")
 	if err != nil {

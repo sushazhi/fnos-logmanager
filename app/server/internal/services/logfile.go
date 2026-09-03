@@ -16,12 +16,14 @@ import (
 	"time"
 
 	"github.com/sushazhi/fnos-logmanager/internal/config"
+	"github.com/sushazhi/fnos-logmanager/internal/notify"
 	"github.com/sushazhi/fnos-logmanager/internal/types"
 	"github.com/sushazhi/fnos-logmanager/internal/utils"
 )
 
 // Log extensions to consider as log files
 var logExtensions = []string{".log"}
+
 // FIX(bug 34): include .tgz so compressed tarballs are recognized by
 // isArchiveFile (readArchiveContent already handles them).
 var archiveExtensions = []string{".gz", ".bz2", ".xz", ".zip", ".tar", ".tgz", ".tar.gz", ".tar.bz2", ".tar.xz", ".7z", ".rar"}
@@ -88,16 +90,16 @@ func extractAppNameFromPath(logPath string) string {
 // time and surfaces non-log files (e.g. service-2.json.gz in a venv) as
 // "archive logs". Matched by directory name at any depth.
 var ignoredLogDirs = map[string]bool{
-	"venv":         true,
-	".venv":        true,
-	"node_modules": true,
+	"venv":          true,
+	".venv":         true,
+	"node_modules":  true,
 	"site-packages": true,
-	"__pycache__":  true,
-	".git":         true,
-	".cache":       true,
-	"dist":         true,
-	".npm":         true,
-	".pnpm-store":  true,
+	"__pycache__":   true,
+	".git":          true,
+	".cache":        true,
+	"dist":          true,
+	".npm":          true,
+	".pnpm-store":   true,
 }
 
 // isIgnoredLogDir reports whether a directory name should be skipped during
@@ -933,7 +935,20 @@ func DelUserDir(uid, path string) error {
 	return err
 }
 
-// CleanUninstalledLogs deletes log files belonging to uninstalled applications.
+// uninstalledNotifyCooldown throttles the non-empty-leftover reminder so a
+// scheduled rule does not spam the notification channels on every run.
+const uninstalledNotifyCooldown = 24 * time.Hour
+
+var (
+	uninstalledNotifyMu   sync.Mutex
+	lastUninstalledNotify time.Time
+)
+
+// CleanUninstalledLogs cleans log files belonging to uninstalled applications.
+// Files are moved into the recycle bin (restorable) instead of being deleted;
+// empty leftover directories of uninstalled apps are removed directly, and
+// non-empty ones are reported via notification — never auto-deleted, mirroring
+// the manual leftover-clean safety model.
 func CleanUninstalledLogs() (types.CleanLogResult, error) {
 	result := types.CleanLogResult{}
 	installedApps, err := getInstalledApps()
@@ -942,7 +957,7 @@ func CleanUninstalledLogs() (types.CleanLogResult, error) {
 	}
 	installedSet := make(map[string]bool)
 	for _, app := range installedApps {
-		installedSet[app] = true
+		installedSet[strings.ToLower(app)] = true
 	}
 
 	for _, dir := range config.Get().LogDirs {
@@ -961,10 +976,14 @@ func CleanUninstalledLogs() (types.CleanLogResult, error) {
 
 		for _, file := range files {
 			appName := extractAppNameFromPath(file)
-			if appName == "" || installedSet[appName] {
+			if appName == "" || installedSet[strings.ToLower(appName)] || reservedAppDirs[appName] {
 				continue
 			}
-			if err := os.Remove(file); err != nil {
+			// Recycle bin instead of hard delete, so every moved file stays
+			// restorable via the same manifest mechanism as the manual
+			// leftover clean.
+			trashDir := recycleDirForPath(file, defaultRecycleUID)
+			if err := moveToTrash(file, trashDir, file); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", file, err.Error()))
 			} else {
 				result.Cleaned++
@@ -972,7 +991,129 @@ func CleanUninstalledLogs() (types.CleanLogResult, error) {
 		}
 	}
 
+	removed, nonEmpty := removeEmptyUninstalledDirs(config.Get().LogDirs, installedSet)
+	result.Cleaned += removed
+
+	if len(nonEmpty) > 0 {
+		apps := make([]string, 0, len(nonEmpty))
+		for app := range nonEmpty {
+			apps = append(apps, app)
+		}
+		sort.Strings(apps)
+		for _, app := range apps {
+			result.Reminded = append(result.Reminded, fmt.Sprintf("%s: %s", app, nonEmpty[app]))
+		}
+		notifyUninstalledLeftovers(nonEmpty)
+	}
+
 	return result, nil
+}
+
+// removeEmptyUninstalledDirs walks the given dirs and removes empty
+// directories whose app is uninstalled (per installedSet). Walk roots are
+// never removed. Dirs are processed deepest-first so emptiness cascades
+// upward after children are removed. Returns the number of removed dirs and,
+// per uninstalled app, the shallowest directory that is still non-empty after
+// cleaning (candidates for manual review, never removed here).
+func removeEmptyUninstalledDirs(dirs []string, installedSet map[string]bool) (int, map[string]string) {
+	nonEmpty := map[string]string{}
+	removed := 0
+
+	for _, dir := range dirs {
+		normalizedDir := utils.SafePath(dir)
+		if normalizedDir == "" {
+			continue
+		}
+		if _, err := os.Stat(normalizedDir); os.IsNotExist(err) {
+			continue
+		}
+
+		var candidates []string
+		walkErr := filepath.Walk(normalizedDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil // best effort: unreadable entries are not ours to judge
+			}
+			// Walk uses Lstat, so a symlink to a dir fails IsDir — both cases
+			// are excluded: links must never be followed or removed.
+			if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+				return nil
+			}
+			if isIgnoredLogDir(info.Name()) {
+				return filepath.SkipDir
+			}
+			if path == normalizedDir {
+				return nil
+			}
+			appName := extractAppNameFromPath(path)
+			if appName == "" || installedSet[strings.ToLower(appName)] || reservedAppDirs[appName] {
+				return nil
+			}
+			candidates = append(candidates, path)
+			return nil
+		})
+		if walkErr != nil {
+			slog.Warn("uninstalled-dir scan aborted", "dir", normalizedDir, "error", walkErr)
+			continue
+		}
+
+		// Reverse lexicographic order visits every child before its parent.
+		sort.Sort(sort.Reverse(sort.StringSlice(candidates)))
+		for _, d := range candidates {
+			entries, err := os.ReadDir(d)
+			if err != nil {
+				continue
+			}
+			if len(entries) > 0 {
+				appName := extractAppNameFromPath(d)
+				if prev, ok := nonEmpty[appName]; !ok || len(d) < len(prev) {
+					nonEmpty[appName] = d
+				}
+				continue
+			}
+			if err := os.Remove(d); err != nil {
+				slog.Debug("failed to remove empty uninstalled dir", "dir", d, "error", err)
+			} else {
+				removed++
+			}
+		}
+	}
+
+	return removed, nonEmpty
+}
+
+// notifyUninstalledLeftovers sends a reminder about non-empty leftover
+// directories of uninstalled apps, throttled by a cooldown so scheduled runs
+// inside the window do not repeat the notification. The cooldown is only
+// recorded on a successful send: with no channel configured (or a failed
+// delivery) the next run retries instead of waiting out the window.
+func notifyUninstalledLeftovers(nonEmpty map[string]string) {
+	uninstalledNotifyMu.Lock()
+	if !lastUninstalledNotify.IsZero() && time.Since(lastUninstalledNotify) < uninstalledNotifyCooldown {
+		uninstalledNotifyMu.Unlock()
+		return
+	}
+	uninstalledNotifyMu.Unlock()
+
+	var b strings.Builder
+	b.WriteString("以下已卸载应用存在非空残留目录，未自动删除：\n\n")
+	apps := make([]string, 0, len(nonEmpty))
+	for app := range nonEmpty {
+		apps = append(apps, app)
+	}
+	sort.Strings(apps)
+	for _, app := range apps {
+		fmt.Fprintf(&b, "- **%s**：%s\n", app, nonEmpty[app])
+	}
+	b.WriteString("\n请到「日志清理」的残留清理功能确认处理。")
+
+	res := notify.SendNotify("卸载应用残留提醒", b.String())
+	if !res.Success {
+		slog.Warn("uninstalled leftover notification not delivered, will retry next run", "message", res.Message)
+		return
+	}
+	uninstalledNotifyMu.Lock()
+	lastUninstalledNotify = time.Now()
+	uninstalledNotifyMu.Unlock()
 }
 
 // CleanLogFiles cleans log files based on criteria.

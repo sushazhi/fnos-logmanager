@@ -25,12 +25,12 @@ type rateLimitEntry struct {
 // that AI agents (QwenPAW, OpenClaw, Hermes, etc.) can manage logs, docker
 // containers, event logs, kernels, backups and audit data via JSON-RPC.
 type Server struct {
-	mu          sync.RWMutex
-	sessions    map[string]*sessionState
-	apiKey      string
-	appName     string
-	appVersion  string
-	serverInfo  map[string]interface{}
+	mu         sync.RWMutex
+	sessions   map[string]*sessionState
+	apiKey     string
+	appName    string
+	appVersion string
+	serverInfo map[string]interface{}
 
 	toolCallsMu     sync.Mutex
 	toolCallsWindow time.Duration
@@ -49,21 +49,21 @@ const (
 
 // sessionState tracks the initialization state of an MCP client session.
 type sessionState struct {
-	createdAt     time.Time
-	initialized   bool
+	createdAt       time.Time
+	initialized     bool
 	protocolVersion string
 }
 
 // New creates a new MCP Server.
 func New(appName, appVersion, apiKey string) *Server {
 	return &Server{
-		sessions:         make(map[string]*sessionState),
-		apiKey:           apiKey,
-		appName:          appName,
-		appVersion:       appVersion,
-		toolCallsWindow:  toolCallRateLimitWindow,
-		toolCallsMax:     toolCallRateLimitMax,
-		toolCalls:        make(map[string]*rateLimitEntry),
+		sessions:        make(map[string]*sessionState),
+		apiKey:          apiKey,
+		appName:         appName,
+		appVersion:      appVersion,
+		toolCallsWindow: toolCallRateLimitWindow,
+		toolCallsMax:    toolCallRateLimitMax,
+		toolCalls:       make(map[string]*rateLimitEntry),
 	}
 }
 

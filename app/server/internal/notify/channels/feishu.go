@@ -123,10 +123,10 @@ func getFeishuAppToken() (string, error) {
 	}
 
 	type tokenResponse struct {
-		Code             int    `json:"code"`
+		Code              int    `json:"code"`
 		TenantAccessToken string `json:"tenant_access_token"`
-		Expire           int    `json:"expire"`
-		Msg              string `json:"msg"`
+		Expire            int    `json:"expire"`
+		Msg               string `json:"msg"`
 	}
 
 	url := "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"

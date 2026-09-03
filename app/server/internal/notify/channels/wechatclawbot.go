@@ -21,10 +21,10 @@ var clawBotLastInteractedUser string
 // -------- Global captured credentials (in-memory cache) --------
 
 var (
-	clawMu              sync.RWMutex
-	clawCapturedBotToken    string
-	clawCapturedAccountID   string
-	clawCapturedBaseURL     string
+	clawMu                sync.RWMutex
+	clawCapturedBotToken  string
+	clawCapturedAccountID string
+	clawCapturedBaseURL   string
 )
 
 // GetCapturedCredentials returns the cached bot token and account ID.
@@ -448,9 +448,9 @@ func (c *iLinkClient) getUpdates() (success bool, messages []map[string]string, 
 // -------- Exported helpers (used by routes for QR login flow) --------
 
 var (
-	clientMu     sync.Mutex
-	clientOnce   sync.Once
-	clientInst   *iLinkClient
+	clientMu   sync.Mutex
+	clientOnce sync.Once
+	clientInst *iLinkClient
 )
 
 func getClient() *iLinkClient {
@@ -613,7 +613,7 @@ func (c *WechatClawBot) Send(text, desp string) notify.NotifyResult {
 					"message_type":  2,
 					"message_state": 2,
 					"item_list": []map[string]interface{}{
-						{ "type": 1, "text_item": map[string]string{"text": content} },
+						{"type": 1, "text_item": map[string]string{"text": content}},
 					},
 				},
 			},

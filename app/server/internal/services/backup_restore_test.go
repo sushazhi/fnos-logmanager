@@ -93,26 +93,26 @@ type fakeRegFileInfo struct {
 	size int64
 }
 
-func (f *fakeRegFileInfo) Name() string       { return f.name }
-func (f *fakeRegFileInfo) Size() int64        { return f.size }
-func (f *fakeRegFileInfo) Mode() os.FileMode  { return 0644 }
-func (f *fakeRegFileInfo) ModTime() time.Time { return time.Time{} }
-func (f *fakeRegFileInfo) IsDir() bool        { return false }
-func (f *fakeRegFileInfo) Sys() interface{}   { return nil }
-func (f *fakeRegFileInfo) Type() os.FileMode  { return 0 }
+func (f *fakeRegFileInfo) Name() string               { return f.name }
+func (f *fakeRegFileInfo) Size() int64                { return f.size }
+func (f *fakeRegFileInfo) Mode() os.FileMode          { return 0644 }
+func (f *fakeRegFileInfo) ModTime() time.Time         { return time.Time{} }
+func (f *fakeRegFileInfo) IsDir() bool                { return false }
+func (f *fakeRegFileInfo) Sys() interface{}           { return nil }
+func (f *fakeRegFileInfo) Type() os.FileMode          { return 0 }
 func (f *fakeRegFileInfo) Info() (os.FileInfo, error) { return nil, nil }
 
 type fakeLinkFileInfo struct {
 	name string
 }
 
-func (f *fakeLinkFileInfo) Name() string      { return f.name }
-func (f *fakeLinkFileInfo) Size() int64       { return 0 }
-func (f *fakeLinkFileInfo) Mode() os.FileMode { return os.ModeSymlink | 0777 }
-func (f *fakeLinkFileInfo) ModTime() time.Time { return time.Time{} }
-func (f *fakeLinkFileInfo) IsDir() bool       { return false }
-func (f *fakeLinkFileInfo) Sys() interface{}  { return nil }
-func (f *fakeLinkFileInfo) Type() os.FileMode { return os.ModeSymlink }
+func (f *fakeLinkFileInfo) Name() string               { return f.name }
+func (f *fakeLinkFileInfo) Size() int64                { return 0 }
+func (f *fakeLinkFileInfo) Mode() os.FileMode          { return os.ModeSymlink | 0777 }
+func (f *fakeLinkFileInfo) ModTime() time.Time         { return time.Time{} }
+func (f *fakeLinkFileInfo) IsDir() bool                { return false }
+func (f *fakeLinkFileInfo) Sys() interface{}           { return nil }
+func (f *fakeLinkFileInfo) Type() os.FileMode          { return os.ModeSymlink }
 func (f *fakeLinkFileInfo) Info() (os.FileInfo, error) { return nil, nil }
 
 // TestPreviewAndRestoreBackup exercises the archive pipeline end-to-end.

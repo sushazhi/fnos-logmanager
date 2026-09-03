@@ -24,8 +24,8 @@ type Bookmark struct {
 }
 
 var (
-	bookmarks     []Bookmark
-	bookmarksMu   sync.RWMutex
+	bookmarks      []Bookmark
+	bookmarksMu    sync.RWMutex
 	bookmarksDirty bool
 )
 

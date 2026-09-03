@@ -14,9 +14,9 @@ import (
 // AuthenticatedRequest extends gin.Context with auth info.
 type AuthenticatedRequest struct {
 	*gin.Context
-	ClientIP    string
+	ClientIP     string
 	SessionToken string
-	GatewayUID  string
+	GatewayUID   string
 }
 
 // GetSessionToken extracts the session token from the request.

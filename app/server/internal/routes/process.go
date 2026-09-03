@@ -25,23 +25,23 @@ import (
 
 // processInfo represents a running system process.
 type processInfo struct {
-	PID         int      `json:"pid"`
-	PPID        int      `json:"ppid"`
-	User        string   `json:"user"`
-	Name        string   `json:"name"`
-	State       string   `json:"state"`
-	CPU         float64  `json:"cpu"`      // CPU 占用率（%），基于两次采样
-	Memory      string   `json:"memory"`   // 内存占用（格式化）
-	MemBytes    int64    `json:"memBytes"` // 内存占用（字节，用于排序）
-	StartTime   string   `json:"startTime"`
-	Command     string   `json:"command"`
-	ExePath     string   `json:"exePath"`
-	Ports       []int    `json:"ports"` // 监听端口
-	Protect     bool     `json:"protect"` // 受保护进程，禁止结束
-	System      bool     `json:"system"`  // 系统级进程（内核线程/无用户态命令行）
-	IsDocker      bool   `json:"isDocker"` // 是否为 docker 容器进程
-	ContainerID   string `json:"containerId,omitempty"`   // docker 容器短 ID（若可解析）
-	ContainerName string `json:"containerName,omitempty"` // docker 容器名称（若可解析）
+	PID           int     `json:"pid"`
+	PPID          int     `json:"ppid"`
+	User          string  `json:"user"`
+	Name          string  `json:"name"`
+	State         string  `json:"state"`
+	CPU           float64 `json:"cpu"`      // CPU 占用率（%），基于两次采样
+	Memory        string  `json:"memory"`   // 内存占用（格式化）
+	MemBytes      int64   `json:"memBytes"` // 内存占用（字节，用于排序）
+	StartTime     string  `json:"startTime"`
+	Command       string  `json:"command"`
+	ExePath       string  `json:"exePath"`
+	Ports         []int   `json:"ports"`                   // 监听端口
+	Protect       bool    `json:"protect"`                 // 受保护进程，禁止结束
+	System        bool    `json:"system"`                  // 系统级进程（内核线程/无用户态命令行）
+	IsDocker      bool    `json:"isDocker"`                // 是否为 docker 容器进程
+	ContainerID   string  `json:"containerId,omitempty"`   // docker 容器短 ID（若可解析）
+	ContainerName string  `json:"containerName,omitempty"` // docker 容器名称（若可解析）
 }
 
 // RegisterProcessRoutes registers process-management routes.
@@ -82,10 +82,11 @@ func isProtectedPID(pid int) bool {
 
 // listProcessesHandler 列出系统中运行的进程。
 // 支持参数：
-//   scope: user(默认，仅用户态服务进程) / all(全部)
-//   q:     按进程名/命令行/PID/端口关键字过滤
-//   sort:  pid(默认) / name / cpu / mem
-//   order: asc(默认) / desc
+//
+//	scope: user(默认，仅用户态服务进程) / all(全部)
+//	q:     按进程名/命令行/PID/端口关键字过滤
+//	sort:  pid(默认) / name / cpu / mem
+//	order: asc(默认) / desc
 func listProcessesHandler(c *gin.Context) {
 	procs, err := readProcesses()
 	if err != nil {
@@ -267,11 +268,11 @@ func killProcessHandler(c *gin.Context) {
 
 	// 记录审计日志（结束进程是高危操作）
 	services.AddSecurityAuditLog("PROCESS_KILL", map[string]interface{}{
-		"pid":      req.PID,
-		"command":  cmdName,
-		"signal":   req.Sig,
-		"force":    force,
-		"outcome":  map[bool]string{true: "terminated", false: "killed"}[terminated],
+		"pid":     req.PID,
+		"command": cmdName,
+		"signal":  req.Sig,
+		"force":   force,
+		"outcome": map[bool]string{true: "terminated", false: "killed"}[terminated],
 	}, c)
 
 	slog.Info("结束进程", "pid", req.PID, "command", cmdName, "signal", req.Sig)
@@ -322,20 +323,20 @@ func readProcesses() ([]processInfo, error) {
 		isDocker, containerID := detectDockerProcess(pid)
 
 		p := processInfo{
-			PID:       pid,
-			PPID:      st.ppid,
-			User:      lookupUserName(uidMap, pid),
-			Name:      processName(comm, cmdline),
-			State:     mapState(st.state),
-			Command:   cmdline,
-			StartTime: readProcStartTime(st.startTicks),
-			CPU:       computeCPUUsage(pid, comm, st.utime, st.stime, sysJiffies),
+			PID:           pid,
+			PPID:          st.ppid,
+			User:          lookupUserName(uidMap, pid),
+			Name:          processName(comm, cmdline),
+			State:         mapState(st.state),
+			Command:       cmdline,
+			StartTime:     readProcStartTime(st.startTicks),
+			CPU:           computeCPUUsage(pid, comm, st.utime, st.stime, sysJiffies),
 			Protect:       isProtectedPID(pid),
 			System:        isSystem,
 			IsDocker:      isDocker,
 			ContainerID:   containerID,
 			ContainerName: containerNameByID[containerID],
-			}
+		}
 
 		p.Memory, p.MemBytes = readProcMemory(pid)
 
@@ -354,10 +355,10 @@ func readProcesses() ([]processInfo, error) {
 // 容器名映射缓存：进程列表接口可能被频繁刷新，每次执行 `docker ps` 会产生系统调用
 // 开销并可能拖慢接口（docker daemon 无响应时）。用一个短 TTL 缓存复用结果。
 var (
-	containerNameCache     map[string]string
-	containerNameCacheAt   time.Time
-	containerNameCacheMu   sync.Mutex
-	containerNameCacheTTL  = 30 * time.Second
+	containerNameCache    map[string]string
+	containerNameCacheAt  time.Time
+	containerNameCacheMu  sync.Mutex
+	containerNameCacheTTL = 30 * time.Second
 )
 
 // loadDockerContainerNames 通过 `docker ps` 构建 容器短ID -> 容器名 的映射。
@@ -837,7 +838,7 @@ func resolvePorts(pid int, portByInode map[string]int) []int {
 type processFileInfo struct {
 	Path     string `json:"path"`
 	Name     string `json:"name"`
-	IsLog    bool   `json:"isLog"`    // 是否为日志文件
+	IsLog    bool   `json:"isLog"` // 是否为日志文件
 	Size     int64  `json:"size"`
 	SizeText string `json:"sizeText"`
 }
