@@ -506,7 +506,7 @@ onUnmounted(() => {
 
 <style scoped>
 .process-panel {
-  max-width: 1200px;
+  max-width: 1400px;
   width: 95%;
   max-height: 90vh;
   display: flex;

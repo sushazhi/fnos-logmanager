@@ -883,7 +883,8 @@ onUnmounted(() => {
 
 .modal-content.large {
   width: 90%;
-  max-width: 1200px;
+  /* 宽屏下放宽上限，日志长行可读性更好 */
+  max-width: 1400px;
   height: 85vh;
   max-height: 85vh;
   overflow: hidden;

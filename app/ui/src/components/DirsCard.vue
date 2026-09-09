@@ -651,7 +651,8 @@ loadVisibleDirs()
 
 .log-dirs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* 自适应列数：按可用宽度自动决定几列（每列最小 260px），窄屏自动减列 */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--spacing-sm);
 }
 
