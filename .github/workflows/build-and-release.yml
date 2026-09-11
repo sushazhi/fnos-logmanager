@@ -195,6 +195,14 @@ jobs:
           CHANGELOG=$(grep '^changelog[[:space:]]*=' manifest | sed 's/^changelog[[:space:]]*=[[:space:]]*//' | sed 's/<br>/\n/g')
           NOTES="${CHANGELOG}\n\n---\n**SHA256:** \`${PACKAGE_SHA256}\`"
 
+          # 重打同一个版本标签时是替换而不是失败：若同名 Release 已存在则先删除
+          # （保留 tag 本身），否则 gh 会报 "release already exists" 导致
+          # 「包已构建成功但发布失败」，留下 tag 与 Release 不一致的状态。
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — deleting it before recreating"
+            gh release delete "$TAG" --yes
+          fi
+
           gh release create "$TAG" \
             "${PACKAGE_NAME}" \
             "${PACKAGE_NAME}.sha256" \

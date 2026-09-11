@@ -5,7 +5,7 @@ desc = <b>飞牛日志管理工具</b>，集中管理飞牛三方应用散落在
 
 # 系统要求
 platform = all
-os_min_version = 1.2.0302
+os_min_version = 1.2.0401
 source = thirdparty
 
 # 开发者信息
@@ -28,4 +28,4 @@ desktop_applaunchname = logmanager.Application
 # 启用前端 JS SDK 支持
 micro_app = true
 
-changelog = v0.8.1<br>1. 修复升级到 fnOS 1.2.0604 后接口报 "invalid token"、日志列表/查看等功能全部失败的问题（不再把应用会话 token 放进 Authorization 请求头，避免被统一网关当成飞牛票据拦截）<br>2. 网关登录态失效时给出明确提示，不再显示 "Unexpected token ... is not valid JSON" 之类的解析错误<br>3. 修正 MCP 端点说明：外部 AI Agent 必须通过独立端口接入（网关路径无法使用）
+changelog = v0.8.1<br>1. 修复升级到 fnOS 1.2.0604 后接口报 "invalid token"、日志列表/查看等功能全部失败的问题（不再把应用会话 token 放进 Authorization 请求头，避免被统一网关当成飞牛票据拦截）<br>2. 网关登录态失效时给出明确提示，不再显示 "Unexpected token ... is not valid JSON" 之类的解析错误<br>3. 修正 MCP 端点说明：外部 AI Agent 必须通过独立端口接入（网关路径无法使用）<br>4. 优化首页加载速度：日志目录改为单次遍历 + 缓存 + 并行扫描，目录显示名改为批量转换<br>5. 修复新版本提示卡片更新内容不换行、超出卡片的问题，并加大更新内容的显示高度

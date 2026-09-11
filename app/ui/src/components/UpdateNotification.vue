@@ -24,8 +24,13 @@
           <div class="update-notification-version">
             当前: v{{ currentVersion }} → 最新: v{{ updateInfo.version }}
           </div>
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div v-if="changelogHtml" class="update-notification-changelog" v-html="changelogHtml"></div>
+          <div v-if="changelogLines.length" class="update-notification-changelog">
+            <p
+              v-for="(line, index) in changelogLines"
+              :key="index"
+              class="update-notification-changelog-line"
+            >{{ line }}</p>
+          </div>
         </template>
       </div>
       <button v-if="!updateStatus.updating" class="update-notification-close" @click="closeNotification">&times;</button>
@@ -35,7 +40,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import DOMPurify from 'dompurify'
 import { useUpdate } from '../composables/useUpdate'
 import type { UpdateInfo } from '../types'
 
@@ -55,30 +59,29 @@ const CLOSE_TIME_KEY = 'logmanager_update_close_time'
 
 const isClosing = ref(false)
 
-const changelogHtml = computed(() => {
-  if (!props.updateInfo.changelog) return ''
-  let text: string | string[] = props.updateInfo.changelog.substring(0, 500)
-  text = text.split('\n').filter((line: string) => line.trim().length > 0)
-  text = text.map((line: string) => escapeHtml(line.replace(/^-\s*/, '• ')))
-  const result = (text as string[]).join('<br>')
-  const finalResult = props.updateInfo.changelog.length > 500 ? result + '...' : result
-  
-  // 使用 DOMPurify 清理 HTML，只允许 br 标签
-  return DOMPurify.sanitize(finalResult, {
-    ALLOWED_TAGS: ['br'],
-    ALLOWED_ATTR: []
-  })
-})
+const CHANGELOG_MAX_LENGTH = 600
 
-function escapeHtml(text: string): string {
-  if (!text) return ''
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
+// 更新内容按行拆成数组渲染，交给浏览器自动换行。
+// 之前把各行用 <br> 拼成一段 HTML 后整体输出，长条目在窄卡片里会横向溢出
+// （出现横向滚动条、文字被裁掉），且无法在行之间留出间距。
+const changelogLines = computed<string[]>(() => {
+  const raw = props.updateInfo.changelog
+  if (!raw) return []
+
+  const truncated = raw.length > CHANGELOG_MAX_LENGTH
+  const lines = raw
+    .substring(0, CHANGELOG_MAX_LENGTH)
+    .split('\n')
+    .map(line => line.trim())
+    // 丢掉空行与 Markdown 分隔线（如 ---），纯文本展示里它们没有意义
+    .filter(line => line.length > 0 && !/^[-*_]{3,}$/.test(line))
+    .map(line => line.replace(/^[-*]\s+/, '• '))
+
+  if (truncated && lines.length > 0) {
+    lines.push('...')
+  }
+  return lines
+})
 
 function getIgnoredVersion() {
   try {
@@ -145,8 +148,9 @@ onMounted(() => {
   z-index: 99999;
   font-family: var(--font-family);
   animation: slideIn var(--transition-slow) ease-out;
-  min-width: 480px;
-  max-width: 520px;
+  /* 卡片本身不允许超出视口：窄窗口下自动收窄，避免整体被裁切 */
+  min-width: min(480px, calc(100vw - 2 * var(--spacing-xl)));
+  max-width: min(600px, calc(100vw - 2 * var(--spacing-xl)));
 }
 
 .update-notification.closing {
@@ -179,6 +183,8 @@ onMounted(() => {
 
 .update-notification-text {
   flex: 1;
+  /* flex 子项默认 min-width:auto，长英文/URL 会把卡片顶宽并溢出，必须显式归零 */
+  min-width: 0;
 }
 
 .update-notification-header {
@@ -213,10 +219,24 @@ onMounted(() => {
   color: var(--text-color-2);
   margin-top: var(--spacing-sm);
   line-height: 1.5;
-  max-height: 120px;
+  /* 更新内容通常较长：卡片给足高度，仅在超出时纵向滚动，横向永不溢出 */
+  max-height: min(320px, 40vh);
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  /* 中文正常换行；长英文单词 / URL 强制断行，避免撑破卡片 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.update-notification-changelog-line {
+  margin: 0;
+}
+
+.update-notification-changelog-line + .update-notification-changelog-line {
+  margin-top: var(--spacing-xs);
 }
 
 .update-notification-actions {
@@ -372,7 +392,9 @@ onMounted(() => {
     bottom: var(--spacing-sm);
     right: var(--spacing-sm);
     left: var(--spacing-sm);
-    min-width: auto;
+    /* 不能用 min-width: auto：长英文/URL 会让卡片按 min-content 撑宽并溢出屏幕，
+       必须允许收缩到 left/right 限定的宽度，由内部文本自行换行 */
+    min-width: 0;
     max-width: none;
   }
 
@@ -404,7 +426,7 @@ onMounted(() => {
   .update-notification-changelog {
     font-size: var(--font-size-base);
     margin-top: var(--spacing-sm);
-    max-height: 80px;
+    max-height: min(240px, 32vh);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

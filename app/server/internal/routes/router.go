@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"net/http"
 	"os"
 	"strings"
 
@@ -56,6 +57,17 @@ func SetupRouter(uiDir string) *gin.Engine {
 
 	// Global error handler
 	r.Use(middleware.ErrorHandler)
+
+	// 目录扫描缓存失效：任何写操作（清空/删除/清理/备份等）都可能改变日志目录的
+	// 内容与统计结果。请求处理结束后统一失效缓存，保证随后的 /api/dirs、
+	// /api/logs/stats 立即反映变更，而不会命中 TTL 内的旧数据。
+	r.Use(func(c *gin.Context) {
+		isWrite := c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead
+		c.Next()
+		if isWrite {
+			services.InvalidateDirScanCache()
+		}
+	})
 
 	// MCP (Model Context Protocol) Streamable HTTP server.
 	// 仅初始化全局 MCP server 实例，供独立端口监听器使用（外部 AI Agent 通过

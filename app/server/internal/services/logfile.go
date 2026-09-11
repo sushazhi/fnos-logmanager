@@ -552,31 +552,13 @@ func SearchLogFilesByName(pattern string, limit int) ([]types.LogFile, error) {
 func GetLogStats() (types.LogStats, error) {
 	var stats types.LogStats
 
-	for _, dir := range config.Get().LogDirs {
-		normalizedDir := utils.SafePath(dir)
-		if normalizedDir == "" {
-			continue
-		}
-		if _, err := os.Stat(normalizedDir); os.IsNotExist(err) {
-			continue
-		}
-
-		logFiles, _ := findFiles(normalizedDir, isLogFile, 10000)
-		stats.TotalLogs += len(logFiles)
-
-		for _, file := range logFiles {
-			info, err := os.Stat(file)
-			if err != nil {
-				continue
-			}
-			stats.TotalSize += info.Size()
-			if info.Size() >= 10*1024*1024 {
-				stats.LargeFiles++
-			}
-		}
-
-		archiveFiles, _ := findFiles(normalizedDir, isArchiveFile, 10000)
-		stats.TotalArchives += len(archiveFiles)
+	// 每个目录只遍历一次（并按 TTL 缓存），与 /api/dirs 共享同一次扫描，
+	// 避免首页两个接口并发触发时对同一棵树重复扫描。
+	for _, scan := range scanDirsParallel(config.Get().LogDirs) {
+		stats.TotalLogs += len(scan.LogFiles)
+		stats.TotalSize += scan.LogSize
+		stats.LargeFiles += scan.LargeLogFiles
+		stats.TotalArchives += len(scan.ArchiveFiles)
 	}
 
 	stats.TotalSizeFormatted = utils.FormatBytes(stats.TotalSize)
@@ -862,46 +844,31 @@ func DeleteLogFile(filePath string, uid string) error {
 
 // GetDirInfo computes DirInfo (exists, log/archive counts, total size) for a single path.
 func GetDirInfo(dir string) types.DirInfo {
-	normalizedDir := utils.SafePath(dir)
-	exists := false
-	logCount := 0
-	archiveCount := 0
-	var totalSize int64
+	return dirInfoFromScan(dir, ScanDirResult(dir))
+}
 
-	if normalizedDir != "" {
-		if info, err := os.Stat(normalizedDir); err == nil && info.IsDir() {
-			exists = true
-
-			logFiles, _ := findFiles(normalizedDir, isLogFile, 10000)
-			logCount = len(logFiles)
-
-			archiveFiles, _ := findFiles(normalizedDir, isArchiveFile, 10000)
-			archiveCount = len(archiveFiles)
-
-			allFiles := append(logFiles, archiveFiles...)
-			for _, f := range allFiles {
-				if info, err := os.Stat(f); err == nil {
-					totalSize += info.Size()
-				}
-			}
-		}
-	}
-
+// dirInfoFromScan 把目录扫描结果转换为对外的目录信息。
+func dirInfoFromScan(dir string, scan *dirScanResult) types.DirInfo {
 	return types.DirInfo{
 		Path:         dir,
-		Exists:       exists,
-		LogCount:     logCount,
-		ArchiveCount: archiveCount,
-		TotalSize:    utils.FormatBytes(totalSize),
+		Exists:       scan.Exists,
+		LogCount:     len(scan.LogFiles),
+		ArchiveCount: len(scan.ArchiveFiles),
+		TotalSize:    utils.FormatBytes(scan.LogSize + scan.ArchiveSize),
 	}
 }
 
 // GetDirsInfo returns information about all log directories.
+//
+// 各目录并行扫描（受 dirScanConcurrency 限制），并复用 ScanDirResult 的缓存，
+// 因此首页同时请求 /api/dirs 与 /api/logs/stats 时不会重复遍历目录树。
 func GetDirsInfo() ([]types.DirInfo, error) {
-	var results []types.DirInfo
+	dirs := config.Get().LogDirs
+	scans := scanDirsParallel(dirs)
 
-	for _, dir := range config.Get().LogDirs {
-		results = append(results, GetDirInfo(dir))
+	results := make([]types.DirInfo, 0, len(dirs))
+	for i, dir := range dirs {
+		results = append(results, dirInfoFromScan(dir, scans[i]))
 	}
 
 	return results, nil

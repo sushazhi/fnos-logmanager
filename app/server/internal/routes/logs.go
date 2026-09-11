@@ -222,9 +222,22 @@ func getDirsHandler(c *gin.Context) {
 		dirs = filtered
 	}
 
-	// P2: Convert directory paths to display paths
-	for i := range dirs {
-		dirs[i].DisplayPath = convertPathToDisplay(dirs[i].Path)
+	// P2: Convert directory paths to display paths.
+	// 批量转换：日志目录数量增长后（v0.8.0 起 11 个），逐个调用 convertPathToDisplay
+	// 会产生同样次数的 trim API 往返，改用 ConvertPaths 一次请求拿到全部结果。
+	if len(dirs) > 0 {
+		paths := make([]string, 0, len(dirs))
+		for i := range dirs {
+			paths = append(paths, dirs[i].Path)
+		}
+		displayPaths := services.GetTrimClient().ConvertPaths(paths, "")
+		for i := range dirs {
+			if display, ok := displayPaths[dirs[i].Path]; ok && display != "" {
+				dirs[i].DisplayPath = display
+			} else {
+				dirs[i].DisplayPath = dirs[i].Path
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
