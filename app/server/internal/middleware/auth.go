@@ -19,6 +19,27 @@ type AuthenticatedRequest struct {
 	GatewayUID   string
 }
 
+// SessionTokenHeader 是前端携带应用会话 token 的自定义请求头名。
+//
+// 切勿改用标准的 Authorization 头：fnOS 1.2.0604 起，统一网关会把请求中的
+// `Authorization: Bearer <token>` 当成 fnOS 自身的票据（ticket/token）先行校验，
+// 校验不通过时直接短路返回纯文本 `invalid token`（HTTP 200），请求根本不会到达本服务，
+// 前端表现为 `Unexpected token 'i', "invalid token" is not valid JSON`。
+const SessionTokenHeader = "X-Session-Token"
+
+// tokenFromHeader 依次从自定义头与（历史遗留的）Authorization 头读取 token。
+func tokenFromHeader(c *gin.Context) string {
+	if t := c.GetHeader(SessionTokenHeader); t != "" {
+		return t
+	}
+	// 兼容旧版前端：仍接受 Authorization: Bearer（该请求只有在网关放行后才会到达这里）
+	auth := c.GetHeader("Authorization")
+	if strings.HasPrefix(auth, "Bearer ") {
+		return auth[7:]
+	}
+	return ""
+}
+
 // GetSessionToken extracts the session token from the request.
 func GetSessionToken(c *gin.Context) string {
 	// Check cookie first
@@ -27,10 +48,9 @@ func GetSessionToken(c *gin.Context) string {
 		return token
 	}
 
-	// Check Authorization header
-	auth := c.GetHeader("Authorization")
-	if strings.HasPrefix(auth, "Bearer ") {
-		return auth[7:]
+	// Check custom header / legacy Authorization header
+	if headerToken := tokenFromHeader(c); headerToken != "" {
+		return headerToken
 	}
 
 	// Check query parameter (limited paths only)
@@ -113,12 +133,10 @@ func resolveToken(c *gin.Context) string {
 		}
 	}
 
-	// 2) Bearer header
-	auth := c.GetHeader("Authorization")
-	if strings.HasPrefix(auth, "Bearer ") {
-		bearerToken := auth[7:]
-		if bearerToken != "" && services.ValidateSession(bearerToken) {
-			return bearerToken
+	// 2) Custom header (X-Session-Token) / legacy Authorization: Bearer header
+	if headerToken := tokenFromHeader(c); headerToken != "" {
+		if services.ValidateSession(headerToken) {
+			return headerToken
 		}
 	}
 

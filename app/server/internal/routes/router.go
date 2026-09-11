@@ -116,9 +116,10 @@ func SetupRouter(uiDir string) *gin.Engine {
 // registerMCPRoute initializes the MCP Streamable HTTP server.
 // It reads its configuration from the shared config and environment.
 // 仅创建全局 MCP server 实例供独立端口监听器使用，不再注册网关路径的 /mcp 路由：
-// fnOS 统一网关会拦截该路径（返回 "invalid token"，外部 AI Agent 无 fnOS 登录态
-// 连不上），该网关入口形同虚设。外部 AI Agent（QwenPAW/OpenClaw/Hermes）统一通过
-// 独立端口访问（受 MCP_API_KEY 保护），因此移除多余的网关 MCP 路由。
+// 外部 AI Agent 无 fnOS 登录态（网关直接返回纯文本 "invalid token"，HTTP 200），
+// 且 fnOS 1.2.0604 起网关会把请求中的 `Authorization: Bearer <key>` 当成 fnOS 自身
+// 票据校验，MCP 的 API Key 必然校验失败。所以 MCP 只能走独立端口
+// （受 MCP_API_KEY 保护），网关 MCP 路由已移除。
 func registerMCPRoute(_ *gin.Engine) {
 	version := os.Getenv("TRIM_APPVER")
 	if version == "" {

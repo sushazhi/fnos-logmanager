@@ -376,7 +376,15 @@ func getSessionToken(r *http.Request) string {
 	// and accepting it would leak the session token into access logs, Referer headers,
 	// and browser history.
 
-	// Check Authorization header
+	// Custom header (preferred). The standard Authorization header must not be used
+	// by the frontend any more: since fnOS 1.2.0604 the unified gateway treats
+	// `Authorization: Bearer <token>` as its own ticket and rejects the request with
+	// a plain-text "invalid token" (HTTP 200) before it ever reaches this service.
+	if t := r.Header.Get("X-Session-Token"); t != "" {
+		return t
+	}
+
+	// Check Authorization header (legacy clients)
 	auth := r.Header.Get("Authorization")
 	if len(auth) > 7 && auth[:7] == "Bearer " {
 		return auth[7:]

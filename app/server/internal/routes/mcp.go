@@ -41,9 +41,10 @@ func registerMCPConfigRoutes(api *gin.RouterGroup) {
 func getMCPConfig(c *gin.Context) {
 	cfg := config.LoadMCPConfig()
 
-	// 外部 AI Agent（QwenPAW/OpenClaw/Hermes）无法通过 fnOS 网关认证
-	// （网关会拦截 /app/logmanager/mcp 并返回 "invalid token"），因此必须通过
-	// 独立端口访问。未配置独立端口时 endpoint 返回空，前端提示需配置端口。
+	// 外部 AI Agent（QwenPAW/OpenClaw/Hermes）无法通过 fnOS 网关认证：网关对未登录
+	// 请求返回纯文本 "invalid token"（HTTP 200），且 fnOS 1.2.0604 起会把
+	// `Authorization: Bearer <key>` 当成 fnOS 自身票据去校验，MCP 的 API Key 必然失败。
+	// 因此 MCP 必须通过独立端口访问。未配置独立端口时 endpoint 返回空，前端提示需配置端口。
 	endpoint := ""
 	if cfg.Port > 0 {
 		endpoint = fmt.Sprintf(":<%d>/mcp", cfg.Port)

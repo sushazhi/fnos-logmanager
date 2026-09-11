@@ -87,6 +87,69 @@ interface RequestOptions extends RequestInit {
   cancelKey?: string // 取消请求的 key
 }
 
+/**
+ * 应用会话 token 使用的自定义请求头名。
+ *
+ * 禁止改用标准的 Authorization 头：fnOS 1.2.0604 起，统一网关会把请求中的
+ * `Authorization: Bearer <token>` 当成 fnOS 自身的票据（ticket/token）先行校验，
+ * 校验不通过时直接短路返回纯文本 `invalid token`（HTTP 200），请求根本不会到达应用。
+ * 前端拿到非 JSON 响应体后 `response.json()` 抛错，表现为
+ * `列出日志失败: Unexpected token 'i', "invalid token" is not valid JSON`。
+ */
+export const SESSION_TOKEN_HEADER = 'X-Session-Token'
+
+interface ParsedBody {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  json: Record<string, any>
+  text: string
+}
+
+/**
+ * 按 Content-Type 解析响应体。
+ * 统一网关在登录态失效时会返回 HTTP 200 + 纯文本（如 `invalid token`），
+ * 因此不能直接调用 response.json()，否则会抛出 JSON 语法错误。
+ */
+async function parseBody(response: Response): Promise<ParsedBody> {
+  const contentType = (response.headers.get('Content-Type') || '').toLowerCase()
+  if (contentType.includes('application/json')) {
+    try {
+      const data = await response.json()
+      if (data && typeof data === 'object') {
+        return { json: data as Record<string, unknown>, text: '' }
+      }
+      return { json: {}, text: '' }
+    } catch {
+      return { json: {}, text: '' }
+    }
+  }
+  let text = ''
+  try {
+    text = (await response.text()).trim()
+  } catch {
+    // ignore
+  }
+  return { json: {}, text }
+}
+
+/** 是否为 fnOS 统一网关返回的登录态失效提示 */
+function isGatewayAuthFailure(text: string): boolean {
+  return /invalid\s+token/i.test(text) || /invalid\s+ticket/i.test(text)
+}
+
+/**
+ * 处理「HTTP 200 但响应体不是 JSON」的情况。
+ * 典型场景是网关登录态失效（`invalid token`），此时清掉本地缓存的 token，
+ * 避免后续请求继续被网关拒绝。
+ */
+function throwOnNonJSON(text: string): never {
+  if (isGatewayAuthFailure(text)) {
+    setSessionToken('')
+    clearCSRFToken()
+    throw new AuthenticationError('飞牛网关登录态已失效，请重新登录飞牛系统后从桌面重新打开本应用')
+  }
+  throw new ServerError(filterSensitiveInfo(text.slice(0, 200) || '服务器返回了非 JSON 响应'))
+}
+
 async function request<T = unknown>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const {
     retry = false,
@@ -123,10 +186,11 @@ async function request<T = unknown>(endpoint: string, options: RequestOptions = 
       headers['X-CSRF-Token'] = CSRF_TOKEN
     }
 
-    // 添加 session token 作为 Bearer token（cookie 的兜底方案，解决部分网络环境下 cookie 被阻断的问题）
+    // 添加 session token 作为 cookie 的兜底方案（解决部分网络环境下 cookie 被阻断的问题）。
+    // 必须使用自定义头而非 Authorization，原因见 SESSION_TOKEN_HEADER 注释。
     const sessionToken = getSessionToken()
-    if (sessionToken && !headers['Authorization']) {
-      headers['Authorization'] = `Bearer ${sessionToken}`
+    if (sessionToken && !headers[SESSION_TOKEN_HEADER]) {
+      headers[SESSION_TOKEN_HEADER] = sessionToken
     }
 
     // 创建 AbortController
@@ -139,20 +203,24 @@ async function request<T = unknown>(endpoint: string, options: RequestOptions = 
       signal: controller.signal
     })
 
+    const body = await parseBody(response)
+
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
+      const error = body.json
+      // 非 JSON 响应体（如网关返回的纯文本）也要作为错误信息兜底
+      const rawMessage = error.error || body.text || `HTTP ${response.status}`
 
       if (response.status === 401) {
         clearCSRFToken()
-        throw new AuthenticationError(error.error || '需要认证')
+        throw new AuthenticationError(String(rawMessage))
       }
 
       if (response.status === 400) {
-        throw new ValidationError(error.error || '请求参数错误')
+        throw new ValidationError(String(rawMessage))
       }
 
       if (response.status >= 500) {
-        throw new ServerError(error.error || '服务器错误')
+        throw new ServerError(String(rawMessage))
       }
 
       // CSRF 验证失败时，尝试获取新 token 并重试一次
@@ -166,22 +234,29 @@ async function request<T = unknown>(endpoint: string, options: RequestOptions = 
             headers,
             credentials: 'include'
           })
-          if (retryResponse.ok) {
-            return retryResponse.json() as Promise<T>
+          const retryBody = await parseBody(retryResponse)
+          if (retryResponse.ok && !retryBody.text) {
+            return retryBody.json as T
           }
-          const retryError = await retryResponse.json().catch(() => ({}))
           // 过滤敏感信息
-          const safeError = filterSensitiveInfo(retryError.error || `HTTP ${retryResponse.status}`)
-          throw new ServerError(safeError)
+          const safeError = filterSensitiveInfo(
+            retryBody.json.error || retryBody.text || `HTTP ${retryResponse.status}`
+          )
+          throw new ServerError(String(safeError))
         }
       }
 
       // 过滤敏感信息
-      const safeError = filterSensitiveInfo(error.error || `HTTP ${response.status}`)
+      const safeError = filterSensitiveInfo(String(rawMessage))
       throw new NetworkError(safeError)
     }
 
-    return response.json() as Promise<T>
+    // HTTP 200 但响应体不是 JSON：通常是网关登录态失效返回的纯文本
+    if (body.text) {
+      throwOnNonJSON(body.text)
+    }
+
+    return body.json as T
   }
 
   // 根据配置决定是否启用重试或去重

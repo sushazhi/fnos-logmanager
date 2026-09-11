@@ -40,8 +40,11 @@ export function getApiBase(): string {
  * - gateway: 通过统一网关（同域名端口 + 前缀）
  * - direct: 同域名端口直连
  *
- * 认证通过 httpOnly cookie (session_token) 或 Authorization 头完成，
+ * 认证通过 httpOnly cookie (session_token) 或网关注入的 X-Trim-Userid 完成，
  * 无需在 URL 中传递 token。
+ * 注意：不要使用 Authorization 头，fnOS 1.2.0604 起网关会拦截并返回
+ * 纯文本 "invalid token"（见 services/api.ts 的 SESSION_TOKEN_HEADER 说明），
+ * 且浏览器 WebSocket 握手也无法自定义请求头。
  *
  * @param apiPath - WebSocket API 路径，如 '/api/logs/stream'
  */

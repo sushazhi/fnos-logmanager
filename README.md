@@ -247,10 +247,17 @@ QwenPAW、OpenClaw、Hermes 等 AI Agent。
 ### 端点
 
 ```
-http://<NAS-IP>/app/logmanager/mcp
+http://<NAS-IP>:<独立端口>/mcp
 ```
 
-> 若在独立模式并设置了 `LOGMANAGER_BIND_ADDR`，可直接访问 `http://<NAS-IP>:<端口>/mcp`。
+> 端口在应用内「设置 → MCP 服务器 → 独立监听端口」中配置（未配置端口时 MCP 不启动）。
+> 未设置 `MCP_API_KEY` 时只允许本机回环访问；对外提供访问请同时配置密钥，
+> 绑定地址可用 `MCP_BIND_ADDR`（默认 `0.0.0.0`）。
+
+> ⚠️ 不要使用统一网关路径 `http://<NAS-IP>/app/logmanager/mcp`：外部 AI Agent 没有
+> 飞牛登录态，会被网关注入的鉴权逻辑拦截；且 fnOS 1.2.0604 起网关会把请求中的
+> `Authorization: Bearer <key>` 当作飞牛自身票据校验，直接返回纯文本 `invalid token`
+> （HTTP 200），请求根本到不了应用。因此 MCP 必须走独立端口。
 
 ### 配置 API Key
 
@@ -271,7 +278,7 @@ MCP_APP_NAME=fnos-logmanager  # 可选，展示给 Agent 的名称
   "mcpServers": {
     "logmanager": {
       "type": "http",
-      "url": "http://<NAS-IP>/app/logmanager/mcp",
+      "url": "http://<NAS-IP>:<独立端口>/mcp",
       "headers": { "Authorization": "Bearer 你的强密钥" }
     }
   }
