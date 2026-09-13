@@ -18,6 +18,7 @@ type NotifyRequest struct {
 var routeToNotifyName = map[string]string{
 	"bark":          "bark",
 	"dingtalk":      "dingtalk",
+	"dingtalk_app":  "dingtalk-app",
 	"feishu":        "feishu-bot",
 	"feishu_app":    "feishu-app",
 	"wecom":         "wechat-work-bot",
@@ -32,13 +33,11 @@ var routeToNotifyName = map[string]string{
 	"pushdeer":      "pushdeer",
 	"qqbot":         "qqbot",
 	"wechat_claw":   "wechat-claw-bot",
-	"igot":          "igot",
 	"synology-chat": "synology-chat",
 	"qmsg":          "qmsg",
 	"pushme":        "pushme",
 	"wxpusher":      "wxpusher",
 	"aibotk":        "aibotk",
-	"weplusbot":     "weplusbot",
 }
 
 // SendNotification sends a notification through all enabled notification channels.

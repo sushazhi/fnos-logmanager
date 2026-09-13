@@ -28,64 +28,71 @@ import (
 // Supported notification channel types (23 in total).
 var supportedChannelTypes = []map[string]interface{}{
 	{"type": "bark", "name": "Bark", "fields": []string{"BARK_PUSH", "BARK_ICON", "BARK_SOUND", "BARK_GROUP", "BARK_LEVEL", "BARK_ARCHIVE", "BARK_URL"}},
-	{"type": "dingtalk", "name": "钉钉机器人", "fields": []string{"DINGTALK_TOKEN", "DINGTALK_SECRET"}},
-	{"type": "feishu", "name": "飞书机器人", "fields": []string{"FEISHU_WEBHOOK", "FEISHU_SECRET"}},
-	{"type": "feishu_app", "name": "飞书企业应用", "fields": []string{"FEISHU_WEBHOOK", "FEISHU_SECRET"}},
-	{"type": "wecom", "name": "企业微信机器人", "fields": []string{"WECOM_KEY", "WECOM_PROXY"}},
-	{"type": "wecom_app", "name": "企业微信应用", "fields": []string{"WECOM_QYDX_AGENT_ID", "WECOM_QYDX_CORP_ID", "WECOM_QYDX_SECRET", "WECOM_QYDX_TO_USER"}},
-	{"type": "wechat_bot", "name": "企业微信智能机器人", "fields": []string{"WECHAT_BOT_KEY"}},
+	{"type": "dingtalk", "name": "钉钉机器人", "fields": []string{"DD_BOT_TOKEN", "DD_BOT_SECRET"}},
+	{"type": "dingtalk_app", "name": "钉钉应用", "fields": []string{"DD_APP_KEY", "DD_APP_SECRET", "DD_APP_ROBOT_CODE", "DD_APP_USER_IDS"}},
+	{"type": "feishu", "name": "飞书机器人", "fields": []string{"FSKEY", "FSSECRET"}},
+	{"type": "feishu_app", "name": "飞书企业应用", "fields": []string{"FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_USER_ID"}},
+	{"type": "wecom", "name": "企业微信机器人", "fields": []string{"QYWX_KEY", "QYWX_ORIGIN"}},
+	{"type": "wecom_app", "name": "企业微信应用", "fields": []string{"QYWX_AM", "QYWX_ORIGIN"}},
+	{"type": "wechat_bot", "name": "企业微信智能机器人", "fields": []string{"WECHAT_BOT_ID", "WECHAT_BOT_SECRET", "WECHAT_BOT_CHAT_ID", "WECHAT_BOT_WS_URL"}},
 	{"type": "telegram", "name": "Telegram", "fields": []string{"TG_BOT_TOKEN", "TG_USER_ID", "TG_API_HOST"}},
-	{"type": "serverchan", "name": "Server酱", "fields": []string{"SERVERCHAN_KEY", "SERVERCHAN_URL"}},
-	{"type": "pushplus", "name": "PushPlus", "fields": []string{"PUSHPLUS_TOKEN", "PUSHPLUS_TOPIC"}},
-	{"type": "webhook", "name": "自定义Webhook", "fields": []string{"WEBHOOK_URL", "WEBHOOK_METHOD", "WEBHOOK_CONTENT_TYPE"}},
+	{"type": "serverchan", "name": "Server酱", "fields": []string{"PUSH_KEY"}},
+	{"type": "pushplus", "name": "PushPlus", "fields": []string{"PUSH_PLUS_TOKEN", "PUSH_PLUS_USER", "PUSH_PLUS_TEMPLATE", "PUSH_PLUS_CHANNEL", "PUSH_PLUS_WEBHOOK", "PUSH_PLUS_CALLBACKURL", "PUSH_PLUS_TO"}},
+	{"type": "webhook", "name": "自定义Webhook", "fields": []string{"WEBHOOK_URL", "WEBHOOK_METHOD", "WEBHOOK_CONTENT_TYPE", "WEBHOOK_BODY", "WEBHOOK_HEADERS"}},
 	{"type": "ntfy", "name": "Ntfy", "fields": []string{"NTFY_URL", "NTFY_TOPIC", "NTFY_PRIORITY", "NTFY_TOKEN", "NTFY_USERNAME", "NTFY_PASSWORD", "NTFY_ACTIONS"}},
 	{"type": "gotify", "name": "Gotify", "fields": []string{"GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_PRIORITY"}},
-	{"type": "pushdeer", "name": "PushDeer", "fields": []string{"PUSHDEER_KEY", "PUSHDEER_URL"}},
+	{"type": "pushdeer", "name": "PushDeer", "fields": []string{"DEER_KEY", "DEER_URL"}},
 	{"type": "qqbot", "name": "QQ机器人", "fields": []string{"QQ_APP_ID", "QQ_APP_SECRET", "QQ_OPENID", "QQ_GROUP_OPENID"}},
 	{"type": "wechat_claw", "name": "微信 ClawBot", "fields": []string{"WECHAT_CLAWBOT_BOT_TOKEN", "WECHAT_CLAWBOT_BASE_URL", "WECHAT_CLAWBOT_TO_USER", "WECHAT_CLAWBOT_ACCOUNT_ID"}},
-	{"type": "igot", "name": "iGot", "fields": []string{"IGOT_PUSH_KEY"}},
 	{"type": "synology-chat", "name": "Synology Chat", "fields": []string{"CHAT_URL", "CHAT_TOKEN"}},
-	{"type": "qmsg", "name": "QMsg", "fields": []string{"QMSG_KEY", "QMSG_TYPE"}},
+	{"type": "qmsg", "name": "QMsg", "fields": []string{"QMSG_KEY", "QMSG_QQ"}},
 	{"type": "pushme", "name": "PushMe", "fields": []string{"PUSHME_KEY"}},
-	{"type": "wxpusher", "name": "WxPusher", "fields": []string{"WXPUSHER_APP_TOKEN"}},
+	{"type": "wxpusher", "name": "WxPusher", "fields": []string{"WXPUSHER_APP_TOKEN", "WXPUSHER_TOPIC_IDS", "WXPUSHER_UIDS"}},
 	{"type": "aibotk", "name": "AIBotK", "fields": []string{"AIBOTK_KEY", "AIBOTK_TYPE", "AIBOTK_NAME"}},
-	{"type": "weplusbot", "name": "WePlusBot", "fields": []string{"WE_PLUS_BOT_TOKEN"}},
 }
 
 // allowedConfigKeys are keys permitted when creating or updating a channel.
 var allowedConfigKeys = map[string]bool{
 	"BARK_PUSH": true, "BARK_ICON": true, "BARK_SOUND": true, "BARK_GROUP": true, "BARK_LEVEL": true, "BARK_ARCHIVE": true, "BARK_URL": true,
 	"DINGTALK_TOKEN": true, "DINGTALK_SECRET": true,
-	"FEISHU_WEBHOOK": true, "FEISHU_SECRET": true,
+	"DD_BOT_TOKEN": true, "DD_BOT_SECRET": true,
+	"DD_APP_KEY": true, "DD_APP_SECRET": true, "DD_APP_ROBOT_CODE": true, "DD_APP_USER_IDS": true,
+	"FSKEY": true, "FSSECRET": true,
+	"FEISHU_APP_ID": true, "FEISHU_APP_SECRET": true, "FEISHU_USER_ID": true,
 	"WECOM_KEY": true, "WECOM_PROXY": true, "WECOM_QYDX_AGENT_ID": true, "WECOM_QYDX_CORP_ID": true, "WECOM_QYDX_SECRET": true, "WECOM_QYDX_TO_USER": true,
+	"QYWX_KEY": true, "QYWX_AM": true, "QYWX_ORIGIN": true,
 	"WECHAT_BOT_KEY": true,
-	"TG_BOT_TOKEN":   true, "TG_USER_ID": true, "TG_API_HOST": true,
+	"WECHAT_BOT_ID":  true, "WECHAT_BOT_SECRET": true, "WECHAT_BOT_CHAT_ID": true, "WECHAT_BOT_WS_URL": true,
+	"TG_BOT_TOKEN": true, "TG_USER_ID": true, "TG_API_HOST": true,
 	"SERVERCHAN_KEY": true, "SERVERCHAN_URL": true,
+	"PUSH_KEY":       true,
 	"PUSHPLUS_TOKEN": true, "PUSHPLUS_TOPIC": true,
+	"PUSH_PLUS_TOKEN": true, "PUSH_PLUS_USER": true, "PUSH_PLUS_TEMPLATE": true, "PUSH_PLUS_CHANNEL": true,
+	"PUSH_PLUS_WEBHOOK": true, "PUSH_PLUS_CALLBACKURL": true, "PUSH_PLUS_TO": true,
 	"WEBHOOK_URL": true, "WEBHOOK_METHOD": true, "WEBHOOK_CONTENT_TYPE": true,
+	"WEBHOOK_BODY": true, "WEBHOOK_HEADERS": true,
 	"NTFY_URL": true, "NTFY_TOPIC": true, "NTFY_PRIORITY": true, "NTFY_TOKEN": true, "NTFY_USERNAME": true, "NTFY_PASSWORD": true, "NTFY_ACTIONS": true,
 	"GOTIFY_URL": true, "GOTIFY_TOKEN": true, "GOTIFY_PRIORITY": true,
 	"PUSHDEER_KEY": true, "PUSHDEER_URL": true,
+	"DEER_KEY": true, "DEER_URL": true,
 	"QQ_APP_ID": true, "QQ_APP_SECRET": true, "QQ_OPENID": true, "QQ_GROUP_OPENID": true,
 	"WECHAT_CLAWBOT_BOT_TOKEN": true, "WECHAT_CLAWBOT_BASE_URL": true, "WECHAT_CLAWBOT_TO_USER": true, "WECHAT_CLAWBOT_ACCOUNT_ID": true,
-	"IGOT_PUSH_KEY": true,
-	"CHAT_URL":      true, "CHAT_TOKEN": true,
-	"QMSG_KEY": true, "QMSG_TYPE": true,
+	"CHAT_URL": true, "CHAT_TOKEN": true,
+	"QMSG_KEY": true, "QMSG_QQ": true,
 	"PUSHME_KEY":         true,
 	"WXPUSHER_APP_TOKEN": true,
 	"AIBOTK_KEY":         true, "AIBOTK_TYPE": true, "AIBOTK_NAME": true,
-	"WE_PLUS_BOT_TOKEN": true,
 }
 
 // validChannelTypes is the set of accepted channel type identifiers.
 var validChannelTypes = map[string]bool{
-	"bark": true, "dingtalk": true, "feishu": true, "feishu_app": true,
+	"bark": true, "dingtalk": true, "dingtalk_app": true, "feishu": true, "feishu_app": true,
 	"wecom": true, "wecom_app": true, "wechat_bot": true,
 	"telegram": true, "serverchan": true, "pushplus": true,
 	"webhook": true, "ntfy": true, "gotify": true, "pushdeer": true,
 	"qqbot": true, "wechat_claw": true,
-	"igot": true, "synology-chat": true, "qmsg": true, "pushme": true,
-	"wxpusher": true, "aibotk": true, "weplusbot": true,
+	"synology-chat": true, "qmsg": true, "pushme": true,
+	"wxpusher": true, "aibotk": true,
 }
 
 // Global notification store with file persistence.
@@ -163,6 +170,12 @@ func RegisterNotificationRoutes(rg *gin.RouterGroup) {
 	rg.GET("/wechat-claw/captured", middleware.ValidateToken, middleware.RequireAdmin, middleware.APIRateLimit(120, 60000), wechatClawCaptured)
 	rg.GET("/wechat-claw/updates", middleware.ValidateToken, wechatClawUpdates)
 
+	// ==================== DingTalk Scan Registration ====================
+	// 钉钉应用扫码注册：与微信 ClawBot 一致的三段式（取码 -> 轮询 -> 填充凭据）。
+	rg.GET("/dingtalk/qrcode", middleware.ValidateToken, middleware.RequireAdmin, middleware.APIRateLimit(30, 60000), dingTalkQRCode)
+	rg.GET("/dingtalk/status", middleware.ValidateToken, middleware.RequireAdmin, middleware.APIRateLimit(60, 60000), dingTalkStatus)
+	rg.POST("/dingtalk/cancel", middleware.ValidateToken, middleware.RequireAdmin, middleware.ValidateCSRF, dingTalkCancel)
+
 	// ==================== WebSocket (no ValidateToken - WS handler authenticates internally) ====================
 	rg.GET("/ws", notifyWSHandler)
 }
@@ -227,29 +240,46 @@ func updateNotificationSettings(c *gin.Context) {
 // sentinel in API responses, mirroring the sentinel the frontend uses when
 // saving so unchanged secrets are not overwritten.
 var secretConfigKeys = map[string]bool{
-	"BARK_PUSH":                true,
-	"DINGTALK_TOKEN":           true,
-	"DINGTALK_SECRET":          true,
-	"FEISHU_SECRET":            true,
-	"WECOM_KEY":                true,
-	"WECOM_QYDX_SECRET":        true,
-	"WECHAT_BOT_KEY":           true,
+	"BARK_PUSH": true,
+	// 钉钉（群机器人 + 企业内部应用）
+	"DINGTALK_TOKEN":  true,
+	"DINGTALK_SECRET": true,
+	"DD_BOT_TOKEN":    true,
+	"DD_BOT_SECRET":   true,
+	"DD_APP_KEY":      true,
+	"DD_APP_SECRET":   true,
+	// 飞书（群机器人 + 企业应用）
+	"FSKEY":             true,
+	"FSSECRET":          true,
+	"FEISHU_WEBHOOK":    true,
+	"FEISHU_SECRET":     true,
+	"FEISHU_APP_ID":     true,
+	"FEISHU_APP_SECRET": true,
+	// 企业微信（群机器人 + 应用 + 智能机器人）
+	"WECOM_KEY":         true,
+	"WECOM_QYDX_SECRET": true,
+	"WECHAT_BOT_KEY":    true,
+	"QYWX_KEY":          true,
+	"QYWX_AM":           true,
+	"WECHAT_BOT_SECRET": true,
+	// 其他渠道
 	"TG_BOT_TOKEN":             true,
 	"SERVERCHAN_KEY":           true,
+	"PUSH_KEY":                 true,
 	"PUSHPLUS_TOKEN":           true,
+	"PUSH_PLUS_TOKEN":          true,
 	"NTFY_TOKEN":               true,
 	"NTFY_PASSWORD":            true,
 	"GOTIFY_TOKEN":             true,
 	"PUSHDEER_KEY":             true,
+	"DEER_KEY":                 true,
 	"QQ_APP_SECRET":            true,
 	"WECHAT_CLAWBOT_BOT_TOKEN": true,
-	"IGOT_PUSH_KEY":            true,
 	"CHAT_TOKEN":               true,
 	"QMSG_KEY":                 true,
 	"PUSHME_KEY":               true,
 	"WXPUSHER_APP_TOKEN":       true,
 	"AIBOTK_KEY":               true,
-	"WE_PLUS_BOT_TOKEN":        true,
 }
 
 // isAdminRequest reports whether the request is authenticated as an admin.
@@ -1216,6 +1246,92 @@ func wechatClawUpdates(c *gin.Context) {
 		"messages": items,
 		"message":  message,
 	})
+}
+
+// ==================== DingTalk Scan Registration Handlers ====================
+
+// dingTalkQRCode 发起钉钉应用扫码注册并返回二维码图片。
+// device_code 属敏感信息，仅保留在 Host 内部，不回传浏览器。
+func dingTalkQRCode(c *gin.Context) {
+	success, verificationURL, deviceCode, userCode, pollIntervalMs, message := services.StartDingTalkRegistration()
+	if !success {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": message,
+		})
+		return
+	}
+
+	// 将授权链接编码为二维码图片，前端直接用 base64 渲染。
+	var qrcodeBase64 string
+	if png, err := qrgen.Encode(verificationURL, qrgen.Medium, 280); err == nil {
+		qrcodeBase64 = base64.StdEncoding.EncodeToString(png)
+	} else {
+		slog.Warn("钉钉二维码生成失败", "error", err)
+	}
+
+	if pollIntervalMs <= 0 {
+		pollIntervalMs = 5000
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":         true,
+		"qrcodeBase64":    qrcodeBase64,
+		"verificationUrl": verificationURL,
+		"userCode":        userCode,
+		"attemptId":       deviceCode,
+		"pollIntervalMs":  pollIntervalMs,
+	})
+}
+
+// dingTalkStatus 轮询钉钉扫码状态；成功时返回凭据供前端填入表单。
+func dingTalkStatus(c *gin.Context) {
+	deviceCode := c.Query("qrcode")
+	if deviceCode == "" {
+		deviceCode = c.Query("deviceCode")
+	}
+	if deviceCode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "缺少 deviceCode 参数"})
+		return
+	}
+
+	success, status, clientID, clientSecret, message := services.PollDingTalkRegistration(deviceCode)
+	if !success {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"status":  status,
+			"message": message,
+		})
+		return
+	}
+
+	// 凭据仅在管理员请求时原样返回，其余情况一律打码。
+	if !isAdminRequest(c) {
+		if clientID != "" {
+			clientID = "••••••••"
+		}
+		if clientSecret != "" {
+			clientSecret = "••••••••"
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":      true,
+		"status":       status,
+		"clientId":     clientID,
+		"clientSecret": clientSecret,
+		"message":      message,
+	})
+}
+
+// dingTalkCancel 丢弃一次扫码注册会话。
+func dingTalkCancel(c *gin.Context) {
+	var body struct {
+		DeviceCode string `json:"deviceCode"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	services.CancelDingTalkRegistration(body.DeviceCode)
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 // getStringField safely extracts a string from a map.

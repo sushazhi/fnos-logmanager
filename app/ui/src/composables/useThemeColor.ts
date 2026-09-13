@@ -100,12 +100,11 @@ export function applyThemeColor(color: string, theme?: 'dark' | 'light'): void {
   root.style.setProperty('--card-color-4', card4Color)
   root.style.setProperty('--card-color-4-light', hslToHex((hue + 180) % 360, Math.min(hsl.s * 0.5, 50), Math.min(baseLight + lightOffset, 60)))
 
-  // 夜间模式（深底）下，渐变卡片文字保持白色；亮色模式移除 inline 覆盖，回落到 CSS 默认
-  if (isDark) {
-    root.style.setProperty('--text-color-on-primary', '#FFFFFF')
-  } else {
-    root.style.removeProperty('--text-color-on-primary')
-  }
+  // 主色可被用户任意选择，而「主色上的文字色」此前是写死的白色：
+  // 一旦用户选了偏亮的主色（浅色模式下尤其明显），实心按钮就会变成
+  // 白字浅底、几乎无法辨认。这里按主色亮度动态选择前景色，保证对比度。
+  const onPrimary = readableOnColor(color)
+  root.style.setProperty('--text-color-on-primary', onPrimary)
 
   // 鸿蒙 7.0 动态光效：主色辉光跟随用户主题色
   const glow = hexToRgba(color, 0.35)
@@ -120,6 +119,42 @@ function hexToRgba(hex: string, alpha: number): string {
   const g = parseInt(color.substring(2, 4), 16)
   const b = parseInt(color.substring(4, 6), 16)
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+/**
+ * 为主色挑选对比度更高的前景色。
+ *
+ * 白色文字在深色底上可读、在浅色底上不可读，反之亦然。这里不做
+ * 「亮度阈值」判断——中间色调（如琥珀 #E8B339、绿 #4CAF50）用阈值
+ * 很容易误判——而是**分别计算黑白两种前景的实际对比度，取更高者**，
+ * 这是 WCAG 对比度公式的直接应用，对任意主色都成立。
+ */
+function readableOnColor(hex: string): string {
+  const background = relativeLuminance(hex)
+  const white = 1
+  const dark = relativeLuminance('#182431')
+
+  const contrastWithWhite = contrastRatio(background, white)
+  const contrastWithDark = contrastRatio(background, dark)
+
+  return contrastWithDark > contrastWithWhite ? '#182431' : '#FFFFFF'
+}
+
+/** WCAG 相对对比度： (L1 + 0.05) / (L2 + 0.05)，L 为相对亮度。 */
+function contrastRatio(a: number, b: number): number {
+  const lighter = Math.max(a, b)
+  const darker = Math.min(a, b)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+function relativeLuminance(hex: string): number {
+  const color = hex.replace('#', '')
+  if (color.length !== 6) return 0
+  const channels = [0, 2, 4].map((i) => {
+    const value = parseInt(color.substring(i, i + 2), 16) / 255
+    return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
 }
 
 

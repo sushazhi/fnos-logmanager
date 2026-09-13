@@ -31,9 +31,8 @@ func (c *Telegram) Send(text, desp string) notify.NotifyResult {
 	url := tgAPIHost + "/bot" + tgBotToken + "/sendMessage"
 
 	content := text + "\n\n" + desp
-	if len(content) > 4096 {
-		content = content[:4096]
-	}
+	// 按字符截断：Telegram 上限 4096 字符，按字节截断会切碎中文
+	content = notify.TruncateRunes(content, 4096)
 
 	body := map[string]string{
 		"chat_id": tgUserID,

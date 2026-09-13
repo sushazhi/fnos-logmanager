@@ -198,6 +198,52 @@
               </div>
             </div>
           </div>
+
+          <!-- 钉钉扫码创建应用 -->
+          <div v-if="newChannel.channel === 'dingtalk_app'" class="qr-login-section">
+            <div class="form-group" v-if="!ddQrCodeUrl">
+              <button class="qr-login-btn" @click="startDingTalkQrLogin" :disabled="ddQrLoading">
+                {{ ddQrLoading ? '获取二维码中...' : '📱 扫码创建应用' }}
+              </button>
+              <div class="hint">用钉钉扫码创建企业内部应用，自动获取 AppKey 与 AppSecret</div>
+              <div class="hint hint-warn">
+                前提：扫码所用的钉钉账号必须已加入一个企业/组织，并有权限创建应用。若钉钉提示尚未加入组织，请先在钉钉中创建组织，或换用已加入组织的账号后重新扫码。
+              </div>
+            </div>
+            <div class="form-group qr-active" v-else>
+              <div class="qr-code-wrapper">
+                <img :src="ddQrCodeUrl" alt="钉钉扫码创建应用" class="qr-code-img">
+                <div class="qr-status" v-if="ddQrStatus === 'waiting'">请使用钉钉扫描二维码</div>
+                <div class="qr-status scanning" v-else-if="ddQrStatus === 'scanned'">已扫码，请在手机上确认授权</div>
+                <div class="qr-status success" v-else-if="ddQrStatus === 'confirmed'">授权成功！凭证已自动填入</div>
+                <div class="qr-status error" v-else-if="ddQrStatus === 'expired'">二维码已过期，请重新获取</div>
+              </div>
+              <!-- 有效期倒计时：让用户知道还剩多久，避免盲目反复刷新 -->
+              <div
+                class="qr-countdown"
+                v-if="ddQrStatus !== 'confirmed' && ddQrStatus !== 'expired'"
+                role="timer"
+                aria-live="off"
+              >
+                <div class="qr-countdown-row">
+                  <span>二维码有效时间</span>
+                  <strong>{{ formatRemaining(ddQrRemainingMs) }}</strong>
+                </div>
+                <div class="qr-progress" aria-hidden="true">
+                  <span :style="{ width: ddQrProgressPercent + '%' }"></span>
+                </div>
+              </div>
+              <div class="qr-actions">
+                <button class="qr-cancel-btn" @click="cancelDingTalkQrLogin" v-if="ddQrStatus !== 'confirmed'">取消</button>
+                <button class="qr-refresh-btn" @click="startDingTalkQrLogin" v-if="ddQrStatus !== 'confirmed'" :disabled="ddQrLoading">刷新二维码</button>
+              </div>
+              <div class="hint" v-if="ddQrStatus !== 'confirmed'">
+                扫码后在钉钉授权页完成应用创建与确认；请保持本页打开，授权成功后凭证会自动填入。
+              </div>
+              <!-- 状态变化对读屏用户播报 -->
+              <div class="visually-hidden" role="status" aria-live="polite">{{ ddQrLiveMessage }}</div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="cancel-btn" @click="closeChannelModal">取消</button>
@@ -352,6 +398,7 @@ import api, { eventLoggerApi } from '../services/api'
 import AlertDialog from './AlertDialog.vue'
 import HistorySection from './notification/HistorySection.vue'
 import { useNotifyWebSocket } from '../composables/useNotifyWebSocket'
+import { safeQrSource, qrDataUrlFromBase64, formatRemaining, createGenerationGuard } from '../utils/qr'
 
 interface NotificationSettings {
   enabled: boolean
@@ -439,12 +486,51 @@ const editingChannel = ref<ChannelConfig | null>(null)
 // 微信 ClawBot 扫码登录状态
 const clawQrCodeUrl = ref('')
 const clawQrCodeId = ref('')
+// 服务端返回的原始二维码标识（与用于渲染的图片地址区分开）
+const clawQrId = ref('')
 const clawQrStatus = ref<'waiting' | 'scanning' | 'confirmed' | 'expired'>('waiting')
 const clawQrLoading = ref(false)
 const clawUserIdLoading = ref(false)
 const clawQrTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const clawQrPollAttempts = ref(0)
+// 连续网络失败计数：用于区分「网络问题」与「用户未扫码」
+const clawQrNetworkErrors = ref(0)
 const clawQrMaxAttempts = 30
+// 扫码轮次代际：丢弃上一轮迟到响应的写入
+const clawQrGuard = createGenerationGuard()
+
+// 钉钉扫码创建应用状态
+const ddQrCodeUrl = ref('')
+const ddQrAttemptId = ref('')
+const ddQrStatus = ref<'waiting' | 'scanned' | 'confirmed' | 'expired'>('waiting')
+const ddQrLoading = ref(false)
+const ddQrTimer = ref<ReturnType<typeof setInterval> | null>(null)
+const ddQrPollAttempts = ref(0)
+const ddQrMaxAttempts = 60
+// 连续网络失败计数：用于区分「网络问题」与「用户未扫码」
+const ddQrNetworkErrors = ref(0)
+const ddQrGuard = createGenerationGuard()
+// 二维码有效期倒计时。钉钉注册接口的 device_code 有效期由服务端决定，
+// 前端不额外探测，统一按 5 分钟展示（与钉钉授权页的实际节奏一致）；
+// 服务端返回 EXPIRED 时立即切换到过期态，不依赖本地计时。
+const DD_QR_TTL_MS = 5 * 60 * 1000
+const ddQrExpiresAt = ref(0)
+const ddQrNow = ref(Date.now())
+const ddQrRemainingMs = computed(() => Math.max(0, ddQrExpiresAt.value - ddQrNow.value))
+const ddQrProgressPercent = computed(() => {
+  if (!ddQrExpiresAt.value) return 0
+  return Math.max(0, Math.min(100, Math.round((ddQrRemainingMs.value / DD_QR_TTL_MS) * 100)))
+})
+let ddQrTickTimer: ReturnType<typeof setInterval> | null = null
+
+const ddQrLiveMessage = computed(() => {
+  switch (ddQrStatus.value) {
+    case 'scanned': return '已扫码，请在手机上确认授权'
+    case 'confirmed': return '授权成功，凭证已自动填入'
+    case 'expired': return '二维码已过期，请重新获取'
+    default: return '请使用钉钉扫描二维码'
+  }
+})
 
 // 定时刷新器
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -660,6 +746,10 @@ function getFieldLabel(field: string): string {
     barkGroup: '分组',
     ddBotToken: '钉钉机器人Token',
     ddBotSecret: '钉钉机器人Secret',
+    ddAppKey: '应用 AppKey',
+    ddAppSecret: '应用 AppSecret',
+    ddAppRobotCode: '机器人 Code（可选）',
+    ddAppUserIds: '接收用户 ID',
     fsKey: 'Webhook Key',
     fsSecret: '签名密钥(可选)',
     feishuAppId: 'App ID',
@@ -693,9 +783,8 @@ function getFieldLabel(field: string): string {
     wechatClawBaseUrl: '接口地址',
     wechatClawToUser: '发送目标',
     wechatClawAccountId: 'Account ID',
-    igotPushKey: 'iGot Push Key',
     qmsgKey: 'Qmsg Key',
-    qmsgType: 'Qmsg 消息类型',
+    qmsgQq: 'Qmsg 接收 QQ 号（可选）',
     pushmeKey: 'PushMe Key',
     wxpusherAppToken: 'WxPusher App Token',
     wxpusherTopicIds: 'WxPusher 主题ID',
@@ -703,9 +792,6 @@ function getFieldLabel(field: string): string {
     aibotkKey: '智能微秘书 Key',
     aibotkType: '智能微秘书 类型',
     aibotkName: '智能微秘书 名称',
-    wePlusBotToken: '微加机器人 Token',
-    wePlusBotReceiver: '微加机器人 接收者',
-    wePlusBotVersion: '微加机器人 版本',
     chatUrl: 'Synology Chat Webhook URL',
     chatToken: 'Synology Chat Token',
 
@@ -723,6 +809,10 @@ function getFieldLabel(field: string): string {
     BARK_URL: '点击跳转',
     DINGTALK_TOKEN: '钉钉机器人Token',
     DINGTALK_SECRET: '钉钉机器人Secret',
+    DD_APP_KEY: '应用 AppKey',
+    DD_APP_SECRET: '应用 AppSecret',
+    DD_APP_ROBOT_CODE: '机器人 Code（可选）',
+    DD_APP_USER_IDS: '接收用户 ID',
     FEISHU_WEBHOOK: '飞书Webhook地址',
     FEISHU_SECRET: '签名密钥(可选)',
     WECOM_KEY: '企业微信机器人Key',
@@ -758,21 +848,17 @@ function getFieldLabel(field: string): string {
     WECHAT_CLAWBOT_BASE_URL: '接口地址',
     WECHAT_CLAWBOT_TO_USER: '发送目标',
     WECHAT_CLAWBOT_ACCOUNT_ID: 'Account ID',
-    IGOT_PUSH_KEY: 'iGot Push Key',
     CHAT_URL: 'Synology Chat Webhook URL',
     CHAT_TOKEN: 'Synology Chat Token',
     QMSG_KEY: 'Qmsg Key',
-    QMSG_TYPE: 'Qmsg 消息类型',
+    QMSG_QQ: 'Qmsg 接收 QQ 号（可选）',
     PUSHME_KEY: 'PushMe Key',
     WXPUSHER_APP_TOKEN: 'WxPusher App Token',
     WXPUSHER_TOPIC_IDS: 'WxPusher 主题ID',
     WXPUSHER_UIDS: 'WxPusher 用户ID',
     AIBOTK_KEY: '智能微秘书 Key',
     AIBOTK_TYPE: '智能微秘书 类型',
-    AIBOTK_NAME: '智能微秘书 名称',
-    WE_PLUS_BOT_TOKEN: '微加机器人 Token',
-    WE_PLUS_BOT_RECEIVER: '微加机器人 接收者',
-    WE_PLUS_BOT_VERSION: '微加机器人 版本'
+    AIBOTK_NAME: '智能微秘书 名称'
   }
   return labels[field] || field
 }
@@ -781,6 +867,10 @@ function getFieldPlaceholder(field: string): string {
   const placeholders: Record<string, string> = {
     barkPush: '如: https://api.day.app/xxx',
     ddBotToken: '钉钉机器人的access_token',
+    ddAppKey: '企业内部应用的 AppKey（扫码可自动获取）',
+    ddAppSecret: '企业内部应用的 AppSecret（扫码可自动获取）',
+    ddAppRobotCode: '机器人 Code，留空则默认使用 AppKey',
+    ddAppUserIds: '接收人的 userId，多个用英文逗号分隔',
     fsKey: '飞书群机器人的Webhook Key',
     fsSecret: '签名密钥，用于验证消息来源',
     feishuAppId: '飞书企业自建应用的App ID',
@@ -810,6 +900,10 @@ function getFieldPlaceholder(field: string): string {
     QQ_GROUP_OPENID: '群聊中@机器人后自动捕获',
     BARK_PUSH: '如: https://api.day.app/xxx',
     DINGTALK_TOKEN: '钉钉机器人的access_token',
+    DD_APP_KEY: '企业内部应用的 AppKey（扫码可自动获取）',
+    DD_APP_SECRET: '企业内部应用的 AppSecret（扫码可自动获取）',
+    DD_APP_ROBOT_CODE: '机器人 Code，留空则默认使用 AppKey',
+    DD_APP_USER_IDS: '接收人的 userId，多个用英文逗号分隔',
     FEISHU_WEBHOOK: '飞书群机器人的Webhook地址',
     FEISHU_SECRET: '签名密钥，用于验证消息来源',
     WECOM_KEY: '企业微信机器人的key',
@@ -1193,6 +1287,8 @@ function pollCapturedOpenId(name: string): void {
 
 async function startClawQrLogin(): Promise<void> {
   cancelClawQrLogin()
+  // 开启新一轮：旧轮次已在飞行中的响应到达时会被丢弃
+  const generation = clawQrGuard.begin()
   clawQrLoading.value = true
   // 保留旧二维码直到取到新码，避免刷新时图片消失闪烁
   const oldUrl = clawQrCodeUrl.value
@@ -1207,12 +1303,15 @@ async function startClawQrLogin(): Promise<void> {
       qrcodeBase64?: string
       message?: string
     }
-    // 优先使用 base64，其次用 URL，最后用 qrcode 构造
-    const qrSrc = data.qrcodeBase64
-      ? 'data:image/png;base64,' + data.qrcodeBase64
-      : (data.qrcodeUrl || data.qrcode || '')
+    if (!clawQrGuard.isCurrent(generation)) return
+
+    clawQrId.value = data.qrcode || ''
+    // 只接受内联图片数据；服务端返回的任意 URL 不再直接进入 <img src>
+    const qrSrc = qrDataUrlFromBase64(data.qrcodeBase64)
+      ?? safeQrSource(data.qrcodeUrl)
+      ?? safeQrSource(data.qrcode)
     if (!qrSrc) {
-      showAlert('错误', data.message || '获取二维码失败：返回为空', 'error')
+      showAlert('错误', data.message || '获取二维码失败：返回内容不是有效的图片', 'error')
       // 恢复旧二维码，避免图片消失闪烁
       clawQrCodeUrl.value = oldUrl
       clawQrCodeId.value = oldId
@@ -1220,14 +1319,16 @@ async function startClawQrLogin(): Promise<void> {
       return
     }
     clawQrCodeUrl.value = qrSrc
-    clawQrCodeId.value = data.qrcode || qrSrc
+    clawQrCodeId.value = clawQrId.value || qrSrc
     clawQrLoading.value = false
     clawQrStatus.value = 'waiting'
     clawQrPollAttempts.value = 0
+    clawQrNetworkErrors.value = 0
 
     // 开始轮询扫码状态
     clawQrTimer.value = setInterval(pollClawQrStatus, 3000)
   } catch (e) {
+    if (!clawQrGuard.isCurrent(generation)) return
     // 恢复旧二维码
     clawQrCodeUrl.value = oldUrl
     clawQrCodeId.value = oldId
@@ -1239,6 +1340,9 @@ async function startClawQrLogin(): Promise<void> {
 
 async function pollClawQrStatus(): Promise<void> {
   if (!clawQrCodeId.value) return
+  // 记录本次轮询所属的轮次，响应回来时校验，避免旧轮次覆盖新状态
+  const generation = clawQrGuard.begin()
+  const requestedId = clawQrCodeId.value
 
   clawQrPollAttempts.value++
   if (clawQrPollAttempts.value > clawQrMaxAttempts) {
@@ -1248,13 +1352,15 @@ async function pollClawQrStatus(): Promise<void> {
   }
 
   try {
-    const data = await api.get('/api/notifications/wechat-claw/status?qrcode=' + encodeURIComponent(clawQrCodeId.value)) as {
+    const data = await api.get('/api/notifications/wechat-claw/status?qrcode=' + encodeURIComponent(requestedId)) as {
       success: boolean
       status: string
       token?: string
       accountId?: string
       scannerId?: string
     }
+    // 用户已刷新二维码或关闭面板：丢弃这次过期响应
+    if (!clawQrGuard.isCurrent(generation)) return
 
     const s = (data.status || 'waiting').toLowerCase()
 
@@ -1304,12 +1410,21 @@ async function pollClawQrStatus(): Promise<void> {
     if (s === 'scanned') {
       clawQrStatus.value = 'scanning'
     }
-  } catch {
-    // 忽略轮询错误，继续重试
+  } catch (e) {
+    if (!clawQrGuard.isCurrent(generation)) return
+    // 网络错误与「用户未扫码」是两回事：前者继续重试但要让用户知道，
+    // 否则连续失败会被尝试次数上限误报成「扫码超时」。
+    clawQrNetworkErrors.value++
+    console.warn('扫码状态查询失败，将继续重试:', e)
+    if (clawQrNetworkErrors.value === 3) {
+      showAlert('网络异常', '多次无法查询扫码状态，请检查网络后重试', 'warning')
+    }
   }
 }
 
 function cancelClawQrLogin(): void {
+  // 作废当前轮次，丢弃已在飞行中的响应
+  clawQrGuard.invalidate()
   if (clawQrTimer.value) {
     clearInterval(clawQrTimer.value)
     clawQrTimer.value = null
@@ -1381,6 +1496,157 @@ async function fetchClawUserId(): Promise<void> {
     showAlert('错误', msg, 'error')
   } finally {
     clawUserIdLoading.value = false
+  }
+}
+
+// ---------- 钉钉扫码创建应用 ----------
+
+async function startDingTalkQrLogin(): Promise<void> {
+  cancelDingTalkQrLogin()
+  const generation = ddQrGuard.begin()
+  ddQrLoading.value = true
+  // 保留旧二维码直到取到新码，避免刷新时图片闪烁
+  const oldUrl = ddQrCodeUrl.value
+  const oldId = ddQrAttemptId.value
+  ddQrStatus.value = 'waiting'
+
+  try {
+    const data = await api.get('/api/notifications/dingtalk/qrcode') as {
+      success?: boolean
+      qrcodeBase64?: string
+      verificationUrl?: string
+      attemptId?: string
+      pollIntervalMs?: number
+      message?: string
+    }
+    if (!ddQrGuard.isCurrent(generation)) return
+
+    const qrSrc = qrDataUrlFromBase64(data.qrcodeBase64)
+    if (!data.success || !qrSrc) {
+      showAlert('错误', data.message || '获取二维码失败', 'error')
+      ddQrCodeUrl.value = oldUrl
+      ddQrAttemptId.value = oldId
+      ddQrLoading.value = false
+      return
+    }
+
+    ddQrCodeUrl.value = qrSrc
+    ddQrAttemptId.value = data.attemptId || ''
+    ddQrLoading.value = false
+    ddQrStatus.value = 'waiting'
+    ddQrPollAttempts.value = 0
+    ddQrNetworkErrors.value = 0
+    startDdQrCountdown()
+
+    // 服务端返回的轮询间隔优先，避免过密请求
+    const interval = data.pollIntervalMs && data.pollIntervalMs > 0
+      ? data.pollIntervalMs
+      : 5000
+    ddQrTimer.value = setInterval(pollDingTalkQrStatus, interval)
+  } catch (e) {
+    ddQrCodeUrl.value = oldUrl
+    ddQrAttemptId.value = oldId
+    ddQrLoading.value = false
+    const msg = e instanceof Error ? e.message : '获取二维码失败'
+    showAlert('错误', msg, 'error')
+  }
+}
+
+async function pollDingTalkQrStatus(): Promise<void> {
+  if (!ddQrAttemptId.value) return
+  // 记录本次轮询所属轮次，响应回来时校验，避免旧轮次覆盖新状态
+  const generation = ddQrGuard.begin()
+  const requestedId = ddQrAttemptId.value
+
+  ddQrPollAttempts.value++
+  if (ddQrPollAttempts.value > ddQrMaxAttempts) {
+    cancelDingTalkQrLogin()
+    showAlert('超时', '扫码超时，请重新获取二维码', 'warning')
+    return
+  }
+
+  try {
+    const data = await api.get(
+      '/api/notifications/dingtalk/status?deviceCode=' + encodeURIComponent(requestedId)
+    ) as {
+      success: boolean
+      status: string
+      clientId?: string
+      clientSecret?: string
+      message?: string
+    }
+    // 用户已刷新二维码或关闭面板：丢弃这次过期响应
+    if (!ddQrGuard.isCurrent(generation)) return
+
+    const s = (data.status || 'WAITING').toUpperCase()
+
+    if (s === 'EXPIRED') {
+      ddQrStatus.value = 'expired'
+      cancelDingTalkQrLogin()
+      return
+    }
+
+    if (s === 'SUCCESS') {
+      ddQrStatus.value = 'confirmed'
+      cancelDingTalkQrLogin()
+
+      // 扫码注册产出的是企业内部应用的 AppKey / AppSecret
+      if (data.clientId) {
+        newChannel.value.config.ddAppKey = data.clientId
+      }
+      if (data.clientSecret) {
+        newChannel.value.config.ddAppSecret = data.clientSecret
+      }
+
+      showAlert('授权成功', '凭证已自动填入，请保存后测试通知', 'success')
+      return
+    }
+
+    if (s === 'FAIL') {
+      ddQrStatus.value = 'expired'
+      cancelDingTalkQrLogin()
+      showAlert('失败', data.message || '授权被拒绝或已失效，请重新扫码', 'error')
+      return
+    }
+  } catch (e) {
+    if (!ddQrGuard.isCurrent(generation)) return
+    // 网络错误与「用户未扫码」不同：继续重试但要告知用户，
+    // 否则连续失败会被尝试次数上限误报为「扫码超时」。
+    ddQrNetworkErrors.value++
+    console.warn('钉钉扫码状态查询失败，将继续重试:', e)
+    if (ddQrNetworkErrors.value === 3) {
+      showAlert('网络异常', '多次无法查询扫码状态，请检查网络后重试', 'warning')
+    }
+  }
+}
+
+function cancelDingTalkQrLogin(): void {
+  // 作废当前轮次，丢弃已在飞行中的响应
+  ddQrGuard.invalidate()
+  if (ddQrTimer.value) {
+    clearInterval(ddQrTimer.value)
+    ddQrTimer.value = null
+  }
+  stopDdQrCountdown()
+}
+
+// startDdQrCountdown 启动每秒刷新的有效期倒计时。
+function startDdQrCountdown(): void {
+  stopDdQrCountdown()
+  ddQrExpiresAt.value = Date.now() + DD_QR_TTL_MS
+  ddQrNow.value = Date.now()
+  ddQrTickTimer = setInterval(() => {
+    ddQrNow.value = Date.now()
+    if (ddQrRemainingMs.value <= 0) {
+      stopDdQrCountdown()
+    }
+  }, 1000)
+}
+
+function stopDdQrCountdown(): void {
+  if (ddQrTickTimer !== null) {
+    clearInterval(ddQrTickTimer)
+    ddQrTickTimer = null
   }
 }
 
@@ -1581,6 +1847,9 @@ onUnmounted(() => {
     clearInterval(refreshTimer)
     refreshTimer = null
   }
+  // 扫码轮询与倒计时定时器必须随组件销毁，否则会继续打后端接口
+  cancelClawQrLogin()
+  cancelDingTalkQrLogin()
   disconnectWS()
 })
 </script>
@@ -2426,6 +2695,64 @@ input:checked + .slider:before {
 .qr-cancel-btn:hover,
 .qr-refresh-btn:hover {
   background: var(--bg-color-3);
+}
+
+/* 扫码有效期倒计时与进度条 */
+.qr-countdown {
+  margin-top: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qr-countdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  color: var(--text-color-secondary);
+}
+
+.qr-countdown-row strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-color);
+}
+
+.qr-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-color-3);
+  overflow: hidden;
+}
+
+.qr-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 1s linear;
+}
+
+/* 前置条件等需要注意的提示 */
+.hint-warn {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--warning-color, #d97706);
+  background: var(--warning-bg, rgba(217, 119, 6, 0.08));
+  color: var(--text-color-secondary);
+  border-radius: var(--radius-xs);
+}
+
+/* 仅供读屏用户，视觉上隐藏但保持可访问 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Tag input for IP whitelist and keyword lists */

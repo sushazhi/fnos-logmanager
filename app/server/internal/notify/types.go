@@ -13,11 +13,47 @@ type NotifyChannel interface {
 	Send(text, desp string) NotifyResult
 }
 
+// Outcome 描述一次投递的终态。
+//
+// 关键区别在于「确定失败」与「结果未知」：前者可以安全重试，后者因为
+// 可能已经送达，重试会造成重复轰炸，必须由调用方决定而非自动重试。
+type Outcome string
+
+const (
+	// OutcomeDelivered 渠道明确确认已送达。
+	OutcomeDelivered Outcome = "delivered"
+	// OutcomeFailed 渠道明确拒绝或可确定的失败，重试是安全的。
+	OutcomeFailed Outcome = "failed"
+	// OutcomeUnknown 超时或连接中断等无法判定是否送达的情况，禁止自动重试。
+	OutcomeUnknown Outcome = "unknown"
+)
+
 // NotifyResult represents the result of a notification send attempt.
 type NotifyResult struct {
 	Success bool
 	Message string
 	Err     error
+	// Outcome 是 Success 的细化语义；未显式设置时由 Success 推导。
+	Outcome Outcome
+}
+
+// ResolveOutcome 返回调用方应使用的终态。
+// 兼容尚未设置 Outcome 的既有渠道实现：按 Success 推导为 Delivered/Failed。
+func (r NotifyResult) ResolveOutcome() Outcome {
+	switch r.Outcome {
+	case OutcomeDelivered, OutcomeFailed, OutcomeUnknown:
+		return r.Outcome
+	}
+	if r.Success {
+		return OutcomeDelivered
+	}
+	return OutcomeFailed
+}
+
+// Retryable 表示该结果是否可以安全地自动重试。
+// 只有「明确失败」可以；「结果未知」重试会导致重复消息。
+func (r NotifyResult) Retryable() bool {
+	return r.ResolveOutcome() == OutcomeFailed
 }
 
 // NotifyResultJSON is the JSON-serializable form of NotifyResult.
@@ -50,6 +86,12 @@ type ChannelConfig struct {
 	DD_BOT_SECRET string `json:"DD_BOT_SECRET,omitempty"`
 	DD_BOT_TOKEN  string `json:"DD_BOT_TOKEN,omitempty"`
 
+	// DingTalk App (企业内部应用，新版 API)
+	DD_APP_KEY        string `json:"DD_APP_KEY,omitempty"`
+	DD_APP_SECRET     string `json:"DD_APP_SECRET,omitempty"`
+	DD_APP_ROBOT_CODE string `json:"DD_APP_ROBOT_CODE,omitempty"`
+	DD_APP_USER_IDS   string `json:"DD_APP_USER_IDS,omitempty"`
+
 	// Feishu
 	FSKEY             string `json:"FSKEY,omitempty"`
 	FSSECRET          string `json:"FSSECRET,omitempty"`
@@ -61,9 +103,6 @@ type ChannelConfig struct {
 	GOTIFY_URL      string `json:"GOTIFY_URL,omitempty"`
 	GOTIFY_TOKEN    string `json:"GOTIFY_TOKEN,omitempty"`
 	GOTIFY_PRIORITY int    `json:"GOTIFY_PRIORITY,omitempty"`
-
-	// iGot
-	IGOT_PUSH_KEY string `json:"IGOT_PUSH_KEY,omitempty"`
 
 	// ServerChan
 	PUSH_KEY string `json:"PUSH_KEY,omitempty"`
@@ -85,14 +124,9 @@ type ChannelConfig struct {
 	PUSH_PLUS_CALLBACKURL string `json:"PUSH_PLUS_CALLBACKURL,omitempty"`
 	PUSH_PLUS_TO          string `json:"PUSH_PLUS_TO,omitempty"`
 
-	// WePlusBot
-	WE_PLUS_BOT_TOKEN    string `json:"WE_PLUS_BOT_TOKEN,omitempty"`
-	WE_PLUS_BOT_RECEIVER string `json:"WE_PLUS_BOT_RECEIVER,omitempty"`
-	WE_PLUS_BOT_VERSION  string `json:"WE_PLUS_BOT_VERSION,omitempty"`
-
 	// QMsg
-	QMSG_KEY  string `json:"QMSG_KEY,omitempty"`
-	QMSG_TYPE string `json:"QMSG_TYPE,omitempty"`
+	QMSG_KEY string `json:"QMSG_KEY,omitempty"`
+	QMSG_QQ  string `json:"QMSG_QQ,omitempty"`
 
 	// WeChat Work
 	QYWX_ORIGIN string `json:"QYWX_ORIGIN,omitempty"`

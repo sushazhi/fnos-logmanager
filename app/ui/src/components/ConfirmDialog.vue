@@ -286,7 +286,8 @@ defineExpose({ show })
 
 .hm-btn-warning {
   background: var(--warning-color);
-  color: var(--text-color-on-primary);
+  /* warning 底是固定琥珀色（偏浅），白色文字对比度不足，改用深色文字 */
+  color: #182431;
 }
 .hm-btn-warning:hover {
   background: var(--warning-color);

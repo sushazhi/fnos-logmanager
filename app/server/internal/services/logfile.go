@@ -1073,11 +1073,22 @@ func notifyUninstalledLeftovers(nonEmpty map[string]string) {
 	}
 	b.WriteString("\n请到「日志清理」的残留清理功能确认处理。")
 
-	res := notify.SendNotify("卸载应用残留提醒", b.String())
-	if !res.Success {
-		slog.Warn("uninstalled leftover notification not delivered, will retry next run", "message", res.Message)
+	detailed := notify.SendNotifyDetailed("卸载应用残留提醒", b.String())
+
+	// 只有「明确失败」的渠道才值得重试：结果未知（超时等）可能已经送达，
+	// 重试会造成重复消息；全部送达才推进冷却时间戳。
+	if detailed.HasRetryable() {
+		slog.Warn("uninstalled leftover notification had failed channels, will retry next run",
+			"summary", detailed.Summary())
 		return
 	}
+	if !detailed.AllDelivered() {
+		// 存在结果未知的渠道：不重试，但也不推进冷却以免彻底丢失。
+		slog.Warn("uninstalled leftover notification outcome uncertain, not retrying",
+			"summary", detailed.Summary())
+		return
+	}
+
 	uninstalledNotifyMu.Lock()
 	lastUninstalledNotify = time.Now()
 	uninstalledNotifyMu.Unlock()

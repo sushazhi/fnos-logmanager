@@ -141,30 +141,31 @@ function toggleExpand(id: string) {
 }
 
 const channelNames: Record<string, string> = {
-  bark: 'Bark', dingtalk: '钉钉', feishu: '飞书', feishuApp: '飞书应用',
+  bark: 'Bark', dingtalk: '钉钉', dingtalkApp: '钉钉应用', feishu: '飞书', feishuApp: '飞书应用',
   qywxBot: '企微机器人', qywxApp: '企微应用', qywxSmart: '企微智能',
   telegram: 'Telegram', qqbot: 'QQ机器人', serverChan: 'Server酱',
   pushplus: 'PushPlus', ntfy: 'Ntfy', gotify: 'Gotify',
-  pushdeer: 'PushDeer', webhook: 'Webhook', igot: 'iGot',
+  pushdeer: 'PushDeer', webhook: 'Webhook',
   synology: '群晖', qmsg: 'QMsg', pushme: 'PushMe',
-  wxpusher: 'WxPusher', aibotk: 'AIBotK', weplus: 'WePlus',
+  wxpusher: 'WxPusher', aibotk: 'AIBotK',
   wechatClaw: '微信Claw',
 }
 
 const channelIcons: Record<string, string> = {
-  bark: '📲', dingtalk: '🐜', feishu: '🐦', feishuApp: '🐦',
+  bark: '📲', dingtalk: '🐜', dingtalkApp: '🐜', feishu: '🐦', feishuApp: '🐦',
   qywxBot: '💼', qywxApp: '💼', qywxSmart: '💼',
   telegram: '✈️', qqbot: '💬', serverChan: '🔔',
   pushplus: '📣', ntfy: '📡', gotify: '📡',
-  pushdeer: '🦌', webhook: '🔗', igot: '📱',
+  pushdeer: '🦌', webhook: '🔗',
   synology: '🖥️', qmsg: '📧', pushme: '📨',
-  wxpusher: '🔊', aibotk: '🤖', weplus: '➕',
+  wxpusher: '🔊', aibotk: '🤖',
   wechatClaw: '💚',
 }
 
 const channelColors: Record<string, { bg: string; fg: string }> = {
   bark: { bg: 'rgba(74, 144, 226, 0.1)', fg: '#4A90E2' },
   dingtalk: { bg: 'rgba(0, 150, 255, 0.1)', fg: '#0096FF' },
+  dingtalkApp: { bg: 'rgba(0, 150, 255, 0.1)', fg: '#0096FF' },
   feishu: { bg: 'rgba(51, 126, 255, 0.1)', fg: '#337EFF' },
   feishuApp: { bg: 'rgba(51, 126, 255, 0.1)', fg: '#337EFF' },
   qywxBot: { bg: 'rgba(7, 193, 96, 0.1)', fg: '#07C160' },

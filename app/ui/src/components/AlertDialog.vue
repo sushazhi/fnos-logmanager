@@ -276,9 +276,22 @@ function fallbackCopy() {
   border-color: var(--text-color-3);
 }
 
-/* Confirm */
+/* Confirm
+ *
+ * type="confirm" 时按钮类为 hm-btn-confirm，此前这里只设了文字色而没有
+ * 背景色，于是在浅色玻璃底上渲染成「白字白底」而无法辨认。
+ * 这里补齐主色背景，并保留 hover/active 反馈，与 hm-btn-info 保持一致。 */
 .hm-btn-confirm {
+  background: var(--primary-color);
   color: var(--text-color-on-primary);
+}
+.hm-btn-confirm:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+.hm-btn-confirm:active {
+  box-shadow: 0 0 28px var(--glow-primary-strong);
 }
 .hm-btn-info {
   background: var(--primary-color);
@@ -315,7 +328,8 @@ function fallbackCopy() {
 }
 .hm-btn-warning {
   background: var(--warning-color);
-  color: var(--text-color-on-primary);
+  /* warning 底是固定琥珀色（偏浅），白色文字对比度不足，改用深色文字 */
+  color: #182431;
 }
 .hm-btn-warning:hover {
   background: var(--warning-color);

@@ -6,10 +6,19 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // pushConfig holds the loaded channel configuration.
-var pushConfig ChannelConfig
+//
+// This struct is rewritten at runtime by SetConfigs / RestoreConfig (for example
+// when temporarily overriding config to test a single channel) while multiple
+// notification goroutines read it concurrently, so every read and write must go
+// through configMu to avoid a data race.
+var (
+	configMu   sync.RWMutex
+	pushConfig ChannelConfig
+)
 
 // init loads channel config from environment variables at package init time.
 func init() {
@@ -18,6 +27,9 @@ func init() {
 
 // loadConfigFromEnv reads all ChannelConfig fields from environment variables.
 func loadConfigFromEnv() {
+	configMu.Lock()
+	defer configMu.Unlock()
+
 	v := &pushConfig
 
 	// Bark
@@ -32,6 +44,12 @@ func loadConfigFromEnv() {
 	// DingTalk
 	v.DD_BOT_SECRET = os.Getenv("DD_BOT_SECRET")
 	v.DD_BOT_TOKEN = os.Getenv("DD_BOT_TOKEN")
+
+	// DingTalk App (企业内部应用)
+	v.DD_APP_KEY = os.Getenv("DD_APP_KEY")
+	v.DD_APP_SECRET = os.Getenv("DD_APP_SECRET")
+	v.DD_APP_ROBOT_CODE = os.Getenv("DD_APP_ROBOT_CODE")
+	v.DD_APP_USER_IDS = os.Getenv("DD_APP_USER_IDS")
 
 	// Feishu
 	v.FSKEY = os.Getenv("FSKEY")
@@ -48,9 +66,6 @@ func loadConfigFromEnv() {
 			v.GOTIFY_PRIORITY = n
 		}
 	}
-
-	// iGot
-	v.IGOT_PUSH_KEY = os.Getenv("IGOT_PUSH_KEY")
 
 	// ServerChan
 	v.PUSH_KEY = os.Getenv("PUSH_KEY")
@@ -72,14 +87,9 @@ func loadConfigFromEnv() {
 	v.PUSH_PLUS_CALLBACKURL = os.Getenv("PUSH_PLUS_CALLBACKURL")
 	v.PUSH_PLUS_TO = os.Getenv("PUSH_PLUS_TO")
 
-	// WePlusBot
-	v.WE_PLUS_BOT_TOKEN = os.Getenv("WE_PLUS_BOT_TOKEN")
-	v.WE_PLUS_BOT_RECEIVER = os.Getenv("WE_PLUS_BOT_RECEIVER")
-	v.WE_PLUS_BOT_VERSION = envOrDefault("WE_PLUS_BOT_VERSION", "pro")
-
 	// QMsg
 	v.QMSG_KEY = os.Getenv("QMSG_KEY")
-	v.QMSG_TYPE = os.Getenv("QMSG_TYPE")
+	v.QMSG_QQ = os.Getenv("QMSG_QQ")
 
 	// WeChat Work
 	v.QYWX_ORIGIN = envOrDefault("QYWX_ORIGIN", "https://qyapi.weixin.qq.com")
@@ -147,147 +157,44 @@ func envOrDefault(key, defaultVal string) string {
 }
 
 // GetConfig returns a channel configuration value by key name.
+//
+// 通过反射按 json tag 查找字段，而不是维护一份手写的 key->字段 映射表。
+// 手写映射表曾导致新渠道字段遗漏（例如 GOTIFY_PRIORITY 定义了字段并加载了
+// 环境变量，却因为在 switch 中漏了 case 而永远读不出来），因此这里改为与
+// SetConfigs / SnapshotConfig 共用同一套 json tag 约定。
 func GetConfig(key string) string {
-	cfg := &pushConfig
-	switch key {
-	case "BARK_PUSH":
-		return cfg.BARK_PUSH
-	case "BARK_ARCHIVE":
-		return cfg.BARK_ARCHIVE
-	case "BARK_GROUP":
-		return cfg.BARK_GROUP
-	case "BARK_SOUND":
-		return cfg.BARK_SOUND
-	case "BARK_ICON":
-		return cfg.BARK_ICON
-	case "BARK_LEVEL":
-		return cfg.BARK_LEVEL
-	case "BARK_URL":
-		return cfg.BARK_URL
-	case "DD_BOT_SECRET":
-		return cfg.DD_BOT_SECRET
-	case "DD_BOT_TOKEN":
-		return cfg.DD_BOT_TOKEN
-	case "FSKEY":
-		return cfg.FSKEY
-	case "FSSECRET":
-		return cfg.FSSECRET
-	case "FEISHU_APP_ID":
-		return cfg.FEISHU_APP_ID
-	case "FEISHU_APP_SECRET":
-		return cfg.FEISHU_APP_SECRET
-	case "FEISHU_USER_ID":
-		return cfg.FEISHU_USER_ID
-	case "GOTIFY_URL":
-		return cfg.GOTIFY_URL
-	case "GOTIFY_TOKEN":
-		return cfg.GOTIFY_TOKEN
-	case "IGOT_PUSH_KEY":
-		return cfg.IGOT_PUSH_KEY
-	case "PUSH_KEY":
-		return cfg.PUSH_KEY
-	case "DEER_KEY":
-		return cfg.DEER_KEY
-	case "DEER_URL":
-		return cfg.DEER_URL
-	case "CHAT_URL":
-		return cfg.CHAT_URL
-	case "CHAT_TOKEN":
-		return cfg.CHAT_TOKEN
-	case "PUSH_PLUS_TOKEN":
-		return cfg.PUSH_PLUS_TOKEN
-	case "PUSH_PLUS_USER":
-		return cfg.PUSH_PLUS_USER
-	case "PUSH_PLUS_TEMPLATE":
-		return cfg.PUSH_PLUS_TEMPLATE
-	case "PUSH_PLUS_CHANNEL":
-		return cfg.PUSH_PLUS_CHANNEL
-	case "PUSH_PLUS_WEBHOOK":
-		return cfg.PUSH_PLUS_WEBHOOK
-	case "PUSH_PLUS_CALLBACKURL":
-		return cfg.PUSH_PLUS_CALLBACKURL
-	case "PUSH_PLUS_TO":
-		return cfg.PUSH_PLUS_TO
-	case "WE_PLUS_BOT_TOKEN":
-		return cfg.WE_PLUS_BOT_TOKEN
-	case "WE_PLUS_BOT_RECEIVER":
-		return cfg.WE_PLUS_BOT_RECEIVER
-	case "QMSG_KEY":
-		return cfg.QMSG_KEY
-	case "QMSG_TYPE":
-		return cfg.QMSG_TYPE
-	case "QYWX_ORIGIN":
-		return cfg.QYWX_ORIGIN
-	case "QYWX_AM":
-		return cfg.QYWX_AM
-	case "QYWX_KEY":
-		return cfg.QYWX_KEY
-	case "WECHAT_BOT_ID":
-		return cfg.WECHAT_BOT_ID
-	case "WECHAT_BOT_SECRET":
-		return cfg.WECHAT_BOT_SECRET
-	case "WECHAT_BOT_CHAT_ID":
-		return cfg.WECHAT_BOT_CHAT_ID
-	case "TG_BOT_TOKEN":
-		return cfg.TG_BOT_TOKEN
-	case "TG_USER_ID":
-		return cfg.TG_USER_ID
-	case "TG_API_HOST":
-		return cfg.TG_API_HOST
-	case "AIBOTK_KEY":
-		return cfg.AIBOTK_KEY
-	case "AIBOTK_TYPE":
-		return cfg.AIBOTK_TYPE
-	case "AIBOTK_NAME":
-		return cfg.AIBOTK_NAME
-	case "PUSHME_KEY":
-		return cfg.PUSHME_KEY
-	case "WEBHOOK_URL":
-		return cfg.WEBHOOK_URL
-	case "WEBHOOK_BODY":
-		return cfg.WEBHOOK_BODY
-	case "WEBHOOK_HEADERS":
-		return cfg.WEBHOOK_HEADERS
-	case "WEBHOOK_METHOD":
-		return cfg.WEBHOOK_METHOD
-	case "WEBHOOK_CONTENT_TYPE":
-		return cfg.WEBHOOK_CONTENT_TYPE
-	case "NTFY_URL":
-		return cfg.NTFY_URL
-	case "NTFY_TOPIC":
-		return cfg.NTFY_TOPIC
-	case "NTFY_PRIORITY":
-		return cfg.NTFY_PRIORITY
-	case "NTFY_TOKEN":
-		return cfg.NTFY_TOKEN
-	case "NTFY_USERNAME":
-		return cfg.NTFY_USERNAME
-	case "NTFY_PASSWORD":
-		return cfg.NTFY_PASSWORD
-	case "NTFY_ACTIONS":
-		return cfg.NTFY_ACTIONS
-	case "WXPUSHER_APP_TOKEN":
-		return cfg.WXPUSHER_APP_TOKEN
-	case "WXPUSHER_TOPIC_IDS":
-		return cfg.WXPUSHER_TOPIC_IDS
-	case "WXPUSHER_UIDS":
-		return cfg.WXPUSHER_UIDS
-	case "QQ_APP_ID":
-		return cfg.QQ_APP_ID
-	case "QQ_APP_SECRET":
-		return cfg.QQ_APP_SECRET
-	case "QQ_OPENID":
-		return cfg.QQ_OPENID
-	case "QQ_GROUP_OPENID":
-		return cfg.QQ_GROUP_OPENID
-	case "WECHAT_CLAWBOT_BOT_TOKEN":
-		return cfg.WECHAT_CLAWBOT_BOT_TOKEN
-	case "WECHAT_CLAWBOT_BASE_URL":
-		return cfg.WECHAT_CLAWBOT_BASE_URL
-	case "WECHAT_CLAWBOT_TO_USER":
-		return cfg.WECHAT_CLAWBOT_TO_USER
-	case "WECHAT_CLAWBOT_ACCOUNT_ID":
-		return cfg.WECHAT_CLAWBOT_ACCOUNT_ID
+	if key == "" {
+		return ""
+	}
+	configMu.RLock()
+	defer configMu.RUnlock()
+	return configValueLocked(key)
+}
+
+// configValueLocked 在已持有读锁的前提下按 json tag 取值。
+func configValueLocked(key string) string {
+	cfgVal := reflect.ValueOf(&pushConfig).Elem()
+	cfgType := cfgVal.Type()
+	for i := 0; i < cfgType.NumField(); i++ {
+		field := cfgType.Field(i)
+		tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+		if tagName != key {
+			continue
+		}
+		f := cfgVal.Field(i)
+		switch f.Kind() {
+		case reflect.String:
+			return f.String()
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			// 非字符串字段（如 GOTIFY_PRIORITY）只有非零值才有意义，
+			// 返回 "0" 会让 HasConfig 误判为已配置。
+			if v := f.Int(); v != 0 {
+				return strconv.FormatInt(v, 10)
+			}
+			return ""
+		default:
+			return ""
+		}
 	}
 	return ""
 }
@@ -303,37 +210,68 @@ func HasConfig(keys ...string) bool {
 }
 
 // SetConfig sets a channel configuration value at runtime.
+//
+// 与 GetConfig 一样通过 json tag 定位字段，因此新增渠道字段无需再修改此函数。
+// 兼容旧调用方传入的历史别名（例如 DINGTALK_TOKEN -> DD_BOT_TOKEN）。
 func SetConfig(key, value string) {
-	cfg := &pushConfig
-	switch key {
-	case "BARK_PUSH":
-		cfg.BARK_PUSH = value
-	case "DD_BOT_TOKEN":
-		cfg.DD_BOT_TOKEN = value
-	case "DINGTALK_TOKEN":
-		cfg.DD_BOT_TOKEN = value
-	case "DINGTALK_SECRET":
-		cfg.DD_BOT_SECRET = value
-	case "FSKEY":
-		cfg.FSKEY = value
-	case "FEISHU_APP_ID":
-		cfg.FEISHU_APP_ID = value
-	case "FEISHU_APP_SECRET":
-		cfg.FEISHU_APP_SECRET = value
-	case "QQ_APP_ID":
-		cfg.QQ_APP_ID = value
-	case "QQ_APP_SECRET":
-		cfg.QQ_APP_SECRET = value
-	case "QQ_OPENID":
-		cfg.QQ_OPENID = value
-	case "QQ_GROUP_OPENID":
-		cfg.QQ_GROUP_OPENID = value
-	case "WECHAT_CLAWBOT_BOT_TOKEN":
-		cfg.WECHAT_CLAWBOT_BOT_TOKEN = value
-	case "WECHAT_CLAWBOT_ACCOUNT_ID":
-		cfg.WECHAT_CLAWBOT_ACCOUNT_ID = value
-	default:
-		// Use a generic approach for less common keys
+	configMu.Lock()
+	defer configMu.Unlock()
+	setConfigLocked(key, value)
+}
+
+// configAliases 把历史/前端遗留的 key 归一为 ChannelConfig 的真实 json tag。
+var configAliases = map[string]string{
+	"DINGTALK_TOKEN":      "DD_BOT_TOKEN",
+	"DINGTALK_SECRET":     "DD_BOT_SECRET",
+	"FEISHU_WEBHOOK":      "FSKEY",
+	"FEISHU_SECRET":       "FSSECRET",
+	"SERVERCHAN_KEY":      "PUSH_KEY",
+	"SERVERCHAN_URL":      "TG_API_HOST",
+	"PUSHPLUS_TOKEN":      "PUSH_PLUS_TOKEN",
+	"PUSHPLUS_TOPIC":      "PUSH_PLUS_TO",
+	"PUSHDEER_KEY":        "DEER_KEY",
+	"PUSHDEER_URL":        "DEER_URL",
+	"WECOM_KEY":           "QYWX_KEY",
+	"WECOM_QYDX_AGENT_ID": "QYWX_AM",
+	"WECHAT_BOT_KEY":      "WECHAT_BOT_ID",
+	"QMSG_TYPE":           "QMSG_QQ",
+}
+
+func setConfigLocked(key, value string) {
+	if resolved, ok := configAliases[key]; ok {
+		key = resolved
+	}
+	cfgVal := reflect.ValueOf(&pushConfig).Elem()
+	cfgType := cfgVal.Type()
+	for i := 0; i < cfgType.NumField(); i++ {
+		field := cfgType.Field(i)
+		tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+		if tagName != key {
+			continue
+		}
+		f := cfgVal.Field(i)
+		if !f.CanSet() {
+			return
+		}
+		switch f.Kind() {
+		case reflect.String:
+			f.SetString(value)
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			// 数值字段（如 GOTIFY_PRIORITY）：空值表示未配置，以便 GetConfig
+			// 同样返回空串；否则 HasConfig 会把 0 误判为已配置。
+			if value == "" {
+				f.SetInt(0)
+				return
+			}
+			n, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				slog.Warn("SetConfig received a non-numeric value for an integer field",
+					"key", key, "value", value)
+				return
+			}
+			f.SetInt(n)
+		}
+		return
 	}
 }
 
@@ -342,10 +280,13 @@ func SetConfig(key, value string) {
 // restore it, so a one-off (e.g. test) send never pollutes the config that all
 // channels read.
 func SnapshotConfig() map[string]string {
+	configMu.RLock()
+	defer configMu.RUnlock()
+
 	cfgVal := reflect.ValueOf(&pushConfig).Elem()
 	cfgType := cfgVal.Type()
 	snap := make(map[string]string)
-	for i := range cfgType.NumField() {
+	for i := 0; i < cfgType.NumField(); i++ {
 		field := cfgType.Field(i)
 		jsonTag := field.Tag.Get("json")
 		if jsonTag == "" {
@@ -369,11 +310,15 @@ func RestoreConfig(snapshot map[string]string) {
 	if len(snapshot) == 0 {
 		return
 	}
+
+	configMu.Lock()
+	defer configMu.Unlock()
+
 	cfgVal := reflect.ValueOf(&pushConfig).Elem()
 	cfgType := cfgVal.Type()
 	// First clear all string fields, then re-apply the snapshot values so keys
 	// absent from the snapshot (that were only set temporarily) are removed.
-	for i := range cfgType.NumField() {
+	for i := 0; i < cfgType.NumField(); i++ {
 		field := cfgType.Field(i)
 		if field.Tag.Get("json") == "" {
 			continue
@@ -383,7 +328,12 @@ func RestoreConfig(snapshot map[string]string) {
 			f.SetString("")
 		}
 	}
-	SetConfigs(snapshot)
+	for key, value := range snapshot {
+		if value == "" {
+			continue
+		}
+		setConfigLocked(key, value)
+	}
 }
 
 // SetConfigs bulk-sets channel configuration from a map of key-value pairs.
@@ -395,37 +345,14 @@ func SetConfigs(configs map[string]string) {
 		return
 	}
 
-	cfgVal := reflect.ValueOf(&pushConfig).Elem()
-	cfgType := cfgVal.Type()
+	configMu.Lock()
+	defer configMu.Unlock()
 
 	for key, value := range configs {
 		if value == "" {
 			slog.Debug("SetConfigs skipping empty value", "key", key)
 			continue
 		}
-		found := false
-		for i := range cfgType.NumField() {
-			field := cfgType.Field(i)
-			jsonTag := field.Tag.Get("json")
-			if jsonTag == "" {
-				continue
-			}
-			// JSON tag format: "KEY,omitempty" or "KEY"
-			tagName, _, _ := strings.Cut(jsonTag, ",")
-			if tagName == key {
-				f := cfgVal.Field(i)
-				if f.CanSet() && f.Kind() == reflect.String {
-					f.SetString(value)
-					found = true
-					slog.Debug("SetConfigs set via reflection", "key", key)
-				}
-				break
-			}
-		}
-		if !found {
-			slog.Debug("SetConfigs fallback to SetConfig", "key", key)
-			// Fallback to per-key SetConfig for backward compatibility
-			SetConfig(key, value)
-		}
+		setConfigLocked(key, value)
 	}
 }

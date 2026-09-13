@@ -48,15 +48,9 @@ func (c *DingTalk) Send(text, desp string) notify.NotifyResult {
 		webhookURL += fmt.Sprintf("&timestamp=%d&sign=%s", now, url.QueryEscape(sign))
 	}
 
-	// Truncate title to 64 chars and content to 15000 chars
-	title := text
-	if len(title) > 64 {
-		title = title[:64]
-	}
-	content := desp
-	if len(content) > 15000 {
-		content = content[:15000]
-	}
+	// 按字符截断，避免切碎中文（钉钉限制标题 64 字符、内容 15000 字符）
+	title := notify.TruncateRunes(text, 64)
+	content := notify.TruncateRunes(desp, 15000)
 
 	body := map[string]interface{}{
 		"msgtype": "markdown",
