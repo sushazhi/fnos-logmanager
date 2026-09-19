@@ -17,6 +17,22 @@
           <span class="search-count" v-if="searchQuery">
             {{ filteredLogs.length }} / {{ logs.length }}
           </span>
+          <template v-if="hasAppNames">
+            <button
+              class="collapse-all-btn"
+              type="button"
+              :disabled="isSearching || allCollapsed"
+              :title="isSearching ? '搜索时自动展开全部' : '折叠所有分组'"
+              @click="collapseAll"
+            >全部折叠</button>
+            <button
+              class="collapse-all-btn"
+              type="button"
+              :disabled="isSearching || noneCollapsed"
+              :title="isSearching ? '搜索时已自动展开' : '展开所有分组'"
+              @click="expandAll"
+            >全部展开</button>
+          </template>
         </div>
         <div class="drawer-body">
           <div class="log-list">
@@ -25,9 +41,28 @@
               <span class="size">{{ headerLabels.size }}</span>
               <span class="action-col">操作</span>
             </div>
-            <div 
-              v-for="(log, index) in filteredLogs" 
-              :key="index"
+            <div
+              v-for="group in groupedLogs"
+              :key="group.key"
+              class="log-group"
+            >
+            <button
+              v-if="group.grouped"
+              class="group-header"
+              type="button"
+              :aria-expanded="String(!isCollapsed(group.key))"
+              @click="toggleGroup(group.key)"
+            >
+              <span class="group-caret" :class="{ collapsed: isCollapsed(group.key) }">▾</span>
+              <span class="group-name" :title="group.key">{{ group.label }}</span>
+              <span class="group-meta">
+                {{ group.logs.length }} 个文件 · {{ formatGroupSize(group.totalSize) }}
+              </span>
+            </button>
+            <template v-if="!group.grouped || !isCollapsed(group.key)">
+            <div
+              v-for="(log, index) in group.logs"
+              :key="log.path || `${group.key}-${index}`"
               class="log-item"
             >
               <span class="path" :title="log.path">
@@ -86,6 +121,8 @@
                   删除
                 </button>
               </div>
+            </div>
+            </template>
             </div>
             <div v-if="filteredLogs.length === 0 && logs.length > 0" class="no-results">
               未找到匹配的结果
@@ -156,6 +193,178 @@ const filteredLogs = computed(() => {
     return path.includes(query) || displayP.includes(query) || size.includes(query)
   })
 })
+
+// 分组视图：按应用归并日志文件。
+//
+// 后端 ListLogFiles 已为每条日志算好 appName（extractAppNameFromPath，
+// 即 /vol\d+/@appdata/<app>/... 或 /vol\d+/@appshare/<app>/... 中的 <app>），
+// 但扁平列表从未使用它。这里按它分组，让「某个应用的日志散在十几条路径里」
+// 变得可聚焦、可整组收起。
+//
+// 注意：并非所有调用方都提供 appName —— ListLargeLogFiles（大文件）不填该字段，
+// ListArchiveFiles（归档）用的是另一套 ArchiveFile 结构，Docker 列表同理。
+// 因此这里按数据自适应：只有当结果里确实存在 appName 时才分组，否则保持原来的
+// 扁平渲染，避免给一个孤零零的「未归类」组头。
+const UNGROUPED_KEY = '__ungrouped__'
+
+// 分组折叠状态。
+//
+// 分两层：
+//   defaultCollapsed —— 「全部折叠/全部展开」设定的全局默认，持久化到 localStorage，
+//                       刷新后保持；新出现的应用组也跟随它，不会因为记录里没有
+//                       这个 key 就突然展开。
+//   collapsedGroups  —— 在默认之外被单独切换过的组（即与默认相反的例外）。
+//
+// 最终某组是否收起 = collapsedGroups.has(key) 与 defaultCollapsed 的异或。
+const COLLAPSE_STORAGE_KEY = 'logmanager:logListDefaultCollapsed'
+const EXCEPTIONS_STORAGE_KEY = 'logmanager:logListCollapseExceptions'
+
+function readDefaultCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSE_STORAGE_KEY) === '1'
+  } catch {
+    // localStorage 可能被禁用（隐私模式/策略），此时退化为不持久化。
+    return false
+  }
+}
+
+function writeDefaultCollapsed(value) {
+  try {
+    localStorage.setItem(COLLAPSE_STORAGE_KEY, value ? '1' : '0')
+  } catch {
+    // 忽略：持久化失败不应影响本次交互
+  }
+}
+
+// 例外集合同样持久化：否则「单独收起某个吵闹的应用」在刷新后就会丢失，
+// 而这与「全部折叠」是同一个痛点。
+//
+// 注意：本组件是 <script setup> 而非 <script setup lang="ts">，不能使用类型标注。
+function readExceptions() {
+  try {
+    const raw = localStorage.getItem(EXCEPTIONS_STORAGE_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter(x => typeof x === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+function writeExceptions(keys) {
+  try {
+    localStorage.setItem(EXCEPTIONS_STORAGE_KEY, JSON.stringify([...keys]))
+  } catch {
+    // 忽略
+  }
+}
+
+const defaultCollapsed = ref(readDefaultCollapsed())
+const collapsedGroups = ref(readExceptions())
+
+function groupKeyOf(log) {
+  const name = (log.appName || '').trim()
+  return name === '' ? UNGROUPED_KEY : name
+}
+
+// 是否存在可分组的数据：至少一条日志带非空 appName。
+const hasAppNames = computed(() =>
+  filteredLogs.value.some(log => (log.appName || '').trim() !== '')
+)
+
+const groupedLogs = computed(() => {
+  const rows = filteredLogs.value
+  if (rows.length === 0) return []
+
+  // 无可用的 appName 数据（大文件/归档/Docker）→ 单个匿名组，模板仍走同一条
+  // 渲染路径但不渲染组头。
+  if (props.type === 'docker' || !hasAppNames.value) {
+    return [{ key: '__all__', label: '', logs: rows, totalSize: 0, grouped: false }]
+  }
+
+  const buckets = new Map()
+  for (const log of rows) {
+    const key = groupKeyOf(log)
+    let bucket = buckets.get(key)
+    if (!bucket) {
+      bucket = { key, logs: [], totalSize: 0 }
+      buckets.set(key, bucket)
+    }
+    bucket.logs.push(log)
+    bucket.totalSize += Number(log.size) || 0
+  }
+
+  const groups = [...buckets.values()].map(b => ({
+    ...b,
+    grouped: true,
+    label: b.key === UNGROUPED_KEY ? '未归类' : b.key
+  }))
+
+  // 组内保持 filteredLogs 的原有顺序（后端已按 ModTime 排过），
+  // 组间按文件数降序，让日志最多的应用排在最前面。
+  groups.sort((a, b) => b.logs.length - a.logs.length || a.label.localeCompare(b.label))
+  return groups
+})
+
+// 搜索时无视手动收起状态：命中的结果必须可见，否则用户会以为没搜到。
+const isSearching = computed(() => searchQuery.value.trim().length > 0)
+
+// 某组此刻是否收起 = 默认态与「单独切换过的例外」的异或。
+function isCollapsed(key) {
+  if (isSearching.value) return false
+  const exception = collapsedGroups.value.has(key)
+  return defaultCollapsed.value ? !exception : exception
+}
+
+function toggleGroup(key) {
+  const next = new Set(collapsedGroups.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  collapsedGroups.value = next
+  writeExceptions(next)
+}
+
+// 全部折叠/展开只作用于当前实际渲染的组（groupedLogs），而不是历史上点过的所有
+// key —— 否则搜索换了一批结果后，按钮状态会和眼前看到的列表对不上。
+const groupKeys = computed(() =>
+  groupedLogs.value.filter(g => g.grouped).map(g => g.key)
+)
+
+const allCollapsed = computed(() =>
+  groupKeys.value.length > 0 && groupKeys.value.every(k => isCollapsed(k))
+)
+
+const noneCollapsed = computed(() =>
+  groupKeys.value.every(k => !isCollapsed(k))
+)
+
+// 全部折叠/展开切换的是「默认态」而非具体 key 集合：这样新出现的应用组也会跟随
+// 该状态，且状态能持久化到下次打开。
+function collapseAll() {
+  defaultCollapsed.value = true
+  collapsedGroups.value = new Set()
+  writeDefaultCollapsed(true)
+  writeExceptions(new Set())
+}
+
+function expandAll() {
+  defaultCollapsed.value = false
+  collapsedGroups.value = new Set()
+  writeDefaultCollapsed(false)
+  writeExceptions(new Set())
+}
+
+function formatGroupSize(bytes) {
+  const n = Number(bytes) || 0
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
 
 function highlightText(text, query) {
   if (!query || !text) return text
@@ -442,6 +651,85 @@ function escapeRegex(string) {
   font-size: var(--font-size-md);
 }
 
+/* 全部折叠/展开 */
+.collapse-all-btn {
+  flex-shrink: 0;
+  padding: 4px var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: var(--glass-bg);
+  color: var(--text-color-2);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.collapse-all-btn:hover:not(:disabled) {
+  background: var(--glass-bg-strong);
+  color: var(--text-color-1);
+}
+
+.collapse-all-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 分组视图 */
+.log-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-xl);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--glass-bg);
+  color: var(--text-color-1);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.group-header:hover {
+  background: var(--glass-bg-strong);
+}
+
+.group-caret {
+  flex-shrink: 0;
+  width: 1em;
+  transition: transform var(--transition-fast);
+}
+
+.group-caret.collapsed {
+  transform: rotate(-90deg);
+}
+
+.group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-meta {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-color-3);
+  font-variant-numeric: tabular-nums;
+}
+
 .highlight {
   background: var(--warning-bg);
   color: var(--warning-color);
@@ -542,6 +830,20 @@ function escapeRegex(string) {
 
   .log-item.header {
     display: none;
+  }
+
+  .group-header {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: var(--font-size-base);
+  }
+
+  .group-meta {
+    font-size: var(--font-size-xs);
+  }
+
+  .collapse-all-btn {
+    padding: 4px var(--spacing-xs);
+    font-size: var(--font-size-xs);
   }
 
   .no-results {

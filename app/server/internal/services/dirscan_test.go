@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 )
 
 // scanTestDir 返回一个可用于扫描测试的临时目录。
@@ -94,5 +95,65 @@ func TestScanDirResultMissingDir(t *testing.T) {
 	if len(scan.LogFiles) != 0 || len(scan.ArchiveFiles) != 0 {
 		t.Fatalf("expected empty scan result, got %d logs / %d archives",
 			len(scan.LogFiles), len(scan.ArchiveFiles))
+	}
+}
+
+// TestIgnoredLogDirsCoversObservedPackageCaches 锁定 @appdata 性能修复的跳过名单。
+//
+// PERF(@appdata, 2026-09): 真机实测 /vol1/@appdata 有 77,741 个条目但只有 60 个日志，
+// 其中 deepseek.harness 一个应用贡献 76,160 个（node_modules / pnpm store / npm cache）。
+// 老的名单只认 node_modules 与 .pnpm-store，对实际目录名（pnpm-home、npm-cache、
+// dsh-runtime）完全不匹配，导致整棵树被完整递归。
+func TestIgnoredLogDirsCoversObservedPackageCaches(t *testing.T) {
+	mustIgnore := []string{
+		// 真机实测到的实际目录名
+		"node_modules", "pnpm-home", "pnpm-env", "npm-cache", "dsh-runtime",
+		"_cacache", "pnpm-store", ".pnpm-store", ".npm",
+		// 语言虚拟环境
+		"venv", ".venv", "site-packages", "__pycache__",
+		// 构建 / VCS
+		".git", "dist", ".cache",
+	}
+	for _, name := range mustIgnore {
+		if !isIgnoredLogDir(name) {
+			t.Errorf("isIgnoredLogDir(%q) = false, want true (package cache must be skipped)", name)
+		}
+	}
+}
+
+// TestIgnoredLogDirsKeepsRealLogContainers 保证跳过策略不会误伤真实日志。
+//
+// deepseek.harness 根目录下的 info.log / harness.log 是有价值的日志；
+// dsh-data/profiles 是容器目录，深层存放 .plugin-manager/logs/*/pnpm.log，
+// 因此它们都不能被整体剪掉（真正的大头是其下的 node_modules，由该名单单独剪）。
+func TestIgnoredLogDirsKeepsRealLogContainers(t *testing.T) {
+	mustKeep := []string{
+		"dsh-data", "profiles", "logs", "log", "data", "build", "target",
+	}
+	for _, name := range mustKeep {
+		if isIgnoredLogDir(name) {
+			t.Errorf("isIgnoredLogDir(%q) = true, want false (may contain real logs)", name)
+		}
+	}
+}
+
+// TestDirScanResultMetaForAvoidsRestat 验证遍历阶段缓存的文件元信息可被直接取用。
+func TestDirScanResultMetaForAvoidsRestat(t *testing.T) {
+	scan := &dirScanResult{
+		fileMeta: map[string]dirFileMeta{
+			"/tmp/app.log": {Size: 123, ModTime: time.Unix(1700000000, 0)},
+		},
+	}
+	meta, ok := scan.metaFor("/tmp/app.log")
+	if !ok {
+		t.Fatal("expected cached meta to be found")
+	}
+	if meta.Size != 123 {
+		t.Errorf("size = %d, want 123", meta.Size)
+	}
+
+	// 未缓存且文件不存在时必须返回 false，让调用方跳过而不是塞入零值条目。
+	if _, ok := scan.metaFor("/tmp/definitely-missing-xyz.log"); ok {
+		t.Error("expected ok=false for a missing file")
 	}
 }

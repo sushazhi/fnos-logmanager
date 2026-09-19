@@ -40,9 +40,11 @@ export interface Dir {
 
 export interface LogItem {
   path: string
+  displayPath?: string
   size: number
   sizeFormatted: string
   showActions: boolean
+  appName?: string
   canDelete?: boolean
   isDocker?: boolean
   isArchive?: boolean
@@ -51,8 +53,10 @@ export interface LogItem {
 export interface LogsResponse {
   logs: Array<{
     path: string
+    displayPath?: string
     size: number
     sizeFormatted: string
+    appName?: string
     canDelete?: boolean
   }>
   total: number

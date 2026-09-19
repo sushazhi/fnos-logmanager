@@ -447,9 +447,23 @@ func listLogsHandler(c *gin.Context) {
 		logs = []types.LogFile{}
 	}
 
-	// P2: Convert paths to display paths
-	for i := range logs {
-		logs[i].DisplayPath = convertPathToDisplay(logs[i].Path)
+	// P2: Convert paths to display paths.
+	// 批量转换：逐个调用 convertPathToDisplay 会产生同样次数的 trim API 往返
+	// （limit 上限 500，即最多 500 次跨进程 IPC）。首页 /api/dirs 已在
+	// 291b94f 批量化，这里同样改用一次 ConvertPaths 拿回全部结果。
+	if len(logs) > 0 {
+		paths := make([]string, 0, len(logs))
+		for i := range logs {
+			paths = append(paths, logs[i].Path)
+		}
+		displayPaths := services.GetTrimClient().ConvertPaths(paths, "")
+		for i := range logs {
+			if display, ok := displayPaths[logs[i].Path]; ok && display != "" {
+				logs[i].DisplayPath = display
+			} else {
+				logs[i].DisplayPath = logs[i].Path
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

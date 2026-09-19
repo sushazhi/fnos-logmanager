@@ -89,17 +89,70 @@ func extractAppNameFromPath(logPath string) string {
 // language virtual environments, build artifacts). Recursing into them wastes
 // time and surfaces non-log files (e.g. service-2.json.gz in a venv) as
 // "archive logs". Matched by directory name at any depth.
+//
+// PERF(@appdata, 2026-09): real-machine measurement on fnOS OECT showed
+// /vol1/@appdata holds 77,741 entries but only 60 .log files. A single app
+// (deepseek.harness) contributed 76,160 of them via bundled package caches
+// (node_modules, pnpm store, npm _cacache), making a full walk take 0.76s
+// instead of 0.034s (22.7x). The pre-existing names below did not match the
+// ACTUAL directory names found on disk, so nothing was skipped. Both the
+// canonical and the observed variants are listed here.
 var ignoredLogDirs = map[string]bool{
+	// --- language virtual environments / interpreters ---
 	"venv":          true,
 	".venv":         true,
-	"node_modules":  true,
+	"virtualenv":    true,
 	"site-packages": true,
 	"__pycache__":   true,
+	".pytest_cache": true,
+	".mypy_cache":   true,
+	".ruff_cache":   true,
+	".tox":          true,
+	".conda":        true,
+
+	// --- node / JS package managers ---
+	"node_modules":     true,
+	".pnpm-store":      true,
+	"pnpm-store":       true,
+	".npm":             true,
+	"_cacache":         true,
+	".yarn":            true,
+	".yarn-cache":      true,
+	"bower_components": true,
+	".next":            true,
+	".nuxt":            true,
+	".svelte-kit":      true,
+	".turbo":           true,
+	".parcel-cache":    true,
+	".vite":            true,
+
+	// --- build / VCS artifacts ---
+	// NOTE: "build" and "target" are deliberately NOT listed as ignored — Go
+	// and Rust projects routinely write logs into them, and skipping them
+	// would hide real log files from the list/search/clean paths.
 	".git":          true,
-	".cache":        true,
+	".svn":          true,
+	".hg":           true,
 	"dist":          true,
-	".npm":          true,
-	".pnpm-store":   true,
+	".cache":        true,
+	".gradle":       true,
+	".m2":           true,
+	"__snapshots__": true,
+
+	// --- deepseek.harness / DSH runtime caches observed under @appdata ---
+	// PERF: these names are what actually appear on this NAS; without them the
+	// harness profile walk alone costs ~76k directory entries.
+	//
+	// IMPORTANT: only cache-shaped directories are listed. "dsh-data" and
+	// "profiles" are deliberately NOT ignored wholesale — they are containers
+	// holding genuinely useful logs deep inside (e.g.
+	// dsh-data/profiles/web/.plugin-manager/logs/*/pnpm.log). The real bulk
+	// sits in the node_modules directory nested below them, which the
+	// "node_modules" entry above already prunes.
+	"pnpm-home":   true,
+	"pnpm-env":    true,
+	"npm-cache":   true,
+	"dsh-runtime": true,
 }
 
 // isIgnoredLogDir reports whether a directory name should be skipped during
@@ -298,6 +351,14 @@ func IsAllowedPathForUser(uid, path string) bool {
 }
 
 // ListLogFiles lists log files in the specified directories.
+//
+// PERF(@appdata, 2026-09): previously this walked each directory TWICE (once
+// for logs via findFiles, once for archives) and then os.Stat'ed every hit.
+// On a real NAS /vol1/@appdata holds 77,741 entries for just 60 logs, so that
+// double walk dominated the request. It now reuses ScanDirResult, which walks
+// once, records sizes/mod-times from DirEntry.Info() (no per-file stat), and
+// is TTL-cached + single-flighted, so browsing a directory and the homepage
+// stats share the same traversal.
 func ListLogFiles(dir string, limit int, uid string) ([]types.LogFile, error) {
 	searchDirs := config.Get().LogDirs
 	if dir != "" {
@@ -327,14 +388,23 @@ func ListLogFiles(dir string, limit int, uid string) ([]types.LogFile, error) {
 			continue
 		}
 
-		files, err := findFiles(normalizedDir, isLogFile, limit)
-		if err != nil {
+		scan := ScanDirResult(normalizedDir)
+		if scan == nil {
 			continue
 		}
 
+		// 一次遍历同时拿到日志与归档（归档仅在浏览具体目录时展示）。
+		files := scan.LogFiles
+		if dir != "" {
+			files = make([]string, 0, len(scan.LogFiles)+len(scan.ArchiveFiles))
+			files = append(files, scan.LogFiles...)
+			files = append(files, scan.ArchiveFiles...)
+		}
+
 		for _, file := range files {
-			info, err := os.Stat(file)
-			if err != nil {
+			meta, ok := scan.metaFor(file)
+			if !ok {
+				// 文件在遍历后消失（TOCTOU），跳过而不是报错。
 				continue
 			}
 
@@ -346,37 +416,13 @@ func ListLogFiles(dir string, limit int, uid string) ([]types.LogFile, error) {
 
 			results = append(results, types.LogFile{
 				Path:          file,
-				Size:          info.Size(),
-				SizeFormatted: utils.FormatBytes(info.Size()),
-				Modified:      info.ModTime(),
+				Size:          meta.Size,
+				SizeFormatted: utils.FormatBytes(meta.Size),
+				Modified:      meta.ModTime,
 				AppName:       &appName,
 				CanDelete:     canDelete,
+				IsArchive:     isArchiveFile(file),
 			})
-		}
-
-		// When browsing a specific directory, also include archive files
-		// so backup .tar.gz files and compressed logs appear in the listing.
-		if dir != "" {
-			archiveFiles, err := findFiles(normalizedDir, isArchiveFile, limit)
-			if err == nil {
-				for _, file := range archiveFiles {
-					info, err := os.Stat(file)
-					if err != nil {
-						continue
-					}
-
-					appName := extractAppNameFromPath(file)
-
-					results = append(results, types.LogFile{
-						Path:          file,
-						Size:          info.Size(),
-						SizeFormatted: utils.FormatBytes(info.Size()),
-						Modified:      info.ModTime(),
-						AppName:       &appName,
-						IsArchive:     true,
-					})
-				}
-			}
 		}
 	}
 

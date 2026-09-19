@@ -34,6 +34,13 @@
   - 关键词/正则搜索高亮
   - Web Worker 后台搜索，不阻塞 UI
 
+- **日志分组视图**
+  - 按应用自动归并日志，解决同一应用日志散落在多个路径的问题
+  - 组头显示文件名数与占用大小，便于判断哪个应用占用最多
+  - 支持单组折叠 / 展开，以及「全部折叠 / 全部展开」
+  - 折叠状态自动记忆，刷新后保持（含单独折叠的组）
+  - 搜索时自动展开命中分组，避免结果被折叠隐藏
+
 - **实时追踪** 
   - 类似 tail -f 的实时日志追踪
   - 原生 WebSocket 实时推送（统一网关模式）
@@ -148,6 +155,10 @@
   - 内存缓存机制
   - 请求去重和重试
   - 代码分割优化加载
+  - 日志目录单次遍历 + TTL 缓存 + single-flight，首页与列表共享同一次扫描
+  - 跳过三方应用自带的依赖缓存目录（node_modules / pnpm store / npm _cacache 等），
+    避免为找出少量日志而遍历数万条目
+  - 展示路径批量转换，避免逐个文件跨进程调用 trim API
 
 ## 支持的通知渠道
 
@@ -200,6 +211,7 @@
 | 导出日志 | 点击"导出"按钮，选择 TXT/JSON/CSV 格式 |
 | 书签收藏 | 点击"书签"按钮收藏常用日志，书签栏快速访问 |
 | 搜索日志 | 支持关键词和正则模式搜索，自动高亮匹配 |
+| 日志分组 | 文件列表按应用分组，可折叠/展开，状态自动记忆 |
 | 删除日志 | 已卸载应用的日志会显示删除按钮 |
 | 清空日志 | 查看日志时可点击"清空"按钮 |
 | 查看归档 | 点击"归档日志"查看压缩的日志文件 |
@@ -330,33 +342,37 @@ MCP_APP_NAME=fnos-logmanager  # 可选，展示给 Agent 的名称
 
 ### 构建步骤
 
-跨平台 Go 构建器（`build/`，独立 module、仅用标准库），Windows/Linux/macOS 通用，无需 Python。可用 `go run` 直接运行，也可编译为单一二进制复用：
+跨平台 Go 构建器（`build/`，独立 module、仅用标准库），Windows/Linux/macOS 通用，无需 Python。
+
+> ⚠️ **先编译再运行**：构建器位于独立 module（`build/go.mod`），根目录没有 `go.mod`，
+> 因此**不能**在根目录直接 `go run ./build` —— Go 1.27 会报
+> `cannot find main module`。请按下面的方式先编译为二进制再执行：
 
 ```bash
-# 直接运行（使用 manifest 中的版本号）
-go run ./build
-
-# 指定版本号（推荐方式，无需修改 version.json / manifest）
-# 构建时构建器会把版本号写入打包副本的 manifest，根目录文件保持原样
-go run ./build -version 0.8.0
-
-# 或编译为二进制后复用
+# 1) 编译构建器（只需一次，后续可复用）
 cd build && go build -o ../.local-build/buildtool .
-./.local-build/buildtool -version 0.8.0
+
+# 2) 指定版本号构建（推荐：版本号只走 -version，不改动版本文件）
+cd .. && ./.local-build/buildtool -version 0.8.1.4
+
+# 省略 -version 则使用 manifest 中的版本号
+./.local-build/buildtool
 
 # 跳过 Vue 构建（仅重新编译 Go 服务 + 打包）
-go run ./build -skip-vue
+./.local-build/buildtool -skip-vue
 
 # 强制重新下载所有依赖
-go run ./build -force
+./.local-build/buildtool -force
 
 # 强制全量构建（忽略所有缓存）
-go run ./build -clean
+./.local-build/buildtool -clean
 ```
+
+Windows 下二进制为 `.local-build\buildtool.exe`，调用时替换路径分隔符即可。
 
 参数：`-version`/`-v`、`-force`/`-f`、`-skip-vue`、`-clean`。
 
-> **关于版本号**：`-version` 只影响产物文件名（`logmanager-<version>.fpk`）和包内 `manifest` 的版本字段，**不会修改**项目根目录的 `version.json` / `manifest`。因此构建指定版本时直接加 `-version` 即可，无需手动编辑这两个文件。
+> **关于版本号**：`-version` 只影响产物文件名（`logmanager-<version>.fpk`）和包内 `manifest` 的版本字段，**不会修改**项目根目录的 `version.json` / `manifest`。因此构建指定版本时直接加 `-version` 即可，**不要**手动编辑这两个文件。
 
 或使用 GitHub Actions（基于 tag 自动构建发布）：
 
@@ -390,6 +406,7 @@ git push --tags
 │       ├── src/
 │       │   ├── components/
 │       │   │   ├── LogModal.vue     # 日志查看（多标签+深色终端+追踪+导出+搜索）
+│       │   │   ├── LogListCard.vue  # 日志列表抽屉（按应用分组+折叠展开+状态记忆+搜索）
 │       │   │   ├── BookmarkBar.vue  # 书签栏
 │       │   │   ├── AutoCleanPanel.vue # 自动清理面板
 │       │   │   ├── NotificationPanel.vue # 通知面板（QQ轮询openID）
@@ -481,4 +498,6 @@ git push --tags
 
 ## 许可证
 
-MIT License
+本项目以 MIT License 发布，详见 [LICENSE](LICENSE)。
+
+第三方依赖（Go / npm）的许可证与版权声明见 [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md)。

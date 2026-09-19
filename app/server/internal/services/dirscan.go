@@ -40,6 +40,35 @@ type dirScanResult struct {
 	LogSize       int64
 	ArchiveSize   int64
 	LargeLogFiles int
+
+	// fileMeta 保存遍历时顺带取得的文件元信息（大小与修改时间），
+	// 让 ListLogFiles 无需再对每个命中文件做一次 os.Stat。
+	// 键为文件绝对路径。
+	fileMeta map[string]dirFileMeta
+}
+
+// dirFileMeta 是遍历时缓存下来的单个文件元信息。
+type dirFileMeta struct {
+	Size    int64
+	ModTime time.Time
+}
+
+// metaFor 返回已缓存的文件元信息；miss 时回退到一次 os.Stat。
+//
+// 正常情况下元信息在遍历阶段就已填充（省掉每个文件一次 stat 系统调用），
+// 回退分支仅用于极端情况（TOCTOU：遍历后被替换/删除的文件）。
+func (r *dirScanResult) metaFor(path string) (dirFileMeta, bool) {
+	if r == nil {
+		return dirFileMeta{}, false
+	}
+	if meta, ok := r.fileMeta[path]; ok {
+		return meta, true
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return dirFileMeta{}, false
+	}
+	return dirFileMeta{Size: info.Size(), ModTime: info.ModTime()}, true
 }
 
 type dirScanCacheEntry struct {
@@ -151,9 +180,15 @@ func walkDirForLogs(normalizedDir string) *dirScanResult {
 		}
 
 		size := int64(0)
+		var modTime time.Time
 		if fileInfo, infoErr := d.Info(); infoErr == nil {
 			size = fileInfo.Size()
+			modTime = fileInfo.ModTime()
 		}
+		if result.fileMeta == nil {
+			result.fileMeta = make(map[string]dirFileMeta)
+		}
+		result.fileMeta[path] = dirFileMeta{Size: size, ModTime: modTime}
 		if isLog {
 			result.LogFiles = append(result.LogFiles, path)
 			result.LogSize += size
