@@ -420,6 +420,11 @@ onMounted(() => {
   width: 90%;
   position: relative;
   overflow: hidden;
+  /* 内容（尤其是扫描结果）可能远超视口高度：限高后由 .modal-body 内部滚动，
+     保证页脚的"关闭"按钮在任何窗口尺寸下都可见可点 */
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-content::before {
@@ -448,6 +453,9 @@ onMounted(() => {
   position: relative;
   z-index: 3;
   margin-top: var(--spacing-lg);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .modal-desc {
@@ -856,6 +864,7 @@ onMounted(() => {
   display: flex;
   gap: var(--spacing-sm);
   justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 .modal-footer button {
@@ -884,6 +893,7 @@ onMounted(() => {
     padding: var(--spacing-xl) var(--spacing-md);
     max-width: 100%;
     width: 95%;
+    max-height: 90vh;
     border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md);
   }
 

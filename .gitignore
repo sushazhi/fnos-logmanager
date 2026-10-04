@@ -3,6 +3,7 @@
 dist/
 *.fpk
 *.exe
+*.tsbuildinfo
 
 # Dependencies
 node_modules/

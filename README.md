@@ -372,7 +372,7 @@ Windows 下二进制为 `.local-build\buildtool.exe`，调用时替换路径分�
 
 参数：`-version`/`-v`、`-force`/`-f`、`-skip-vue`、`-clean`。
 
-> **关于版本号**：`-version` 只影响产物文件名（`logmanager-<version>.fpk`）和包内 `manifest` 的版本字段，**不会修改**项目根目录的 `version.json` / `manifest`。因此构建指定版本时直接加 `-version` 即可，**不要**手动编辑这两个文件。
+> **关于版本号**：`-version` 只影响产物文件名（`logmanager-<version>.fpk`）和包内 `manifest` 的版本字段，**不会修改**项目根目录的 `manifest`。正式发版请先手动更新根 `manifest` 的版本 —— CI 用它决定发布版本，应用内更新检查的兜底路径也读它；`-version` 只适合临时本地构建。
 
 或使用 GitHub Actions（基于 tag 自动构建发布）：
 
@@ -435,7 +435,6 @@ git push --tags
 ├── config/                         # 配置文件
 ├── wizard/                         # 安装向导
 ├── manifest                        # 应用清单
-├── version.json                    # 版本信息
 ├── build/                          # Go 跨平台构建器（独立 module）
 │   ├── go.mod
 │   └── main.go

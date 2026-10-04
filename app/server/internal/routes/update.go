@@ -29,18 +29,20 @@ import (
 )
 
 const (
-	githubRepo  = "sushazhi/fnos-logmanager"
-	githubAPI   = "https://api.github.com"
-	rawProxyURL = "https://ghfast.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/version.json"
+	githubRepo = "sushazhi/fnos-logmanager"
+	githubAPI  = "https://api.github.com"
+	// rawManifestURL 是版本检查的最后兜底：读仓库 manifest 的 version 字段，
+	// 它是发布时读取的权威版本，无需再维护一份副本。
+	rawManifestURL = "https://gh.dpik.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest"
 )
 
-// apiProxyURL 是支持转发 api.github.com 的镜像前缀（实测 ghfast.top 对 API 返回 403，勿用）。
-const apiProxyURL = "https://gh-proxy.com/"
+// apiProxyURL 是支持转发 api.github.com 的镜像前缀（实测 gh.dpik.top 对 API 返回 403 限流，勿用）。
+const apiProxyURL = "https://gh-proxy.org/"
 
 // mirrorProxies 是文件下载镜像前缀，按顺序尝试（直连失败后使用）。
 var mirrorProxies = []string{
-	"https://gh-proxy.com/",
-	"https://ghfast.top/",
+	"https://gh.dpik.top/",
+	"https://gh-proxy.org/",
 }
 
 var allowedGitHubHosts = []string{
@@ -48,7 +50,10 @@ var allowedGitHubHosts = []string{
 	"api.github.com",
 	"raw.githubusercontent.com",
 	"objects.githubusercontent.com",
-	"ghfast.top",
+	"gh.dpik.top",
+	"gh-proxy.org",
+	// gh-proxy.org 会 302 跳到 gh-proxy.com；下载客户端每次重定向都要重新过白名单，
+	// 这里必须保留 gh-proxy.com，否则该镜像的跳转链会在校验处被拦下。
 	"gh-proxy.com",
 }
 
@@ -114,10 +119,6 @@ type gitHubAssetAPI struct {
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
 	Size               *int64 `json:"size,omitempty"`
-}
-
-type versionJSON struct {
-	Version string `json:"version"`
 }
 
 func updateCheckHandler(c *gin.Context) {
@@ -191,7 +192,7 @@ type configAsset struct {
 }
 
 // fetchReleaseInfo 获取带完整 assets 的 release 信息（安装用）：直连优先，镜像次之。
-// version.json 兜底不含 assets，不在此使用。
+// manifest 兜底只含版本号、不含 assets，不在此使用。
 func fetchReleaseInfo() (*releaseInfo, error) {
 	release, directErr := fetchFromGitHubAPI(githubAPI)
 	if directErr == nil {
@@ -206,7 +207,7 @@ func fetchReleaseInfo() (*releaseInfo, error) {
 	return nil, fmt.Errorf("直连和镜像均不可用: %v / %v", directErr, proxyErr)
 }
 
-// fetchLatestRelease 用于版本检查：直连优先，镜像次之，version.json 最后兜底。
+// fetchLatestRelease 用于版本检查：直连优先，镜像次之，读仓库 manifest 最后兜底。
 func fetchLatestRelease() (*releaseInfo, bool, error) {
 	// Try GitHub API first
 	release, err := fetchFromGitHubAPI(githubAPI)
@@ -222,8 +223,8 @@ func fetchLatestRelease() (*releaseInfo, bool, error) {
 		return proxyRelease, true, nil
 	}
 
-	// Last resort: version.json via ghfast.top (version only)
-	proxyVer, verErr := fetchFromProxy()
+	// Last resort: 经 gh.dpik.top 读仓库 manifest（仅版本号，不含 assets）
+	proxyVer, verErr := fetchVersionFromManifest()
 	if verErr != nil {
 		return nil, false, fmt.Errorf("直连与代理均不可用: %v / %v / %v", err, proxyErr, verErr)
 	}
@@ -279,8 +280,8 @@ func fetchFromGitHubAPI(baseURL string) (*releaseInfo, error) {
 	}, nil
 }
 
-func fetchFromProxy() (*releaseInfo, error) {
-	if !isHTTPSURL(rawProxyURL) || !isAllowedHost(rawProxyURL) {
+func fetchVersionFromManifest() (*releaseInfo, error) {
+	if !isHTTPSURL(rawManifestURL) || !isAllowedHost(rawManifestURL) {
 		return nil, fmt.Errorf("版本检查代理链接不安全")
 	}
 
@@ -288,7 +289,7 @@ func fetchFromProxy() (*releaseInfo, error) {
 		Timeout: 15 * time.Second,
 	}
 
-	resp, err := client.Get(rawProxyURL)
+	resp, err := client.Get(rawManifestURL)
 	if err != nil {
 		return nil, err
 	}
@@ -298,18 +299,31 @@ func fetchFromProxy() (*releaseInfo, error) {
 		return nil, fmt.Errorf("代理返回 %d", resp.StatusCode)
 	}
 
-	var vj versionJSON
-	if err := json.NewDecoder(resp.Body).Decode(&vj); err != nil {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil {
 		return nil, err
 	}
 
-	if vj.Version == "" {
-		return nil, fmt.Errorf("version.json 格式无效")
+	version := parseManifestVersion(string(body))
+	if version == "" {
+		return nil, fmt.Errorf("manifest 未包含 version")
 	}
 
 	return &releaseInfo{
-		Version: vj.Version,
+		Version: version,
 	}, nil
+}
+
+// parseManifestVersion 从 manifest 的 key=value 行中取出 version。
+func parseManifestVersion(content string) string {
+	for _, line := range strings.Split(content, "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || strings.TrimSpace(key) != "version" {
+			continue
+		}
+		return strings.TrimSpace(value)
+	}
+	return ""
 }
 
 // ---------- Install Handler ----------

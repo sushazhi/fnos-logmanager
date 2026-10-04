@@ -237,7 +237,7 @@ func loadConfig() *Config {
 			MaxDownloadBytes:  getEnvInt64("UPDATE_MAX_DOWNLOAD_BYTES", 200*1024*1024),
 			MaxAssetBytes:     getEnvInt64("UPDATE_MAX_ASSET_BYTES", 500*1024*1024),
 			MaxRedirects:      getEnvInt("UPDATE_MAX_REDIRECTS", 3),
-			AllowedHosts:      []string{"github.com", "api.github.com", "objects.githubusercontent.com", "ghfast.top"},
+			AllowedHosts:      []string{"github.com", "api.github.com", "raw.githubusercontent.com", "objects.githubusercontent.com", "gh.dpik.top", "gh-proxy.org", "gh-proxy.com"},
 			AllowedUpdateDirs: []string{
 				"/vol1/@appshare",
 				"/vol2/@appshare",
