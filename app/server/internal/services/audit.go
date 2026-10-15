@@ -41,6 +41,7 @@ var actionNames = map[string]string{
 	"log_export":                          "日志导出",
 	"dirs_clean_empty":                    "清理空目录",
 	"dirs_clean_uninstalled_trash":        "清理已卸载应用残留目录",
+	"space_clean":                         "系统空间清理",
 	"dirs_clean_uninstalled_restore":      "还原已卸载应用残留目录",
 	"bookmark_add":                        "添加书签",
 	"bookmark_delete":                     "删除书签",

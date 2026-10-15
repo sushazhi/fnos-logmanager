@@ -78,6 +78,7 @@
             <span class="col-status">状态</span>
             <span class="col-boot">引导文件</span>
             <span class="col-modules">模块</span>
+            <span class="col-image">设备树</span>
             <span class="col-total">总计</span>
             <span class="col-action">操作</span>
           </div>
@@ -99,6 +100,9 @@
               </span>
               <span class="col-boot">{{ v.bootSizeFormatted }}</span>
               <span class="col-modules">{{ v.modulesSizeFormatted }}</span>
+              <span class="col-image" :title="v.hasImage ? '/usr/lib/linux-image-' + v.version : '无设备树目录'">
+                {{ v.hasImage ? v.imageSizeFormatted : '—' }}
+              </span>
               <span class="col-total">{{ v.totalSizeFormatted }}</span>
               <span class="col-action">
                 <button
@@ -118,6 +122,24 @@
               未检测到已安装的内核版本
             </div>
           </div>
+
+          <!--
+            内核删除只删文件、不经包管理器，因此会留下 dpkg 空壳记录。
+            这段提示存在的意义就是把那部分残留显式化：否则用户会以为"删干净了"。
+            只在确实查到记录时显示；dpkg 无法查询时（字段缺失）不显示，
+            避免谎称"没有残留"。
+          -->
+          <div v-if="dpkgResidue.length" class="dpkg-residue">
+            <div class="dpkg-residue-title">
+              检测到 {{ dpkgResidue.length }} 个内核仍有 dpkg 包记录
+            </div>
+            <p class="dpkg-residue-desc">
+              本功能只删除文件，<strong>不会改动 dpkg 包数据库</strong>。
+              这些内核的文件可能已不存在，但包记录仍留在系统中（半安装态）。
+              如需彻底移除，请在设备上执行：
+            </p>
+            <pre class="dpkg-residue-cmd">{{ dpkgResidueCommands.join('\n') }}</pre>
+          </div>
         </template>
       </div>
     </div>
@@ -125,8 +147,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { kernelApi, type KernelVersion } from '../services/api'
+import { collectDpkgResidue, dpkgPurgeCommands } from '../utils/kernelResidue'
 
 const emit = defineEmits<{
   close: []
@@ -144,6 +167,17 @@ const stats = reactive({
   unusedCount: 0,
   unusedSizeFormatted: '0 B',
 })
+
+/**
+ * 所有仍被 dpkg 记录着的内核包名（去重）。
+ *
+ * 只统计 dpkgPackages 存在（即查询成功）的项：字段为 undefined 表示无法查询
+ * dpkg，此时不能断言"没有残留"。判定逻辑见 utils/kernelResidue.ts。
+ */
+const dpkgResidue = computed(() => collectDpkgResidue(versions.value))
+
+/** 可直接粘贴的 apt purge 命令。 */
+const dpkgResidueCommands = computed(() => dpkgPurgeCommands(dpkgResidue.value))
 
 async function loadVersions() {
   loading.value = true
@@ -184,6 +218,10 @@ async function cleanupUnused() {
     if (data.errors && data.errors.length > 0) {
       errorMessage.value = '部分内核删除失败: ' + data.errors.join('; ')
     }
+    // 后端明确回报 dpkg 记录未清理时，把这件事说出来，而不是只报"已删除"。
+    if (data.dpkgHint) {
+      cleanResult.value = (cleanResult.value ? cleanResult.value + '。' : '') + data.dpkgHint
+    }
     await loadVersions()
   } catch (e: any) {
     errorMessage.value = e?.message || '清理失败'
@@ -201,10 +239,13 @@ async function removeVersion(version: string) {
     versions.value = data.versions || versions.value.filter(v => v.version !== version)
     stats.total = versions.value.length
     stats.unusedCount = versions.value.filter(v => !v.isCurrent).length
-    stats.unusedSizeFormatted = versions.value
-      .filter(v => !v.isCurrent)
-      .reduce((sum, v) => sum + v.totalSize, 0)
-      .toLocaleString() + ' B'
+    // 用后端算好的格式化字符串重算，无法重算时退回刷新结果。
+    // 注意：不能对原始字节数直接 toLocaleString()，那会显示成 "1,234,567 B"。
+    await loadVersions()
+    // 删除成功但 dpkg 记录仍在 —— 这是本功能的已知边界，必须告知。
+    if (data.dpkgHint) {
+      cleanResult.value = data.dpkgHint
+    }
   } catch (e: any) {
     errorMessage.value = e?.message || `删除内核 ${version} 失败`
   } finally {
@@ -466,7 +507,7 @@ onMounted(() => {
 
 .version-list-header {
   display: grid;
-  grid-template-columns: 2fr 0.8fr 0.7fr 0.7fr 0.7fr 0.8fr;
+  grid-template-columns: 2fr 0.8fr 0.7fr 0.7fr 0.7fr 0.7fr 0.8fr;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: var(--font-size-xs);
@@ -486,7 +527,7 @@ onMounted(() => {
 
 .version-item {
   display: grid;
-  grid-template-columns: 2fr 0.8fr 0.7fr 0.7fr 0.7fr 0.8fr;
+  grid-template-columns: 2fr 0.8fr 0.7fr 0.7fr 0.7fr 0.7fr 0.8fr;
   gap: var(--spacing-sm);
   align-items: center;
   padding: var(--spacing-sm) var(--spacing-md);
@@ -538,10 +579,50 @@ onMounted(() => {
 
 .col-boot,
 .col-modules,
+.col-image,
 .col-total {
   font-size: var(--font-size-sm);
   color: var(--text-color-2);
   font-family: var(--font-mono);
+}
+
+/* dpkg 残留提示：本功能只删文件、不动包数据库，这块残留必须显式告知。
+   用 warning 色调而非 error —— 它不是故障，是已知边界。 */
+.dpkg-residue {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--warning-color, #d08700);
+  border-left: 3px solid var(--warning-color, #d08700);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--warning-color, #d08700) 8%, transparent);
+}
+
+.dpkg-residue-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--warning-color, #d08700);
+  margin-bottom: var(--spacing-xs);
+}
+
+.dpkg-residue-desc {
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  color: var(--text-color-2);
+  line-height: 1.6;
+}
+
+.dpkg-residue-cmd {
+  margin: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-color-1);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-color-1);
+  overflow-x: auto;
+  white-space: pre;
+  user-select: all;
 }
 
 .remove-btn {
@@ -729,6 +810,22 @@ onMounted(() => {
 
   .col-modules::before {
     content: '模块:';
+    color: var(--text-color-3);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    min-width: 36px;
+  }
+
+  /* 设备树列必须有自己的标签，否则会沿用「模块:」而被误读 */
+  .col-image {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .col-image::before {
+    content: '设备树:';
     color: var(--text-color-3);
     font-size: var(--font-size-xs);
     white-space: nowrap;

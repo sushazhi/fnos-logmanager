@@ -61,6 +61,7 @@
       @show-auto-clean="showAutoClean = true"
       @show-kernel-modules="showKernelModules = true"
       @show-processes="showProcesses = true"
+      @show-space-clean="showSpaceClean = true"
     />
     
     <AppFooter />
@@ -157,6 +158,11 @@
       @close="showProcesses = false"
     />
     
+    <SpaceCleanPanel
+      v-if="showSpaceClean"
+      @close="showSpaceClean = false"
+    />
+    
     <ConfirmDialog ref="confirmDialog" />
   </div>
 </template>
@@ -188,6 +194,7 @@ import NotificationPanel from './components/NotificationPanel.vue'
 import EventLoggerPanel from './components/EventLoggerPanel.vue'
 import AutoCleanPanel from './components/AutoCleanPanel.vue'
 import KernelModulePanel from './components/KernelModulePanel.vue'
+import SpaceCleanPanel from './components/SpaceCleanPanel.vue'
 import ProcessPanel from './components/ProcessPanel.vue'
 
 const {
@@ -247,6 +254,7 @@ const showNotification = ref(false)
 const showEventLogger = ref(false)
 const showAutoClean = ref(false)
 const showKernelModules = ref(false)
+const showSpaceClean = ref(false)
 const showProcesses = ref(false)
 const showBackupManage = ref(false)
 const loadingAllLines = ref(false)

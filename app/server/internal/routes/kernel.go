@@ -26,10 +26,24 @@ type kernelVersion struct {
 	ModulesSizeFormatted string `json:"modulesSizeFormatted"`
 	SrcSize              int64  `json:"srcSize"`
 	SrcSizeFormatted     string `json:"srcSizeFormatted"`
-	TotalSize            int64  `json:"totalSize"`
-	TotalSizeFormatted   string `json:"totalSizeFormatted"`
-	HasModules           bool   `json:"hasModules"`
-	HasSrc               bool   `json:"hasSrc"`
+	// ImageSize is the /usr/lib/linux-image-<version> device-tree tree.
+	ImageSize          int64  `json:"imageSize"`
+	ImageSizeFormatted string `json:"imageSizeFormatted"`
+	TotalSize          int64  `json:"totalSize"`
+	TotalSizeFormatted string `json:"totalSizeFormatted"`
+	HasModules         bool   `json:"hasModules"`
+	HasSrc             bool   `json:"hasSrc"`
+	HasImage           bool   `json:"hasImage"`
+	// DpkgPackages lists the dpkg packages that still carry this kernel, so the
+	// user can finish the job with an explicit apt purge. Removal here deletes
+	// FILES only and never touches the package database, so a kernel removed by
+	// this feature leaves a "half-installed" dpkg record behind; surfacing it is
+	// the point, since the residue is otherwise silent.
+	//
+	// Absent means dpkg could not be queried — the frontend must not render
+	// "no records" in that case. An empty (non-nil) array means dpkg answered
+	// and there genuinely are none.
+	DpkgPackages []string `json:"dpkgPackages"`
 }
 
 // RegisterKernelRoutes registers kernel-related routes under the given router group.
@@ -93,6 +107,7 @@ func kernelVersionCleanupHandler(c *gin.Context) {
 	removed := 0
 	freedSize := int64(0)
 	var errors []string
+	var dpkgLeftovers []string
 
 	for _, v := range installed {
 		if v.IsCurrent {
@@ -104,6 +119,11 @@ func kernelVersionCleanupHandler(c *gin.Context) {
 		}
 		freedSize += v.TotalSize
 		removed++
+		// Files are gone but dpkg records are deliberately untouched; tell the
+		// caller exactly how to finish, instead of leaving a silent residue.
+		if hint := aptPurgeHint(v.Version, v.DpkgPackages); hint != "" {
+			dpkgLeftovers = append(dpkgLeftovers, hint)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -112,6 +132,8 @@ func kernelVersionCleanupHandler(c *gin.Context) {
 		"freedSize":          freedSize,
 		"freedSizeFormatted": formatBytes(freedSize),
 		"errors":             errors,
+		"dpkgLeftovers":      dpkgLeftovers,
+		"dpkgHint":           dpkgResidueHint(dpkgLeftovers),
 	})
 }
 
@@ -158,10 +180,30 @@ func kernelVersionRemoveHandler(c *gin.Context) {
 
 	// Re-read to return updated state
 	installed, _ = getInstalledKernels(currentKernel)
+
+	// Report any dpkg records still carrying this kernel (files are gone, the
+	// package database is untouched by design).
+	var pkgs []string
+	for _, v := range installed {
+		if v.Version == version {
+			pkgs = v.DpkgPackages
+			break
+		}
+	}
+	if pkgs == nil {
+		pkgs = dpkgKernelPackagesFn(version)
+	}
+	var hintParts []string
+	if h := aptPurgeHint(version, pkgs); h != "" {
+		hintParts = append(hintParts, h)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"success":  true,
-		"message":  fmt.Sprintf("内核 %s 已删除", version),
-		"versions": installed,
+		"success":       true,
+		"message":       fmt.Sprintf("内核 %s 已删除", version),
+		"versions":      installed,
+		"dpkgLeftovers": pkgs,
+		"dpkgHint":      dpkgResidueHint(hintParts),
 	})
 }
 
@@ -236,6 +278,25 @@ func getInstalledKernels(currentKernel string) ([]kernelVersion, error) {
 		}
 	}
 
+	// Scan /usr/lib/ for per-kernel device-tree (DTB) directories:
+	//   /usr/lib/linux-image-6.18.18.c1090-trim
+	//
+	// This location must be scanned or an orphaned DTB directory left behind by
+	// an earlier removal stays invisible forever: once the kernel's /boot files
+	// and /lib/modules entry are gone, nothing else references the version, so
+	// it would never appear in this list and never be offered for cleanup.
+	libEntries, err := os.ReadDir(kernelImageDirRoot)
+	if err == nil {
+		for _, entry := range libEntries {
+			if !entry.IsDir() {
+				continue
+			}
+			if ver, ok := kernelImageVersion(entry.Name()); ok {
+				versionSet[ver] = true
+			}
+		}
+	}
+
 	if len(versionSet) == 0 {
 		return nil, fmt.Errorf("未发现已安装的内核")
 	}
@@ -260,7 +321,12 @@ func getInstalledKernels(currentKernel string) ([]kernelVersion, error) {
 		// Calculate /usr/src/ header size
 		srcSize := calcSrcSize(ver)
 		hasSrc := srcSize > 0
-		totalSize := bootSize + modulesSize + srcSize
+
+		// Calculate /usr/lib/linux-image-<ver>/ device-tree size
+		imageSize := calcImageSize(ver)
+		hasImage := imageSize > 0
+
+		totalSize := bootSize + modulesSize + srcSize + imageSize
 
 		versions = append(versions, kernelVersion{
 			Version:              ver,
@@ -271,10 +337,14 @@ func getInstalledKernels(currentKernel string) ([]kernelVersion, error) {
 			ModulesSizeFormatted: formatBytes(modulesSize),
 			SrcSize:              srcSize,
 			SrcSizeFormatted:     formatBytes(srcSize),
+			ImageSize:            imageSize,
+			ImageSizeFormatted:   formatBytes(imageSize),
 			TotalSize:            totalSize,
 			TotalSizeFormatted:   formatBytes(totalSize),
 			HasModules:           hasModules,
 			HasSrc:               hasSrc,
+			HasImage:             hasImage,
+			DpkgPackages:         dpkgKernelPackagesFn(ver),
 		})
 	}
 
@@ -337,6 +407,24 @@ func calcSrcSize(version string) int64 {
 	return total
 }
 
+// calcImageSize calculates the size of the per-kernel device-tree directory
+// under /usr/lib, e.g. /usr/lib/linux-image-6.18.18.c1090-trim.
+//
+// This path is the Debian arm64 kernel packaging convention and was reported by
+// an on-device audit of this fnOS machine; it could not be re-verified from the
+// development machine, because trim-cli only accepts /vol{v}/... paths and
+// rejects /usr entirely. The code therefore treats it as "optional extra": if
+// the directory is absent, the size is 0 and behaviour is exactly what it was
+// before this location was considered. A wrong path degrades to the old
+// behaviour; it cannot delete or misreport anything.
+func calcImageSize(version string) int64 {
+	path := filepath.Join(kernelImageDirRoot, kernelImageDirPrefix+version)
+	if fi, err := os.Lstat(path); err != nil || !fi.IsDir() {
+		return 0
+	}
+	return calcDirSize(path)
+}
+
 // calcDirSize recursively calculates the total size of a directory.
 func calcDirSize(path string) int64 {
 	var total int64
@@ -352,8 +440,124 @@ func calcDirSize(path string) int64 {
 	return total
 }
 
+// kernelImageDirPrefix is the prefix of the per-kernel device-tree (DTB)
+// directory shipped by the Debian kernel packaging on arm64:
+//
+//	/usr/lib/linux-image-6.18.18.c1090-trim/
+//
+// It is NOT under /boot, /lib/modules or /usr/src, which are the only three
+// locations getInstalledKernels historically scanned. On a real fnOS device
+// that let two orphaned DTB directories survive a manual kernel removal
+// (36 MB total) while being invisible to this feature's own listing — so the
+// cleanup reported success and the residue became a permanent blind spot.
+const kernelImageDirPrefix = "linux-image-"
+
+// kernelImageDirRoot is the directory holding per-kernel DTB trees.
+const kernelImageDirRoot = "/usr/lib"
+
+// kernelImageVersion extracts the kernel version from a
+// "/usr/lib/linux-image-<version>" directory name. ok is false when name is
+// not such a directory or the version part is not a valid kernel version.
+//
+// Kept pure (no filesystem access) so the naming rule is unit-testable on any
+// platform; kernel handling itself is Linux-only and would otherwise go
+// untested on the development machine.
+func kernelImageVersion(name string) (version string, ok bool) {
+	if !strings.HasPrefix(name, kernelImageDirPrefix) {
+		return "", false
+	}
+	version = strings.TrimPrefix(name, kernelImageDirPrefix)
+	if !isValidKernelVersion(version) {
+		return "", false
+	}
+	return version, true
+}
+
+// dpkgResidueHint renders the human-facing explanation for leftover dpkg
+// records. Returns "" when there is nothing to say.
+func dpkgResidueHint(hints []string) string {
+	if len(hints) == 0 {
+		return ""
+	}
+	return "文件已删除，但 dpkg 包记录仍在（此功能只删文件、不经包管理器）。" +
+		"如需彻底移除，请在设备上执行：" + strings.Join(hints, " ; ")
+}
+
 // kernelVersionPattern allows alphanumeric, dots, hyphens, underscores only.
 var kernelVersionPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+// dpkgKernelPackagesImpl asks dpkg which kernel packages are still recorded as
+// installed for the given kernel version. It returns nil when dpkg cannot be
+// queried (not installed, no permission, non-zero exit) so callers can
+// distinguish "no records" from "unknown" — the same nil-vs-empty contract
+// used by listOpenPaths in the space-cleanup scanner.
+func dpkgKernelPackagesImpl(version string) []string {
+	// -W = show, -f = format. Query the two package families the Debian kernel
+	// packaging uses for a specific version.
+	out, err := runDpkgQuery(
+		"linux-image-"+version,
+		"linux-headers-"+version,
+		"linux-modules-trim-"+version,
+		"linux-image-"+version+"-trim",
+		"linux-headers-"+version+"-trim",
+	)
+	if err != nil {
+		return nil
+	}
+	var pkgs []string
+	for _, name := range out {
+		if name != "" {
+			pkgs = append(pkgs, name)
+		}
+	}
+	if len(pkgs) == 0 {
+		// Empty (not nil): dpkg answered and there are genuinely no records.
+		return []string{}
+	}
+	return pkgs
+}
+
+// runDpkgQuery returns the subset of candidate package names that dpkg reports
+// as installed. Returns an error when dpkg itself could not be run.
+//
+// Candidates are passed as argv (never through a shell) so a version string can
+// never turn into shell syntax.
+func runDpkgQuery(candidates ...string) ([]string, error) {
+	if _, err := exec.LookPath("dpkg-query"); err != nil {
+		return nil, err
+	}
+	var found []string
+	for _, name := range candidates {
+		cmd := exec.Command("dpkg-query", "-W", "-f", "${Status}", name)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			// Not installed at all is a normal, expected outcome.
+			continue
+		}
+		// Status looks like "install ok installed" or "install ok half-installed".
+		if strings.Contains(stdout.String(), "installed") {
+			found = append(found, name)
+		}
+	}
+	return found, nil
+}
+
+// dpkgKernelPackagesFn is an injection seam around dpkgKernelPackagesImpl:
+// kernel handling is Linux-only and dpkg is absent on the development machine,
+// so tests substitute it to exercise the reporting logic on any platform.
+var dpkgKernelPackagesFn = dpkgKernelPackagesImpl
+
+// aptPurgeHint builds the exact command a user can run to finish the job this
+// feature deliberately does not do: removing the dpkg records and any package
+// files left behind. Returns "" when there are no records to purge.
+func aptPurgeHint(version string, pkgs []string) string {
+	if len(pkgs) == 0 {
+		return ""
+	}
+	return "apt purge -y " + strings.Join(pkgs, " ")
+}
 
 // isValidKernelVersion reports whether version is safe to use in filesystem
 // operations: it must be a single path component (no separators, not "."/"..")
@@ -421,6 +625,20 @@ func removeKernelVersion(version string) error {
 					errs = append(errs, fmt.Sprintf("删除 %s 失败: %s", srcPath, err.Error()))
 				}
 			}
+		}
+	}
+
+	// Remove /usr/lib/linux-image-<version>/ device-tree directory.
+	//
+	// Omitting this is what left 36 MB orphaned on a real fnOS device: the
+	// kernel's boot files and modules were gone but this tree survived, and it
+	// was invisible to getInstalledKernels so nothing ever offered it again.
+	//
+	// Guarded by Lstat + IsDir, so a non-existent path is a silent no-op.
+	imagePath := filepath.Join(kernelImageDirRoot, kernelImageDirPrefix+version)
+	if fi, err := os.Lstat(imagePath); err == nil && fi.IsDir() {
+		if err := os.RemoveAll(imagePath); err != nil {
+			errs = append(errs, fmt.Sprintf("删除 %s 失败: %s", imagePath, err.Error()))
 		}
 	}
 

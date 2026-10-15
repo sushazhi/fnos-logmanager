@@ -109,6 +109,9 @@ func SetupRouter(uiDir string) *gin.Engine {
 		// Kernel module routes
 		RegisterKernelRoutes(api)
 
+		// System space analysis & cleanup routes
+		RegisterSpaceCleanRoutes(api)
+
 		// Utility routes (P2: path conversion via fnOS trim API)
 		utils := api.Group("/utils")
 		RegisterUtilRoutes(utils)

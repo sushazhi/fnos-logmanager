@@ -452,9 +452,24 @@ export interface KernelVersion {
   bootSizeFormatted: string
   modulesSize: number
   modulesSizeFormatted: string
+  srcSize: number
+  srcSizeFormatted: string
+  /** /usr/lib/linux-image-<version> 设备树目录占用 */
+  imageSize: number
+  imageSizeFormatted: string
   totalSize: number
   totalSizeFormatted: string
   hasModules: boolean
+  hasSrc: boolean
+  hasImage: boolean
+  /**
+   * 仍记录着该内核的 dpkg 包名。本功能只删文件、不经包管理器，因此删除后会留下
+   * dpkg 空壳记录（半安装态）。
+   *
+   * undefined 表示无法查询 dpkg（例如非 Debian 系）——此时**不得**显示"无残留"；
+   * 空数组表示已查询且确实没有记录。
+   */
+  dpkgPackages?: string[]
 }
 
 export interface KernelVersionsResponse {
@@ -475,12 +490,18 @@ export interface KernelCleanupResponse {
   freedSize: number
   freedSizeFormatted: string
   errors: string[]
+  /** 每个被删内核对应的 apt purge 命令 */
+  dpkgLeftovers?: string[]
+  /** 面向用户的残留说明，无残留时为空 */
+  dpkgHint?: string
 }
 
 export interface KernelRemoveResponse {
   success: boolean
   message: string
   versions?: KernelVersion[]
+  dpkgLeftovers?: string[]
+  dpkgHint?: string
 }
 
 export const kernelApi = {
@@ -576,6 +597,110 @@ export const processApi = {
     if (tail) search.set('tail', 'true')
     return api.get<ProcessLogResult>(`/api/processes/${pid}/log?${search.toString()}`)
   }
+}
+
+// ==================== 系统空间清理 API ====================
+
+export interface SpaceItem {
+  path: string
+  displayPath?: string
+  name: string
+  size: number
+  sizeFormatted: string
+  isDir: boolean
+  fileCount: number
+  reason: string
+  safe: boolean
+  /** 该条目仍在使用中（例如所属应用正在运行），本轮不提供删除 */
+  inUse: boolean
+  strategy: string // delete | recycle | truncate | none
+  modified: string
+}
+
+export interface SpaceCategory {
+  id: string
+  name: string
+  description: string
+  risk: 'low' | 'medium' | 'high'
+  icon: string
+  itemCount: number
+  totalSize: number
+  totalSizeFormatted: string
+  reclaimable: number
+  reclaimableFormatted: string
+  items: SpaceItem[]
+}
+
+export interface SpaceNotice {
+  name: string
+  path: string
+  size: number
+  sizeFormatted: string
+  reason: string
+  truncated: boolean
+}
+
+export interface VolumeUsage {
+  mount: string
+  total: number
+  used: number
+  free: number
+  usedPercent: number
+  totalFormatted: string
+  usedFormatted: string
+  freeFormatted: string
+}
+
+export interface SpaceUsageResponse {
+  scannedAt: string
+  durationMs: number
+  volumes: VolumeUsage[]
+  categories: SpaceCategory[]
+  notices: SpaceNotice[]
+  reclaimable: number
+  reclaimableFormatted: string
+  categoriesWithItems: number
+  /**
+   * /tmp、/var/tmp 是否与系统分区同处一个文件系统。
+   * undefined = 服务端无法判定，此时不要显示任何断言（/tmp 可能是 tmpfs）。
+   */
+  tempOnSystemDisk?: boolean
+  errors?: string[]
+  error?: string
+}
+
+export interface SpaceCleanItemResult {
+  path: string
+  status: string // deleted | recycled | truncated | skipped | failed
+  freedBytes: number
+  message?: string
+}
+
+export interface SpaceCleanResponse {
+  freed: number
+  freedFormatted: string
+  deleted: number
+  recycled: number
+  truncated: number
+  failed: number
+  dryRun: boolean
+  items: SpaceCleanItemResult[]
+  errors?: string[]
+}
+
+export const spaceApi = {
+  /**
+   * 扫描系统空间占用。`refresh=true` 强制重扫（绕过服务端 TTL 缓存）。
+   */
+  getUsage: (refresh = false) =>
+    api.get<SpaceUsageResponse>(`/api/space/usage${refresh ? '?refresh=true' : ''}`),
+
+  /**
+   * 清理选中的条目。
+   * 路径会被服务端重新按规则表校验，规则外的路径一律跳过。
+   */
+  clean: (paths: string[], dryRun = false) =>
+    api.post<SpaceCleanResponse>('/api/space/clean', { paths, dryRun })
 }
 
 // ==================== MCP 服务器 API ====================

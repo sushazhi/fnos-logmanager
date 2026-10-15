@@ -50,3 +50,7 @@ pnpm-lock.yaml
 
 # Local verification scratch data
 .local-testdata/
+
+# Go build temp dir (kept inside the workspace but outside .local-build,
+# because fnpack walks the whole .local-build tree)
+.gotmp/
