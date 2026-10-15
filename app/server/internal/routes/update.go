@@ -31,18 +31,22 @@ import (
 const (
 	githubRepo = "sushazhi/fnos-logmanager"
 	githubAPI  = "https://api.github.com"
-	// rawManifestURL 是版本检查的最后兜底：读仓库 manifest 的 version 字段，
-	// 它是发布时读取的权威版本，无需再维护一份副本。
-	rawManifestURL = "https://gh.dpik.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest"
 )
 
+// rawManifestURLs 是版本检查的最后兜底：读仓库 manifest 的 version 字段，
+// 它是发布时读取的权威版本，无需再维护一份副本。按顺序尝试各镜像。
+var rawManifestURLs = []string{
+	"https://gh.dpik.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
+	"https://v4.gh-proxy.org/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
+}
+
 // apiProxyURL 是支持转发 api.github.com 的镜像前缀（实测 gh.dpik.top 对 API 返回 403 限流，勿用）。
-const apiProxyURL = "https://gh-proxy.org/"
+const apiProxyURL = "https://v4.gh-proxy.org/"
 
 // mirrorProxies 是文件下载镜像前缀，按顺序尝试（直连失败后使用）。
 var mirrorProxies = []string{
 	"https://gh.dpik.top/",
-	"https://gh-proxy.org/",
+	"https://v4.gh-proxy.org/",
 }
 
 var allowedGitHubHosts = []string{
@@ -50,11 +54,9 @@ var allowedGitHubHosts = []string{
 	"api.github.com",
 	"raw.githubusercontent.com",
 	"objects.githubusercontent.com",
+	// 两个镜像均直接回源，不再有跨域跳转，故只需放行镜像自身的域名。
 	"gh.dpik.top",
-	"gh-proxy.org",
-	// gh-proxy.org 会 302 跳到 gh-proxy.com；下载客户端每次重定向都要重新过白名单，
-	// 这里必须保留 gh-proxy.com，否则该镜像的跳转链会在校验处被拦下。
-	"gh-proxy.com",
+	"v4.gh-proxy.org",
 }
 
 type updateState struct {
@@ -223,7 +225,7 @@ func fetchLatestRelease() (*releaseInfo, bool, error) {
 		return proxyRelease, true, nil
 	}
 
-	// Last resort: 经 gh.dpik.top 读仓库 manifest（仅版本号，不含 assets）
+	// Last resort: 经镜像读仓库 manifest（仅版本号，不含 assets）
 	proxyVer, verErr := fetchVersionFromManifest()
 	if verErr != nil {
 		return nil, false, fmt.Errorf("直连与代理均不可用: %v / %v / %v", err, proxyErr, verErr)
@@ -281,37 +283,50 @@ func fetchFromGitHubAPI(baseURL string) (*releaseInfo, error) {
 }
 
 func fetchVersionFromManifest() (*releaseInfo, error) {
-	if !isHTTPSURL(rawManifestURL) || !isAllowedHost(rawManifestURL) {
-		return nil, fmt.Errorf("版本检查代理链接不安全")
-	}
+	var lastErr error
+	for _, rawURL := range rawManifestURLs {
+		if !isHTTPSURL(rawURL) || !isAllowedHost(rawURL) {
+			return nil, fmt.Errorf("版本检查代理链接不安全")
+		}
 
-	client := &http.Client{
-		Timeout: 15 * time.Second,
-	}
+		client := &http.Client{
+			Timeout: 15 * time.Second,
+		}
 
-	resp, err := client.Get(rawManifestURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		resp, err := client.Get(rawURL)
+		if err != nil {
+			lastErr = err
+			slog.Warn("manifest 兜底失败，尝试下一个镜像", "url", rawURL, "error", err)
+			continue
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("代理返回 %d", resp.StatusCode)
-	}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			lastErr = fmt.Errorf("代理返回 %d", resp.StatusCode)
+			slog.Warn("manifest 兜底失败，尝试下一个镜像", "url", rawURL, "error", lastErr)
+			continue
+		}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-	if err != nil {
-		return nil, err
-	}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		resp.Body.Close()
+		if err != nil {
+			lastErr = err
+			slog.Warn("manifest 兜底失败，尝试下一个镜像", "url", rawURL, "error", err)
+			continue
+		}
 
-	version := parseManifestVersion(string(body))
-	if version == "" {
-		return nil, fmt.Errorf("manifest 未包含 version")
-	}
+		version := parseManifestVersion(string(body))
+		if version == "" {
+			lastErr = fmt.Errorf("manifest 未包含 version")
+			slog.Warn("manifest 兜底失败，尝试下一个镜像", "url", rawURL, "error", lastErr)
+			continue
+		}
 
-	return &releaseInfo{
-		Version: version,
-	}, nil
+		return &releaseInfo{
+			Version: version,
+		}, nil
+	}
+	return nil, lastErr
 }
 
 // parseManifestVersion 从 manifest 的 key=value 行中取出 version。

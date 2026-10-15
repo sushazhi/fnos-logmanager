@@ -237,7 +237,8 @@ func loadConfig() *Config {
 			MaxDownloadBytes:  getEnvInt64("UPDATE_MAX_DOWNLOAD_BYTES", 200*1024*1024),
 			MaxAssetBytes:     getEnvInt64("UPDATE_MAX_ASSET_BYTES", 500*1024*1024),
 			MaxRedirects:      getEnvInt("UPDATE_MAX_REDIRECTS", 3),
-			AllowedHosts:      []string{"github.com", "api.github.com", "raw.githubusercontent.com", "objects.githubusercontent.com", "gh.dpik.top", "gh-proxy.org", "gh-proxy.com"},
+			// 更新下载/校验文件只允许直连 GitHub 与两个镜像（镜像直接回源，无跨域跳转）。
+			AllowedHosts: []string{"github.com", "api.github.com", "raw.githubusercontent.com", "objects.githubusercontent.com", "gh.dpik.top", "v4.gh-proxy.org"},
 			AllowedUpdateDirs: []string{
 				"/vol1/@appshare",
 				"/vol2/@appshare",
