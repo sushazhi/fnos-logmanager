@@ -80,6 +80,13 @@ func main() {
 		slog.Error("回收站清理服务初始化失败", "error", err)
 	}
 
+	// Initialize the space-scan snapshot cache. It restores the last scan from disk so
+	// opening the System Space Cleanup panel after a restart/upgrade does not block on a
+	// full multi-second scan. Failure is non-fatal: the panel just scans synchronously.
+	if err := services.InitSpaceScanCache(cfg.DataDir); err != nil {
+		slog.Warn("空间扫描缓存初始化失败（非致命）", "error", err)
+	}
+
 	// Initialize event logger (always try — handles upgrades where DB exists but config wasn't persisted)
 	if err := services.InitEventLogger(cfg.EventLogger.DBPath); err != nil {
 		slog.Warn("事件日志服务初始化失败（非致命）", "error", err)
@@ -135,6 +142,13 @@ func main() {
 	// Start recycle-bin auto-purge scheduler (retention is user-configurable)
 	if err := services.StartRecycleCleaner(); err != nil {
 		slog.Warn("回收站自动清空调度启动失败", "error", err)
+	}
+
+	// Start the periodic space-scan refresher: it warms the snapshot shortly after boot
+	// and re-scans in the background when the snapshot goes stale, so the panel always
+	// has something to show immediately.
+	if err := services.StartSpaceScanRefresher(); err != nil {
+		slog.Warn("空间扫描后台刷新启动失败", "error", err)
 	}
 
 	// Create HTTP server.
@@ -198,6 +212,7 @@ func main() {
 	// Stop services
 	_ = services.StopAutoClean()
 	_ = services.StopRecycleCleaner()
+	_ = services.StopSpaceScanRefresher()
 	_ = services.StopMonitor()
 	services.CloseLogStreamWS()
 	services.CloseDockerStreamWS()

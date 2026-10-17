@@ -28,11 +28,17 @@ func spaceUsageHandler(c *gin.Context) {
 	result, err := services.ScanSpaceUsage(force)
 	if err != nil {
 		slog.Warn("space usage scan failed", "error", err)
+		// 错误路径也要带上时效字段：前端的"正在后台更新"提示与轮询逻辑依赖它们，
+		// 缺失会变成 undefined，判断行为因响应形态而异。
 		c.JSON(http.StatusOK, gin.H{
-			"categories": []services.SpaceCategory{},
-			"notices":    []services.SpaceNotice{},
-			"volumes":    []services.VolumeUsage{},
-			"error":      err.Error(),
+			"categories":      []services.SpaceCategory{},
+			"notices":         []services.SpaceNotice{},
+			"volumes":         []services.VolumeUsage{},
+			"cacheAgeMs":      int64(0),
+			"cacheAgeSeconds": int64(0),
+			"stale":           false,
+			"refreshing":      false,
+			"error":           err.Error(),
 		})
 		return
 	}

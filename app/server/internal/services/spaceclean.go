@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -87,8 +88,14 @@ type SpaceNotice struct {
 }
 
 // VolumeUsage 是单个存储卷的使用情况，用于前端可视化容量条。
+//
+// Mount 保留原始挂载路径（前端 :key 与清理规则都要用它），Kind/Label 是给用户看的
+// 飞牛语义名。两者分开是因为 /vol1 这类内部路径不该直接出现在界面上，而前端又拿不到
+// 「这个路径是系统空间、存储空间还是外接存储」这一判定——只有服务端能看挂载表。
 type VolumeUsage struct {
 	Mount          string  `json:"mount"`
+	Kind           string  `json:"kind"`
+	Label          string  `json:"label"`
 	Total          int64   `json:"total"`
 	Used           int64   `json:"used"`
 	Free           int64   `json:"free"`
@@ -112,6 +119,20 @@ type SpaceUsageResult struct {
 	// nil 表示无法判定——此时前端不能显示"/tmp 位于系统分区"这类断言。
 	TempOnSystemDisk *bool    `json:"tempOnSystemDisk,omitempty"`
 	Errors           []string `json:"errors,omitempty"`
+
+	// 以下三个字段描述「这份数据有多新」，由缓存层（spaceclean_cache.go）填写。
+	//
+	// 有了它们前端才能区分「刚扫出来的数据」和「几分钟前的快照」，并在后台重扫
+	// 进行中时给出提示、轮询收敛，而不是让用户对着旧数字猜。
+	//
+	// CacheAgeMs 与 CacheAgeSeconds 都由服务端按 now-ScannedAt 计算：客户端时钟
+	// 与服务端不一致时，用本地时间算差值会得出「来自未来」或「几小时前」的错数据。
+	CacheAgeMs      int64 `json:"cacheAgeMs"`
+	CacheAgeSeconds int64 `json:"cacheAgeSeconds"`
+	// Stale 表示数据已超过新鲜期，后台正在或即将重扫。
+	Stale bool `json:"stale"`
+	// Refreshing 表示此刻确实有一次重扫在飞，前端据此轮询直到它为 false。
+	Refreshing bool `json:"refreshing"`
 }
 
 // SpaceCleanItemResult 是单条目的清理结果。
@@ -405,16 +426,6 @@ var spaceNoticePatterns = []struct {
 // 扫描
 // ---------------------------------------------------------------------------
 
-var (
-	spaceScanMu     sync.Mutex
-	spaceScanCache  *SpaceUsageResult
-	spaceScanCached time.Time
-)
-
-// spaceScanCacheTTL 是扫描结果缓存时长。扫描涉及大量 stat，面板内多次刷新
-// 不应重复全量遍历；清理操作会主动失效缓存。
-const spaceScanCacheTTL = 30 * time.Second
-
 // spaceScanWorkers 是分类间并行扫描的并发上限。
 const spaceScanWorkers = 4
 
@@ -424,27 +435,103 @@ const spaceScanEntryCap = 400000
 // spaceNoticeEntryCap 是提示项体积统计的遍历上限（提示项数量多，取更保守的上限）。
 const spaceNoticeEntryCap = 20000
 
-// InvalidateSpaceScanCache 清空空间扫描缓存。任何清理操作之后都应调用。
-func InvalidateSpaceScanCache() {
-	spaceScanMu.Lock()
-	spaceScanCache = nil
-	spaceScanMu.Unlock()
+// spaceVolumes 返回宿主机上的存储卷根目录（/volN）。
+//
+// 只有真实挂载点才算存储卷。仅凭目录名匹配 /vol\d+/ 是不够的：真机实测
+// /vol00（外接存储的容器目录）和 /vol02（残留的普通目录）都存在且能通过
+// os.ReadDir，但它们与根文件系统同处一个文件系统，既不是独立分区，容量数字还与
+// 系统空间完全重复——用户看到的正是「多出来几行 /vol00、/vol02」。
+//
+// /vol00 另外单独排除：它是外接存储的容器，即便被挂载也不该作为清理规则的扫描根
+// （把 thumb/、@appdata/ 这类规则套到外接盘上，误删风险与外接盘同名目录无关）。
+func spaceVolumes(oracle mountOracle) []string {
+	return spaceVolumesIn("/", oracle)
 }
 
-// spaceVolumes 返回宿主机上的存储卷根目录（/volN）。
-func spaceVolumes() []string {
-	entries, err := os.ReadDir("/")
+// spaceVolumesIn 从 root 下挑出存储空间根目录。
+//
+// root 与 oracle 都可替换，只为测试服务：真机上不存在 /volN 的开发机（Windows）
+// 也要能验证「/vol00、/vol02 这类普通目录不会被当成存储卷」这条过滤规则。
+func spaceVolumesIn(root string, oracle mountOracle) []string {
+	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil
 	}
 	var vols []string
 	for _, e := range entries {
-		if e.IsDir() && volRe.MatchString("/"+e.Name()+"/") {
-			vols = append(vols, "/"+e.Name())
+		if !e.IsDir() || !isStorageVolumeName(e.Name()) {
+			continue
 		}
+		p := path.Join(root, e.Name())
+		if !oracle.acceptMount(p) {
+			continue
+		}
+		vols = append(vols, p)
 	}
 	sort.Strings(vols)
 	return vols
+}
+
+// externalMounts 返回真实存在的外接存储挂载点（/vol00/<挂载名>）。
+//
+// 真机实测外接盘挂在 /vol00/WDC WD10SDRW-34A0XS0（1 TB），而 /vol00 自身只是普通
+// 目录。挂载名由用户与磁盘决定，可能含空格，因此不做任何名字过滤，只认挂载点身份。
+func externalMounts(oracle mountOracle) []string {
+	return mountsUnder(oracle, externalContainerMount)
+}
+
+// mountsUnder 返回 dir 下所有「真实挂载」的子目录。
+func mountsUnder(oracle mountOracle, dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var mounts []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		p := path.Join(dir, e.Name())
+		if !oracle.acceptMount(p) {
+			continue
+		}
+		mounts = append(mounts, p)
+	}
+	sort.Strings(mounts)
+	return mounts
+}
+
+// spaceDiskMounts 组装「磁盘与分区使用情况」要展示的挂载点列表。
+//
+// 顺序固定为：系统空间 → 存储空间。系统空间排第一是因为真机上最紧张的恰恰是它
+// （约 2.4 GiB 可用），而用户最容易忽略。
+//
+// 外接存储不在其中：清理规则本来就不扫外接盘，把外接盘塞进这一屏既给不出可清理项，
+// 又让「系统空间清理」看起来像是覆盖了所有磁盘。外接盘的空间状况属于飞牛存储管理。
+func spaceDiskMounts(vols, externals []string) []string {
+	mounts := make([]string, 0, len(vols)+len(externals)+1)
+	mounts = append(mounts, systemDiskMount)
+	for _, v := range vols {
+		if !containsString(mounts, v) {
+			mounts = append(mounts, v)
+		}
+	}
+	for _, e := range externals {
+		// 防御：调用方若误把外接盘传进 vols，同样不能显示。
+		if classifyIsExternal(e) {
+			continue
+		}
+		if !containsString(mounts, e) {
+			mounts = append(mounts, e)
+		}
+	}
+	return mounts
+}
+
+// classifyIsExternal 报告挂载点是否属于外接存储（/vol00/<挂载名>）。
+func classifyIsExternal(mount string) bool {
+	kind, _, ok := classifyMount(mount)
+	return ok && kind == volumeKindExternal
 }
 
 // globSegment 判断单个路径段是否匹配带 `*` 的模式（`*` 匹配任意子串）。
@@ -833,20 +920,37 @@ func scanSpaceNotices(vols []string) []SpaceNotice {
 	return notices
 }
 
-// scanVolumeUsage 读取存储卷容量，用于前端容量条可视化。
+// volumeUsageOf 是 diskUsageOf 的注入点，只为测试服务：Windows 上 statfs 不可用
+// （diskUsageOf 恒返回 0，容量行会被整体跳过），注入后才能在本地断言容量行的字段。
+var volumeUsageOf = diskUsageOf
+
+// scanVolumeUsage 读取挂载点容量，用于前端容量条可视化。
 //
-// 除 /volN 外，还额外纳入系统分区（systemDiskMount）：真机上最紧张的恰恰是它
-// （6.76 GiB，可用约 2.46 GiB），而 /tmp、/var/tmp 都落在其上。若只显示存储卷，
-// 用户会看到 /vol1 还剩 185 GiB，完全意识不到系统分区已经快满。
-func scanVolumeUsage(vols []string) []VolumeUsage {
-	mounts := append([]string{}, vols...)
-	if !containsString(mounts, systemDiskMount) {
-		mounts = append(mounts, systemDiskMount)
+// mounts 由 spaceDiskMounts 组装，已经只含真实挂载点（系统空间、存储空间N）。除 /volN
+// 外还纳入系统分区（systemDiskMount）：真机上最紧张的恰恰是它（6.76 GiB，可用约
+// 2.46 GiB），而 /tmp、/var/tmp 都落在其上。若只显示存储卷，用户会看到 /vol1 还剩
+// 185 GiB，完全意识不到系统分区已经快满。
+//
+// 外接存储（/vol00/<挂载名>）一律剔除：「系统空间清理」不扫外接盘，显示它只会让人
+// 以为这里能管到外接盘的空间。
+func scanVolumeUsage(mounts []string) []VolumeUsage {
+	list := append([]string{}, mounts...)
+	if !containsString(list, systemDiskMount) {
+		list = append(list, systemDiskMount)
 	}
 	var out []VolumeUsage
-	for _, v := range mounts {
-		total, free, avail, err := diskUsageOf(v)
+	for _, v := range list {
+		if classifyIsExternal(v) {
+			continue
+		}
+		total, free, avail, err := volumeUsageOf(v)
 		if err != nil || total == 0 {
+			continue
+		}
+		// ok=false 只可能是 /vol00 容器本身或它下面的多级路径：这些不是独立分区，
+		// 宁可少一行也不能把容器目录当成磁盘展示。
+		kind, label, kindOk := classifyMount(v)
+		if !kindOk {
 			continue
 		}
 		used := int64(total - free)
@@ -856,6 +960,8 @@ func scanVolumeUsage(vols []string) []VolumeUsage {
 		}
 		out = append(out, VolumeUsage{
 			Mount:          v,
+			Kind:           kind,
+			Label:          label,
 			Total:          int64(total),
 			Used:           used,
 			Free:           int64(avail),
@@ -878,20 +984,15 @@ func containsString(list []string, s string) bool {
 	return false
 }
 
-// ScanSpaceUsage 扫描系统空间占用，返回分类、提示与容量信息。
+// scanSpaceUsageUncached 真正遍历磁盘，产出一份全新的扫描结果。
 //
-// 结果按 TTL 缓存；清理操作会失效缓存。
-func ScanSpaceUsage(force bool) (SpaceUsageResult, error) {
-	spaceScanMu.Lock()
-	if !force && spaceScanCache != nil && time.Since(spaceScanCached) < spaceScanCacheTTL {
-		cached := *spaceScanCache
-		spaceScanMu.Unlock()
-		return cached, nil
-	}
-	spaceScanMu.Unlock()
-
+// 它只负责「扫」：缓存、持久化、单飞与过期判定都在 spaceclean_cache.go 里，
+// 由 ScanSpaceUsage 统一编排。这样分开是为了让缓存策略能在开发机上完整测试
+// ——真机之外没有 /volN，走不到这里。
+func scanSpaceUsageUncached() (SpaceUsageResult, error) {
 	start := time.Now()
-	vols := spaceVolumes()
+	oracle := newMountOracle()
+	vols := spaceVolumes(oracle)
 	if len(vols) == 0 {
 		return SpaceUsageResult{}, fmt.Errorf("未检测到存储卷（/volN）")
 	}
@@ -900,7 +1001,8 @@ func ScanSpaceUsage(force bool) (SpaceUsageResult, error) {
 	notices := scanSpaceNotices(vols)
 	// 系统分区产出的提示（包管理器类 + B 档功能组件）并入同一列表。
 	notices = append(notices, sysNotices...)
-	volumes := scanVolumeUsage(vols)
+	// 展示用的挂载点只含系统空间与存储空间N：外接存储不参与清理，也不在这里展示。
+	volumes := scanVolumeUsage(spaceDiskMounts(vols, nil))
 
 	result := SpaceUsageResult{
 		ScannedAt:  time.Now(),
@@ -914,18 +1016,8 @@ func ScanSpaceUsage(force bool) (SpaceUsageResult, error) {
 	if same, known := systemTempOnSystemDisk(); known {
 		result.TempOnSystemDisk = &same
 	}
-	for _, c := range categories {
-		result.Reclaimable += c.Reclaimable
-		if c.ItemCount > 0 {
-			result.CategoriesWithItems++
-		}
-	}
-	result.ReclaimableText = utils.FormatBytes(result.Reclaimable)
-
-	spaceScanMu.Lock()
-	spaceScanCache = &result
-	spaceScanCached = time.Now()
-	spaceScanMu.Unlock()
+	// 汇总口径与「清理后就地剔除条目」共用同一个函数，避免两处算法漂移。
+	recomputeSpaceTotals(&result)
 
 	slog.Debug("space scan done",
 		"volumes", len(volumes),
@@ -1257,7 +1349,12 @@ func CleanSpaceItems(paths []string, dryRun bool, uid string) SpaceCleanResult {
 	}
 
 	result.FreedFormatted = utils.FormatBytes(result.Freed)
-	InvalidateSpaceScanCache()
+	// 清理之后不能整块丢弃快照：那样用户再打开面板又要等一次全量扫描。
+	// 只把这次真正删掉的条目从快照里剔除并标记待刷新，面板仍能立刻显示数据，
+	// 剩余体积由随后的后台重扫校正。试运行没有改动磁盘，快照继续有效。
+	if !dryRun {
+		pruneSpaceSnapshotAfterClean(result.Items)
+	}
 	InvalidateDirScanCache()
 	return result
 }

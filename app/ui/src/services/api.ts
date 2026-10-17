@@ -641,7 +641,12 @@ export interface SpaceNotice {
 }
 
 export interface VolumeUsage {
+  /** 原始挂载路径（如 /vol1）。保留它是因为清理规则与列表 key 都基于真实路径。 */
   mount: string
+  /** 磁盘类别：system=系统空间，storage=存储空间N，external=外接存储（面板里不展示）。 */
+  kind?: string
+  /** 飞牛语义名（系统空间 / 存储空间1），服务端给出，前端直接显示。 */
+  label?: string
   total: number
   used: number
   free: number
@@ -653,6 +658,10 @@ export interface VolumeUsage {
 
 export interface SpaceUsageResponse {
   scannedAt: string
+  /**
+   * 生成当前数据的扫描耗时。注意它属于「产出这份数据的那次扫描」，
+   * 不是本次打开面板的耗时，文案不要写成「本次扫描耗时」。
+   */
   durationMs: number
   volumes: VolumeUsage[]
   categories: SpaceCategory[]
@@ -660,6 +669,29 @@ export interface SpaceUsageResponse {
   reclaimable: number
   reclaimableFormatted: string
   categoriesWithItems: number
+  /**
+   * 数据年龄：服务端用「现在 - scannedAt」算出的毫秒数。
+   * 之所以由服务端算，是因为面板刚打开时可能直接命中服务端持久化的快照，
+   * 那份快照可能已经过去了几分钟；客户端自己拿本地时间减 scannedAt 会被
+   * 机器时钟偏差污染（快照新却显示成几小时前，或者反过来）。
+   */
+  cacheAgeMs: number
+  /**
+   * 与 cacheAgeMs 同源的秒级年龄，供直接展示「数据更新于 x 前」使用。
+   * 之所以不让前端自己除：服务端已经算过一次，前端再做除法只会引入取整分歧。
+   */
+  cacheAgeSeconds: number
+  /**
+   * 数据是否已超出新鲜窗口（服务端判定，目前约 5 分钟）。
+   * 为 true 时表示展示的仍是旧快照，同时后台重扫已经启动或即将启动。
+   */
+  stale: boolean
+  /**
+   * 此刻是否真的有后台重扫在跑。
+   * 它与 stale 是两件事：stale 只说明数据旧，refreshing 才说明有请求在飞。
+   * 客户端据此决定要不要继续轮询（拿到更新的数据后自己停下来）。
+   */
+  refreshing: boolean
   /**
    * /tmp、/var/tmp 是否与系统分区同处一个文件系统。
    * undefined = 服务端无法判定，此时不要显示任何断言（/tmp 可能是 tmpfs）。

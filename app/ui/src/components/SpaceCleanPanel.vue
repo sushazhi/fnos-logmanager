@@ -5,8 +5,11 @@
         <div class="header-title">
           <h3>系统空间清理</h3>
           <span class="header-sub" v-if="usage">
-            扫描耗时 {{ usage.durationMs }} ms · 发现 {{ usage.categoriesWithItems }} 类可清理项
+            <template v-if="dataFreshness">{{ dataFreshness }} · </template>扫描耗时 {{ durationLabel }} ·
+            发现 {{ usage.categoriesWithItems }} 类可清理项
           </span>
+          <!-- 数据偏旧 / 后台更新中：只是提示，不是错误，所以走弱化文字而不是错误横幅。 -->
+          <span class="header-freshness" v-if="freshnessHint">{{ freshnessHint }}</span>
         </div>
         <div class="header-actions">
           <button class="ghost-btn" :disabled="loading" @click="load(true)">
@@ -41,9 +44,10 @@
           <section class="viz-section">
             <div class="section-title">磁盘与分区使用情况</div>
             <div class="volume-list">
-              <div class="volume-row" v-for="vol in usage.volumes" :key="vol.mount">
+              <div class="volume-row" v-for="vol in visibleVolumes()" :key="vol.mount">
                 <div class="volume-head">
-                  <span class="volume-mount">{{ volLabel(vol.mount) }}</span>
+                  <!-- title 里放原始挂载路径：日常只看语义名，排查挂载问题时鼠标一停就能看到真身。 -->
+                  <span class="volume-mount" :title="vol.mount">{{ volLabel(vol) }}</span>
                   <span class="volume-numbers">
                     <b :class="usageClass(vol.usedPercent)">{{ vol.usedFormatted }}</b>
                     / {{ vol.totalFormatted }}
@@ -305,7 +309,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { spaceApi, type SpaceCategory, type SpaceItem, type SpaceUsageResponse, type SpaceCleanResponse, type VolumeUsage } from '../services/api'
 
 const emit = defineEmits<{
@@ -320,6 +324,64 @@ const expanded = reactive(new Set<string>())
 const selected = reactive(new Set<string>())
 const confirmOpen = ref(false)
 const lastResult = ref<SpaceCleanResponse | null>(null)
+
+/**
+ * 页头「扫描耗时」文案。
+ *
+ * 这个数字属于「产出当前这份数据的那次扫描」，不是本次打开面板的耗时，所以文案只写
+ * 「扫描耗时」，不写「本次耗时」。耗时超一秒后毫秒数没有阅读价值（真机上常见 3~10 秒），
+ * 换成秒；再长就换成分钟，避免出现「扫描耗时 512340 ms」这种要用户自己换算的数字。
+ */
+const durationLabel = computed(() => {
+  const ms = usage.value?.durationMs
+  if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) return '未知'
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)} 秒`
+  return `${Math.round(ms / 60000)} 分钟`
+})
+
+/** 把服务端给的秒级年龄转成「x 前」。与 formatTime 同样把极小值收敛成「刚刚」。 */
+function formatAgeSeconds(seconds: number): string {
+  if (seconds < 60) return '刚刚'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`
+  return `${Math.floor(seconds / 86400)} 天前`
+}
+
+/**
+ * 页头「数据更新于 …」文案。
+ *
+ * 优先用服务端算好的 cacheAgeSeconds，而不是本地 Date.now() - scannedAt：面板刚打开时
+ * 可能直接命中服务端持久化的快照，而客户端时钟与服务端不一致时，本地算差会得出
+ * 「来自未来」或「几小时前」的错数据。服务端没给（旧服务端/旧缓存）时才退回 scannedAt。
+ */
+const dataFreshness = computed(() => {
+  const u = usage.value
+  if (!u) return ''
+  const secs = u.cacheAgeSeconds
+  if (typeof secs === 'number' && isFinite(secs) && secs >= 0) {
+    const rel = formatAgeSeconds(secs)
+    return rel === '刚刚' ? '数据刚刚更新' : `数据更新于 ${rel}`
+  }
+  const fallback = formatTime(u.scannedAt)
+  return fallback ? `数据更新于 ${fallback}` : ''
+})
+
+/**
+ * 数据偏旧 / 后台重扫进行中的提示。
+ *
+ * 这里是「提示」不是「错误」：stale 只说数据旧、refreshing 只说此刻有请求在飞，
+ * 面板展示的仍是可用数据，所以走页头弱化文字，而不是错误横幅。
+ * 两个标志的可能组合都要有话说：stale+refreshing（旧且正在更新）、
+ * 只有 refreshing（正在更新）、只有 stale（旧但此刻没在扫，等用户手动重扫）。
+ */
+const freshnessHint = computed(() => {
+  const u = usage.value
+  if (!u) return ''
+  if (u.refreshing) return u.stale ? '数据已偏旧，正在后台更新…' : '正在后台更新…'
+  if (u.stale) return '数据已偏旧，可点「重新扫描」刷新'
+  return ''
+})
 
 /** 选中条目的路径 -> 条目，用于计算体积与清理策略分组。 */
 const selectedItems = computed<SpaceItem[]>(() => {
@@ -442,12 +504,29 @@ function usageClass(percent: number): string {
 /**
  * 挂载点显示名。
  *
- * 系统分区在扫描结果里就是 "/"，直接显示一个斜杠用户看不出这是什么分区，
- * 而它往往是真机上最紧张的那个，所以必须给出明确名称。
+ * 标签由服务端给出：只有服务端能看到挂载表，因而只有它能判断一个路径是系统空间、
+ * 存储空间还是外接存储。前端不再自己解析 /volN 路径——那正是「把 /vol00、/vol02
+ * 这类普通目录当成分区显示」的来源。
+ *
+ * 兜底顺序：服务端 label → 旧的本地推断（兼容未升级的服务端/旧缓存）。本地推断只
+ * 认系统分区，其余一律显示原始路径而不是猜一个语义名。
  */
-function volLabel(mount: string): string {
-  if (mount === '/') return '/ （系统分区）'
-  return mount
+function volLabel(vol: VolumeUsage): string {
+  if (vol.label) return vol.label
+  if (vol.mount === '/') return '系统空间'
+  return vol.mount
+}
+
+/**
+ * 磁盘与分区使用情况要渲染的行。
+ *
+ * 外接存储不显示：「系统空间清理」的清理规则不扫外接盘，把外接盘列在这里只会让人
+ * 以为这一屏能管到它的空间。服务端已经不再下发外接盘，这里再过滤一次是为了挡住
+ * 旧服务端/旧快照缓存里的外接盘行。
+ */
+function visibleVolumes(): VolumeUsage[] {
+  const list = usage.value?.volumes ?? []
+  return list.filter((v) => v.kind !== 'external' && !/^\/vol00(\/|$)/.test(v.mount || ''))
 }
 
 /**
@@ -487,25 +566,108 @@ function statusLabel(status: string): string {
   }[status] || status
 }
 
-async function load(refresh = false) {
-  loading.value = true
+/**
+ * 后台重扫的收敛轮询参数。
+ *
+ * 服务端拿到陈旧快照时会自己在后台起一次重扫并立即返回旧数据（refreshing=true），
+ * 所以前端不需要为「看到新数据」再触发一次全量扫描，只要隔几秒回来取一次结果。
+ * 上限 12 次（约 1 分钟）是必要的兜底：真机上扫描失败或某次重扫卡住时，
+ * refreshing 可能一直是 true，没有上限的定时器会变成一个永不停止的背景请求。
+ */
+const POLL_INTERVAL_MS = 5000
+const POLL_MAX_ATTEMPTS = 12
+
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+let pollAttempts = 0
+let disposed = false
+let requestSeq = 0
+let inFlight = false
+
+/** 停表并归还轮询预算。任何一次「重新开始」都要先清掉旧定时器。 */
+function stopPolling() {
+  if (pollTimer !== null) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+  pollAttempts = 0
+}
+
+/**
+ * 安排下一次取数。
+ *
+ * 先清掉旧定时器：任何一次新的 load 都不允许留下两个并存的轮询者，
+ * 否则重扫几次之后请求会成倍增长，而失败的次数也会跟着成倍。
+ */
+function schedulePoll() {
+  if (pollTimer !== null) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+  if (disposed || pollAttempts >= POLL_MAX_ATTEMPTS) return
+  pollAttempts++
+  pollTimer = setTimeout(() => {
+    pollTimer = null
+    // 必须走非强制请求：服务端自己负责那次重扫，客户端只是来取结果；
+    // 传 refresh=true 会再触发一次全量扫描，把「打开面板不再等全盘扫描」
+    // 重新变成一次同步全盘扫描。background=true 让它不闪骨架屏。
+    void load(false, true)
+  }, POLL_INTERVAL_MS)
+}
+
+/**
+ * 拉取一次系统空间数据。
+ *
+ * @param refresh  true 表示强制服务端同步全量重扫（用户点「重新扫描」时用）。
+ * @param background true 表示这是后台轮询取数：不改动 loading，
+ *                   避免面板每 5 秒闪一次加载态、按钮也跟着禁用。
+ */
+async function load(refresh = false, background = false) {
+  if (disposed) return
+  // 并发保护：非强制请求在已有请求在飞时直接跳过——挂载加载与后台轮询都是
+  // 「取当前快照」，重复发起只会更快撞上服务端 30 次/分钟的读限流。
+  // 用户主动点的强制刷新不跳过（结果按序号取舍，见下方 seq 判断）。
+  if (inFlight && !refresh) return
+
+  // 用户主动发起的加载重新给一轮轮询预算；后台轮询不能重置，
+  // 否则「最多 12 次」永远到不了，定时器会一直活着。
+  if (!background) stopPolling()
+
+  const seq = ++requestSeq
+  inFlight = true
+  if (!background) loading.value = true
   errorMessage.value = null
   try {
     const data = await spaceApi.getUsage(refresh)
+    // 迟到的旧响应（例如用户在轮询期间点了重新扫描）不能覆盖更新的数据。
+    if (seq !== requestSeq) return
     usage.value = data
-    if (data.error) errorMessage.value = data.error
+    if (data.error) {
+      errorMessage.value = data.error
+      // 出错后不再轮询：持续失败只会反复弹同一个错误。
+      // 用户看到错误后自己点「重新扫描」比自动重试更可控。
+      stopPolling()
+    } else if (data.refreshing) {
+      schedulePoll()
+    } else {
+      stopPolling()
+    }
     // 扫描后清理已经不存在的选中项，避免残留选择被提交。
     const valid = new Set<string>()
     for (const cat of data.categories) for (const i of cat.items) valid.add(i.path)
     for (const p of [...selected]) if (!valid.has(p)) selected.delete(p)
-    // 默认展开有内容的分类，让用户第一眼就能看到明细。
-    if (expanded.size === 0) {
-      for (const cat of data.categories) if (cat.itemCount > 0) expanded.add(cat.id)
-    }
+    // 分类明细默认折叠：分类本身已有名称、条目数与可释放体积，足够判断是否需要下钻；
+    // 默认全展开会把十几个分类的子项一次性铺开，把汇总信息挤出视野。
+    // 展开状态由用户点击分类头决定，重扫后按分类 id 保留。
   } catch (e: any) {
+    if (seq !== requestSeq) return
     errorMessage.value = e?.message || '扫描系统空间失败'
+    stopPolling()
   } finally {
-    loading.value = false
+    // 只有最新一次请求归位时才收尾，否则迟到的旧请求会把新请求的加载态提前关掉。
+    if (seq === requestSeq) {
+      inFlight = false
+      loading.value = false
+    }
   }
 }
 
@@ -552,10 +714,19 @@ async function doClean() {
 }
 
 function close() {
+  // 关面板即停表：面板是 v-if 挂载的，但定时器不会随 DOM 消失而消失，
+  // 留着就会在面板关闭后继续向服务端要数据。
+  stopPolling()
   emit('close')
 }
 
 onMounted(() => load(false))
+
+onBeforeUnmount(() => {
+  // 卸载（关面板）后迟到的响应不再写状态，也不再安排下一次轮询。
+  disposed = true
+  stopPolling()
+})
 </script>
 
 <style scoped>
@@ -591,6 +762,21 @@ onMounted(() => load(false))
   margin-top: 2px;
   font-size: var(--font-size-xs);
   color: var(--text-color-3);
+}
+
+/* 数据偏旧 / 后台更新中：弱化文字 + 呼吸动画，与错误横幅区分开。
+   用 text-color-3 而非警示色：展示的仍是可用数据，标成警告会让人以为面板坏了。 */
+.header-freshness {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-size-xs);
+  color: var(--text-color-3);
+  animation: pulse-text 2s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .header-actions {
@@ -814,13 +1000,17 @@ onMounted(() => load(false))
 }
 
 .volume-mount {
-  font-family: var(--font-mono);
+  /* 这里显示的是飞牛语义名（系统空间 / 存储空间1），不是路径，因此不用等宽字体。
+     标签理论上有长度上限，但仍允许换行作为兜底，避免把右侧容量数字挤出卡片。 */
   font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--text-color-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .volume-numbers {
+  flex-shrink: 0;
   font-size: var(--font-size-sm);
   color: var(--text-color-2);
 }
