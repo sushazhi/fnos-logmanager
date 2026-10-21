@@ -304,15 +304,49 @@ func (e *hedgeEngine) attempt(start int, leadDelay time.Duration) (int, error) {
 	slog.Info("开始下载", "url", mainURL, "leadDelayMs", leadDelay.Milliseconds(), "total", mainTr.Total())
 
 	// ---- 阶段 1：领先者独占 leadDelay ----
+	// "先直连，超时再加速"：直连独占窗口内若一直没字节（首包超时）或明显跑不动，
+	// 不必等满窗口，立刻进入阶段 2 让加速源并行对冲。
 	if leadDelay > 0 {
+		hasPeer := start+1 < len(e.ordered)
 		t := time.NewTimer(leadDelay)
-		select {
-		case err := <-mainLeg.finished:
-			t.Stop()
-			return start, err
-		case <-t.C:
+		var watch *time.Ticker
+		var watchC <-chan time.Time
+		if hasPeer {
+			watch = time.NewTicker(500 * time.Millisecond)
+			watchC = watch.C
+		}
+		leadDeadline := e.now().Add(leadDelay)
+	waitLead:
+		for {
+			select {
+			case err := <-mainLeg.finished:
+				t.Stop()
+				if watch != nil {
+					watch.Stop()
+				}
+				return start, err
+			case <-t.C:
+				break waitLead
+			case <-watchC:
+				idle := e.now().Sub(time.Unix(0, mainLeg.lastRead.Load()))
+				rate := mainLeg.meter.rateMBps(3 * time.Second)
+				// 首包超时：连上了却一直 0 字节（跨境链路被丢弃时的典型表现）
+				stalled := mainLeg.meter.bytes() == 0 && idle > e.tune.firstByteWait
+				// 有字节但远低于可用下限，且窗口已过半：认定直连被限速
+				slow := mainLeg.meter.bytes() > 0 && idle < e.tune.hedgeStall &&
+					rate < e.tune.minRate && e.now().After(leadDeadline.Add(-leadDelay/2))
+				if stalled || slow {
+					slog.Info("直连未按时出数据/过慢，提前启用加速源", "url", mainURL,
+						"idleMs", idle.Milliseconds(), "rateMBps", fmt.Sprintf("%.2f", rate),
+						"stalled", stalled, "slow", slow)
+					break waitLead
+				}
+			}
 		}
 		t.Stop()
+		if watch != nil {
+			watch.Stop()
+		}
 		// 计时器与"下载刚好完成"可能同时就绪：优先认完成，别把快下完的源当慢源换掉。
 		select {
 		case err := <-mainLeg.finished:

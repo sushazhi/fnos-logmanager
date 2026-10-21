@@ -33,8 +33,11 @@ const (
 	tierVolatile
 	// tierUnknown 未测过的镜像：谨慎排在后面，但实测测速可将其提前。
 	tierUnknown
-	// tierDirect：asset 自身地址，实测常为 0 字节超时，排最后兜底。
-	tierDirect
+	// tierDirect：asset 自身地址（github.com / *.githubusercontent.com）。
+	// 策略是"先直连，超时再走加速源"，直连永远由 orderCandidatesForSpeed 单独提到最前；
+	// 直连被限速/超时时由首包等待、停滞看门狗与对冲逻辑切换到加速源。
+	// 取值 10 只用于 classifyMirrorURL 的语义区分，不参与排序（排序见 orderCandidatesForSpeed）。
+	tierDirect mirrorTier = 10
 )
 
 type mirrorRank struct {
@@ -87,20 +90,26 @@ func classifyMirrorURL(rawURL string) mirrorTier {
 			return rank.tier
 		}
 	}
-	// 直连 github.com / *.githubusercontent.com 一类的原始地址
+	// 直连 github.com / *.githubusercontent.com 一类的原始地址。
+	// 注意：加速源地址形如 https://gh-proxy.com/https://github.com/... ，其 Path
+	// 里也带 github.com，必须先判 Host，绝不能看 Path，否则镜像会被误判成直连。
 	switch {
 	case host == "github.com" || host == "api.github.com",
+		host == "raw.githubusercontent.com",
+		host == "objects.githubusercontent.com",
 		strings.HasSuffix(host, ".githubusercontent.com"):
 		return tierDirect
 	}
 	return tierUnknown
 }
 
-// orderCandidatesForSpeed 按「实测档次 → 原始顺序」稳定排序，同时去重。
-// 直连放最后：实测 github.com 可握手但返回 0 字节并超时，放在最前只会白等一个超时。
+// orderCandidatesForSpeed 按「直连优先 → 镜像实测档次 → 原始顺序」稳定排序，同时去重。
+// 直连放最前：能直连的用户拿到的是原始链路，不经第三方镜像；
+// 直连不可用时由探测首包超时（defaultProbe.firstByteWait）与下载阶段的停滞看门狗切到加速源。
 func orderCandidatesForSpeed(urls []string) []string {
 	seen := make(map[string]struct{}, len(urls))
-	out := make([]string, 0, len(urls))
+	directs := make([]string, 0, 2)
+	mirrors := make([]string, 0, len(urls))
 	for _, u := range urls {
 		if u == "" {
 			continue
@@ -109,12 +118,25 @@ func orderCandidatesForSpeed(urls []string) []string {
 			continue
 		}
 		seen[u] = struct{}{}
-		out = append(out, u)
+		if isDirectCandidate(u) {
+			directs = append(directs, u)
+			continue
+		}
+		mirrors = append(mirrors, u)
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		return classifyMirrorURL(out[i]) < classifyMirrorURL(out[j])
+	sort.SliceStable(mirrors, func(i, j int) bool {
+		return classifyMirrorURL(mirrors[i]) < classifyMirrorURL(mirrors[j])
 	})
+	out := make([]string, 0, len(directs)+len(mirrors))
+	out = append(out, directs...)
+	out = append(out, mirrors...)
 	return out
+}
+
+// isDirectCandidate reports whether a candidate is the original GitHub URL
+// (not wrapped by an accelerator prefix).
+func isDirectCandidate(rawURL string) bool {
+	return classifyMirrorURL(rawURL) == tierDirect
 }
 
 // probeMirror 是"加速探测"的超时参数。取值原则：宁可快速放弃也不让用户干等，
@@ -139,6 +161,11 @@ var defaultProbe = probeMirror{
 	minThroughput:  0.05,
 }
 
+// directMinThroughput 是"直连还算能用"的最低吞吐（MB/s）。
+// 低于它才判定直连跑不动（跨境被限速/空包超时），转用加速源；
+// 取值比 minThroughput 略高：直连只是慢一点时仍优先直连，不走第三方镜像。
+const directMinThroughput = 0.10
+
 // probeWinner 是探测阶段选出的优等候选：调用方应优先实测下载它，其余按顺序兜底。
 type probeWinner struct {
 	URL string
@@ -152,6 +179,11 @@ type probeWinner struct {
 // rankCandidatesByProbe 并发向各候选发起 Range 探测，返回"探测优等候选"；其余候选由
 // 调用方按静态档次顺序兜底。返回 nil 表示所有探测都失败——调用方应直接用静态顺序下载，
 // 绝不能因为"测速失败"就判定无法更新（探测只是加速手段，不是可用性前提）。
+//
+// 选优规则体现"先直连，超时再加速"：
+//  1. 直连可用（连得上、首包在阈值内、有吞吐）时一律选直连，只有直连明显跑不动
+//     （吞吐低于 directMinThroughput）才改选加速源；这类慢链路仍保留在候选里兜底。
+//  2. 直连失败/超时/被限速到不可用：选加速源里得分最高的。
 func rankCandidatesByProbe(ctx context.Context, urls []string) *probeWinner {
 	if len(urls) == 0 {
 		return nil
@@ -178,6 +210,19 @@ func rankCandidatesByProbe(ctx context.Context, urls []string) *probeWinner {
 	}
 	wg.Wait()
 
+	// 直连优先：只要直连探测"可用且不是明显跑不动"，就直接用它，不再比较镜像速度。
+	for _, r := range results {
+		if !r.ok || !isDirectCandidate(r.url) {
+			continue
+		}
+		if r.throughput >= directMinThroughput {
+			slog.Info("直连可用，优先直连", "url", r.url, "throughputMBps", fmt.Sprintf("%.2f", r.throughput),
+				"ttfbMs", r.ttfb.Milliseconds())
+			return &probeWinner{URL: r.url, Ok: r.throughput > 0, Throughput: r.throughput, TTFB: r.ttfb}
+		}
+		slog.Info("直连测速过低，改用加速源", "url", r.url, "throughputMBps", fmt.Sprintf("%.2f", r.throughput))
+	}
+
 	best := -1
 	for i, r := range results {
 		if !r.ok {
@@ -187,17 +232,21 @@ func rankCandidatesByProbe(ctx context.Context, urls []string) *probeWinner {
 			// 未测准：只作为"有可测源"时被淘汰的兜底，不参与打分
 			continue
 		}
+		if isDirectCandidate(r.url) {
+			// 直连已判定跑不动，不再参与打分（仍留在候选尾部兜底）
+			continue
+		}
 		if best < 0 || probeScore(r.throughput, r.ttfb) < probeScore(results[best].throughput, results[best].ttfb) {
 			best = i
 		}
 	}
 	if best >= 0 {
 		w := results[best]
-		slog.Info("更新源测速结果", "winner", w.url, "throughputMBps", fmt.Sprintf("%.2f", w.throughput),
+		slog.Info("加速源测速结果", "winner", w.url, "throughputMBps", fmt.Sprintf("%.2f", w.throughput),
 			"ttfbMs", w.ttfb.Milliseconds(), "score", fmt.Sprintf("%.3f", probeScore(w.throughput, w.ttfb)))
 		return &probeWinner{URL: w.url, Ok: true, Throughput: w.throughput, TTFB: w.ttfb}
 	}
-	// 没有可打分的源：退而求其次，挑第一个"连得上且出过数据"的候选
+	// 没有可打分的源：退而求其次，挑第一个"连得上且出过数据"的候选（仍按直连优先的顺序）
 	for _, r := range results {
 		if r.ok {
 			slog.Info("更新源测速未测准，改用可用兜底源", "url", r.url, "ttfbMs", r.ttfb.Milliseconds())
@@ -337,6 +386,7 @@ type transferTuning struct {
 	evalWindow    time.Duration // 双边同时下载的判定窗口
 	killRatio     float64       // 落后方速率 < 领先方 × killRatio 即退出
 	hedgeStall    time.Duration // 任一路连续无进展即视为失败
+	firstByteWait time.Duration // 领先者（尤其直连）连上后多久还没首包就启用加速源
 	maxHedgePeers int
 }
 
@@ -346,7 +396,21 @@ var defaultTransfer = transferTuning{
 	evalWindow:    6 * time.Second,
 	killRatio:     0.7,
 	hedgeStall:    30 * time.Second,
+	firstByteWait: 6 * time.Second,
 	maxHedgePeers: 1,
+}
+
+// directLeadDelay 是"直连独占窗口"：直连先自己跑这么久，跑得动就不动加速源；
+// 期间没有首包（firstByteWait）或吞吐低于 minRate，立即让加速源并行对冲。
+const directLeadDelay = 8 * time.Second
+
+// cloneTransferTuning 返回按配置覆盖超时后的参数副本（直连超时也走 StallTimeoutMs）。
+func cloneTransferTuning(cfgStallMs int64) transferTuning {
+	tune := defaultTransfer
+	if cfgStallMs > 0 {
+		tune.hedgeStall = time.Duration(cfgStallMs) * time.Millisecond
+	}
+	return tune
 }
 
 // speedMeter 是下载过程中的速率计量（滑动窗口，避免用"平均速率"误判先快后慢）。

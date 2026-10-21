@@ -35,11 +35,12 @@ func TestOrderCandidatesForSpeed(t *testing.T) {
 		"",
 	}
 	got := orderCandidatesForSpeed(in)
+	// 策略：先直连，超时再加速源 —— 直连永远第一，其余按实测档次。
 	want := []string{
+		direct,
 		"https://gh-proxy.com/" + direct,
 		"https://v4.gh-proxy.org/" + direct,
 		"https://ghfast.top/" + direct,
-		direct,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("len(got)=%d (%v), want %d (%v)", len(got), got, len(want), want)
@@ -66,6 +67,24 @@ func TestOrderCandidatesRejectsNothing(t *testing.T) {
 	got := orderCandidatesForSpeed([]string{bad})
 	if len(got) != 1 || got[0] != bad {
 		t.Fatalf("orderCandidatesForSpeed should keep input intact, got %v", got)
+	}
+}
+
+func TestOrderCandidatesDirectFirstEvenWithManyMirrors(t *testing.T) {
+	// 直连必须始终排第一，无论加速源数量与输入顺序。
+	direct := "https://objects.githubusercontent.com/xyz/x.fpk"
+	in := []string{
+		"https://ghfast.top/" + direct,
+		"https://ghproxy.imciel.com/" + direct,
+		direct,
+		"https://gh-proxy.com/" + direct,
+	}
+	got := orderCandidatesForSpeed(in)
+	if got[0] != direct {
+		t.Fatalf("direct should be first, got %v", got)
+	}
+	if !isDirectCandidate(got[0]) || isDirectCandidate(got[1]) {
+		t.Fatalf("isDirectCandidate mismatch: %v", got)
 	}
 }
 

@@ -135,6 +135,7 @@ func newEngine(t *testing.T, ordered []string, dest string, open transferOpener)
 			evalWindow:    120 * time.Millisecond,
 			killRatio:     0.7,
 			hedgeStall:    2 * time.Second,
+			firstByteWait: 500 * time.Millisecond,
 			maxHedgePeers: 1,
 		},
 		onProgress: func(p float64) { *progress = append(*progress, p) },
@@ -298,6 +299,38 @@ func TestHedgeAllSourcesFailReturnsError(t *testing.T) {
 	if err := e.run(e.tune.leadDelay); err == nil {
 		t.Fatal("expected error when every source fails")
 	}
+	assertNoTempFiles(t, dest)
+}
+
+// "先直连，超时再加速"的核心行为：直连连上了但一直不出首包（跨境被丢包的典型形态），
+// 必须在 firstByteWait 后立刻启用加速源，而不是苦等整个 leadDelay。
+func TestHedgeDirectSilentFailsOverAfterFirstByteWait(t *testing.T) {
+	payload := testPayload(256 * 1024)
+	// 直连：连接建立成功，但一个字节都不吐（模拟被丢弃/黑洞的连接）
+	silent := &fakeSource{payload: payload, delayFor: func(chunk int) time.Duration { return time.Hour }}
+	mirror := &fakeSource{payload: payload}
+	dest := filepath.Join(t.TempDir(), "out.bin")
+	e, _ := newEngine(t, []string{"https://direct", "https://mirror"}, dest,
+		newOpener(t, map[string]*fakeSource{"https://direct": silent, "https://mirror": mirror}))
+	// 直连独占窗口故意给得很长：切换必须由 firstByteWait 触发，而不是等满窗口
+	leadDelay := 10 * time.Second
+	e.tune.firstByteWait = 300 * time.Millisecond
+
+	start := time.Now()
+	done := make(chan error, 1)
+	go func() { done <- e.run(leadDelay) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	case <-time.After(8 * time.Second):
+		t.Fatal("direct silent source was not abandoned within firstByteWait (still waiting full leadDelay)")
+	}
+	if elapsed := time.Since(start); elapsed >= 5*time.Second {
+		t.Fatalf("failover took %v, expected ~firstByteWait", elapsed)
+	}
+	assertFileEquals(t, dest, payload)
 	assertNoTempFiles(t, dest)
 }
 

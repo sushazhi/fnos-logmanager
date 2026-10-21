@@ -35,14 +35,17 @@ const (
 )
 
 // rawManifestURLs 是版本检查的最后兜底：读仓库 manifest 的 version 字段，
-// 它是发布时读取的权威版本，无需再维护一份副本。按顺序尝试各镜像。
+// 它是发布时读取的权威版本，无需再维护一份副本。第一个是 raw.githubusercontent.com 直连，
+// 直连超时后再按顺序尝试各加速源。
 var rawManifestURLs = []string{
+	"https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
 	"https://gh-proxy.com/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
 	"https://v4.gh-proxy.org/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
 	"https://ghfast.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
 }
 
-// apiMirrorPrefixes 是支持转发 api.github.com 的镜像前缀（镜像直连回源，不产生跨域跳转）。
+// apiMirrorPrefixes 是支持转发 api.github.com 的加速源前缀（镜像直连回源，不产生跨域跳转）。
+// 只在直连 api.github.com 超时/失败后才使用；顺序由 orderCandidatesForSpeed 按实测档次重排。
 // 实测 gh-proxy.com 与 v4.gh-proxy.org 为同一后端，只能作节点切换；ghfast.top 独立运营可作灾备。
 // 不支持转发 API 的镜像（如 gh.dpik.top 对 API 返回 403 限流）不要放进这里。
 var apiMirrorPrefixes = []string{
@@ -51,8 +54,8 @@ var apiMirrorPrefixes = []string{
 	"https://ghfast.top/",
 }
 
-// mirrorProxies 是文件下载镜像前缀（直连失败/过慢后使用）。实际尝试顺序由
-// orderCandidatesForSpeed / rankCandidatesByProbe 按实测速度重排，不依赖本表顺序。
+// mirrorProxies 是文件下载加速源前缀：先直连 asset 原始地址，超时/停滞才切到这里。
+// 实际尝试顺序由 orderCandidatesForSpeed / rankCandidatesByProbe 重排，不依赖本表顺序。
 var mirrorProxies = []string{
 	"https://gh-proxy.com/",
 	"https://v4.gh-proxy.org/",
@@ -206,47 +209,51 @@ type configAsset struct {
 	Size               *int64
 }
 
-// fetchReleaseInfo 获取带完整 assets 的 release 信息（安装用）：直连优先，镜像次之。
+// directAPITimeout 是"直连 GitHub API"的等待上限：直连不通时要尽快判定超时，
+// 把时间让给加速源（用户感知的是"点一下就出结果"，而不是干等 30s）。
+const directAPITimeout = 8 * time.Second
+
+// fetchReleaseInfo 获取带完整 assets 的 release 信息（安装用）：先直连，超时再走加速源。
 // manifest 兜底只含版本号、不含 assets，不在此使用。
 func fetchReleaseInfo() (*releaseInfo, error) {
-	release, directErr := fetchFromGitHubAPI(githubAPI)
+	release, directErr := fetchFromGitHubAPI(githubAPI, directAPITimeout)
 	if directErr == nil {
 		return release, nil
 	}
-	slog.Warn("直连 GitHub API 失败，尝试镜像", "error", directErr)
+	slog.Warn("直连 GitHub API 失败/超时，改用加速源", "error", directErr)
 
 	var errs []string
 	errs = append(errs, directErr.Error())
 	for _, prefix := range orderCandidatesForSpeed(apiMirrorPrefixes) {
-		proxyRelease, proxyErr := fetchFromGitHubAPI(prefix + githubAPI)
+		proxyRelease, proxyErr := fetchFromGitHubAPI(prefix+githubAPI, 0)
 		if proxyErr == nil {
 			return proxyRelease, nil
 		}
 		errs = append(errs, proxyErr.Error())
-		slog.Warn("镜像 API 不可用", "prefix", prefix, "error", proxyErr)
+		slog.Warn("加速源 API 不可用", "prefix", prefix, "error", proxyErr)
 	}
-	return nil, fmt.Errorf("直连和镜像均不可用: %s", strings.Join(errs, " / "))
+	return nil, fmt.Errorf("直连和加速源均不可用: %s", strings.Join(errs, " / "))
 }
 
-// fetchLatestRelease 用于版本检查：直连优先，镜像次之，读仓库 manifest 最后兜底。
+// fetchLatestRelease 用于版本检查：先直连，超时再走加速源，读仓库 manifest 最后兜底。
 func fetchLatestRelease() (*releaseInfo, bool, error) {
-	// Try GitHub API first
-	release, err := fetchFromGitHubAPI(githubAPI)
+	// Try direct GitHub API first (short timeout: fall through to the mirror quickly)
+	release, err := fetchFromGitHubAPI(githubAPI, directAPITimeout)
 	if err == nil {
 		return release, false, nil
 	}
 
-	slog.Warn("GitHub API check failed, falling back to proxy", "error", err)
+	slog.Warn("直连 GitHub API 失败/超时，改用加速源", "error", err)
 
 	// Fallback to full API via mirror（按实测档次排序，同后端镜像作节点兜底）
 	var proxyErr error
 	for _, prefix := range orderCandidatesForSpeed(apiMirrorPrefixes) {
-		proxyRelease, e := fetchFromGitHubAPI(prefix + githubAPI)
+		proxyRelease, e := fetchFromGitHubAPI(prefix+githubAPI, 0)
 		if e == nil {
 			return proxyRelease, true, nil
 		}
 		proxyErr = e
-		slog.Warn("镜像 API 不可用", "prefix", prefix, "error", e)
+		slog.Warn("加速源 API 不可用", "prefix", prefix, "error", e)
 	}
 
 	// Last resort: 经镜像读仓库 manifest（仅版本号，不含 assets）
@@ -258,7 +265,8 @@ func fetchLatestRelease() (*releaseInfo, bool, error) {
 	return proxyVer, true, nil
 }
 
-func fetchFromGitHubAPI(baseURL string) (*releaseInfo, error) {
+// fetchFromGitHubAPI 请求 GitHub releases/latest。timeout<=0 时用默认 30s。
+func fetchFromGitHubAPI(baseURL string, timeout time.Duration) (*releaseInfo, error) {
 	url := fmt.Sprintf("%s/repos/%s/releases/latest", baseURL, githubRepo)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -268,8 +276,11 @@ func fetchFromGitHubAPI(baseURL string) (*releaseInfo, error) {
 	req.Header.Set("User-Agent", "fnos-logmanager-updater")
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: timeout,
 	}
 
 	resp, err := client.Do(req)
@@ -479,10 +490,10 @@ func performUpdate() {
 	globalUpdateState.updateProgress = 20
 	globalUpdateState.mu.Unlock()
 
-	// 候选顺序（参考 gateway-proxy.py 的镜像选型）：
-	//   1) 按实测档次排序（多轮实测稳定 > 同后端节点 > 抖动镜像 > 直连）
-	//   2) 下载前并发测速，按实测吞吐重排；探测全失败则退回静态顺序
-	// 每个候选带独立超时，失败/过慢立即换下一条，不会让一个慢节点拖垮整个更新。
+	// 候选顺序：直连 asset 原始地址永远第一，其次才按实测档次排加速源。
+	//   1) 下载前并发探测，直连可用就用直连；直连超时/过低才改选加速源
+	//   2) 探测全失败则退回静态顺序（仍是直连打头）
+	// 每个候选带独立超时，直连停滞/过慢立即切换加速源，不会让用户干等。
 	downloadURLs := []string{asset.BrowserDownloadURL}
 	for _, p := range mirrorProxies {
 		downloadURLs = append(downloadURLs, p+asset.BrowserDownloadURL)
@@ -1004,11 +1015,13 @@ func downloadWithHedge(urls []string, lead *probeWinner, dest string, onProgress
 	if len(ordered) == 0 {
 		return fmt.Errorf("没有可用的下载地址")
 	}
-	tune := defaultTransfer
-	if v := config.Get().Update.StallTimeoutMs; v > 0 {
-		tune.hedgeStall = time.Duration(v) * time.Millisecond
-	}
+	tune := cloneTransferTuning(config.Get().Update.StallTimeoutMs)
 	leadDelay := tune.leadDelay
+	if isDirectCandidate(ordered[0]) {
+		// 先直连：给直连一个足够长的独占窗口，跑得动就完全不碰加速源；
+		// 首包超时/速度过低由 hedgeEngine 的对冲判定立即切到加速源。
+		leadDelay = directLeadDelay
+	}
 	if lead != nil && !lead.Ok {
 		// 领先者在测速阶段已经吃过一次首包等待，这里不再重复叠加
 		leadDelay = 0
