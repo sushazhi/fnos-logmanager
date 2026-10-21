@@ -79,11 +79,13 @@ type LoggingConfig struct {
 }
 
 type UpdateConfig struct {
-	CheckCacheMs      int64    `json:"checkCacheMs"`
-	DownloadTimeoutMs int64    `json:"downloadTimeoutMs"`
-	MaxDownloadBytes  int64    `json:"maxDownloadBytes"`
-	MaxAssetBytes     int64    `json:"maxAssetBytes"`
-	MaxRedirects      int      `json:"maxRedirects"`
+	CheckCacheMs      int64 `json:"checkCacheMs"`
+	DownloadTimeoutMs int64 `json:"downloadTimeoutMs"`
+	MaxDownloadBytes  int64 `json:"maxDownloadBytes"`
+	MaxAssetBytes     int64 `json:"maxAssetBytes"`
+	MaxRedirects      int   `json:"maxRedirects"`
+	// StallTimeoutMs：下载过程中连续无字节进展的容忍时长，超时即放弃当前源并切换下一个。
+	StallTimeoutMs    int64    `json:"stallTimeoutMs"`
 	AllowedHosts      []string `json:"allowedHosts"`
 	AllowedUpdateDirs []string `json:"allowedUpdateDirs"`
 }
@@ -237,8 +239,11 @@ func loadConfig() *Config {
 			MaxDownloadBytes:  getEnvInt64("UPDATE_MAX_DOWNLOAD_BYTES", 200*1024*1024),
 			MaxAssetBytes:     getEnvInt64("UPDATE_MAX_ASSET_BYTES", 500*1024*1024),
 			MaxRedirects:      getEnvInt("UPDATE_MAX_REDIRECTS", 3),
-			// 更新下载/校验文件只允许直连 GitHub 与两个镜像（镜像直接回源，无跨域跳转）。
-			AllowedHosts: []string{"github.com", "api.github.com", "raw.githubusercontent.com", "objects.githubusercontent.com", "gh.dpik.top", "v4.gh-proxy.org"},
+			StallTimeoutMs:    getEnvInt64("UPDATE_STALL_TIMEOUT_MS", 20000),
+			// 更新下载/校验文件只允许直连 GitHub 与实测可用的镜像（镜像直接回源，无跨域跳转）。
+			// 选型依据同 app/bin/gateway-proxy.py：gh-proxy.com 最稳，v4.gh-proxy.org 与其同后端，
+			// ghfast.top / ghproxy.imciel.com 独立运营可作灾备；gh.dpik.top 实测 0.09 MB/s 且 API 403，已淘汰。
+			AllowedHosts: []string{"github.com", "api.github.com", "raw.githubusercontent.com", "objects.githubusercontent.com", "gh-proxy.com", "v4.gh-proxy.org", "ghfast.top", "ghproxy.imciel.com"},
 			AllowedUpdateDirs: []string{
 				"/vol1/@appshare",
 				"/vol2/@appshare",

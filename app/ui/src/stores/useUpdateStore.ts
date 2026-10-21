@@ -1,4 +1,4 @@
-﻿import { defineStore } from 'pinia'
+import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { UpdateInfo, UpdateStatus } from '../types'
 import api, { API_BASE } from '../services/api'
@@ -7,6 +7,17 @@ const REPO_OWNER = 'sushazhi'
 const REPO_NAME = 'fnos-logmanager'
 
 const DEBUG_MODE = new URLSearchParams(window.location.search).has('debug')
+
+/**
+ * 更新说明页地址（可选：页面上有「版本」入口时使用）。
+ * 一律指向具体 tag：/releases/latest 在直连不通的网络里无法解析跳转，且会随新版本漂移。
+ */
+export function releasePageURL(version: string): string {
+  const base = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`
+  const v = (version || '').trim()
+  if (!v) return `${base}/latest`
+  return `${base}/tag/${v.startsWith('v') ? v : `v${v}`}`
+}
 
 const IGNORE_KEY = 'logmanager_ignore_version'
 const CLOSE_TIME_KEY = 'logmanager_update_close_time'
@@ -112,7 +123,7 @@ export const useUpdateStore = defineStore('update', () => {
           version: data.latestVersion || '',
           changelog: data.changelog || '',
           publishedAt: data.publishedAt || '',
-          url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest`
+          url: releasePageURL(data.latestVersion || '')
         }
         updateInfo.value = info
         return updateInfo.value

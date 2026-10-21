@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -36,17 +37,27 @@ const (
 // rawManifestURLs 是版本检查的最后兜底：读仓库 manifest 的 version 字段，
 // 它是发布时读取的权威版本，无需再维护一份副本。按顺序尝试各镜像。
 var rawManifestURLs = []string{
-	"https://gh.dpik.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
+	"https://gh-proxy.com/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
 	"https://v4.gh-proxy.org/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
+	"https://ghfast.top/https://raw.githubusercontent.com/sushazhi/fnos-logmanager/main/manifest",
 }
 
-// apiProxyURL 是支持转发 api.github.com 的镜像前缀（实测 gh.dpik.top 对 API 返回 403 限流，勿用）。
-const apiProxyURL = "https://v4.gh-proxy.org/"
-
-// mirrorProxies 是文件下载镜像前缀，按顺序尝试（直连失败后使用）。
-var mirrorProxies = []string{
-	"https://gh.dpik.top/",
+// apiMirrorPrefixes 是支持转发 api.github.com 的镜像前缀（镜像直连回源，不产生跨域跳转）。
+// 实测 gh-proxy.com 与 v4.gh-proxy.org 为同一后端，只能作节点切换；ghfast.top 独立运营可作灾备。
+// 不支持转发 API 的镜像（如 gh.dpik.top 对 API 返回 403 限流）不要放进这里。
+var apiMirrorPrefixes = []string{
+	"https://gh-proxy.com/",
 	"https://v4.gh-proxy.org/",
+	"https://ghfast.top/",
+}
+
+// mirrorProxies 是文件下载镜像前缀（直连失败/过慢后使用）。实际尝试顺序由
+// orderCandidatesForSpeed / rankCandidatesByProbe 按实测速度重排，不依赖本表顺序。
+var mirrorProxies = []string{
+	"https://gh-proxy.com/",
+	"https://v4.gh-proxy.org/",
+	"https://ghfast.top/",
+	"https://ghproxy.imciel.com/",
 }
 
 var allowedGitHubHosts = []string{
@@ -54,9 +65,11 @@ var allowedGitHubHosts = []string{
 	"api.github.com",
 	"raw.githubusercontent.com",
 	"objects.githubusercontent.com",
-	// 两个镜像均直接回源，不再有跨域跳转，故只需放行镜像自身的域名。
-	"gh.dpik.top",
+	// 镜像均直接回源，不再有跨域跳转，故只需放行镜像自身的域名。
+	"gh-proxy.com",
 	"v4.gh-proxy.org",
+	"ghfast.top",
+	"ghproxy.imciel.com",
 }
 
 type updateState struct {
@@ -202,11 +215,17 @@ func fetchReleaseInfo() (*releaseInfo, error) {
 	}
 	slog.Warn("直连 GitHub API 失败，尝试镜像", "error", directErr)
 
-	proxyRelease, proxyErr := fetchFromGitHubAPI(apiProxyURL + githubAPI)
-	if proxyErr == nil {
-		return proxyRelease, nil
+	var errs []string
+	errs = append(errs, directErr.Error())
+	for _, prefix := range orderCandidatesForSpeed(apiMirrorPrefixes) {
+		proxyRelease, proxyErr := fetchFromGitHubAPI(prefix + githubAPI)
+		if proxyErr == nil {
+			return proxyRelease, nil
+		}
+		errs = append(errs, proxyErr.Error())
+		slog.Warn("镜像 API 不可用", "prefix", prefix, "error", proxyErr)
 	}
-	return nil, fmt.Errorf("直连和镜像均不可用: %v / %v", directErr, proxyErr)
+	return nil, fmt.Errorf("直连和镜像均不可用: %s", strings.Join(errs, " / "))
 }
 
 // fetchLatestRelease 用于版本检查：直连优先，镜像次之，读仓库 manifest 最后兜底。
@@ -219,10 +238,15 @@ func fetchLatestRelease() (*releaseInfo, bool, error) {
 
 	slog.Warn("GitHub API check failed, falling back to proxy", "error", err)
 
-	// Fallback to full API via mirror
-	proxyRelease, proxyErr := fetchFromGitHubAPI(apiProxyURL + githubAPI)
-	if proxyErr == nil {
-		return proxyRelease, true, nil
+	// Fallback to full API via mirror（按实测档次排序，同后端镜像作节点兜底）
+	var proxyErr error
+	for _, prefix := range orderCandidatesForSpeed(apiMirrorPrefixes) {
+		proxyRelease, e := fetchFromGitHubAPI(prefix + githubAPI)
+		if e == nil {
+			return proxyRelease, true, nil
+		}
+		proxyErr = e
+		slog.Warn("镜像 API 不可用", "prefix", prefix, "error", e)
 	}
 
 	// Last resort: 经镜像读仓库 manifest（仅版本号，不含 assets）
@@ -455,21 +479,40 @@ func performUpdate() {
 	globalUpdateState.updateProgress = 20
 	globalUpdateState.mu.Unlock()
 
-	// 直连优先，失败后依次尝试镜像
+	// 候选顺序（参考 gateway-proxy.py 的镜像选型）：
+	//   1) 按实测档次排序（多轮实测稳定 > 同后端节点 > 抖动镜像 > 直连）
+	//   2) 下载前并发测速，按实测吞吐重排；探测全失败则退回静态顺序
+	// 每个候选带独立超时，失败/过慢立即换下一条，不会让一个慢节点拖垮整个更新。
 	downloadURLs := []string{asset.BrowserDownloadURL}
 	for _, p := range mirrorProxies {
 		downloadURLs = append(downloadURLs, p+asset.BrowserDownloadURL)
 	}
+	downloadURLs = orderCandidatesForSpeed(downloadURLs)
 	for _, u := range downloadURLs {
 		if !isHTTPSURL(u) || !isAllowedHost(u) {
 			setUpdateError("更新下载链接不安全")
 			return
 		}
 	}
+	// 探测只决定"谁先试"；真正的胜负交给下载阶段的对冲判定（见 downloadFile）
+	var lead *probeWinner
+	if w := rankCandidatesByProbe(context.Background(), downloadURLs); w != nil {
+		lead = w
+	}
+	slog.Info("更新包下载候选顺序", "lead", candidateLeadURL(lead, downloadURLs), "urls", downloadURLs)
 
-	if err := downloadFile(downloadURLs, fpkFile, func(progress float64) {
+	if err := downloadFile(downloadURLs, lead, fpkFile, func(progress float64) {
+		if progress < 0 {
+			progress = 0
+		} else if progress > 1 {
+			progress = 1
+		}
 		globalUpdateState.mu.Lock()
-		globalUpdateState.updateProgress = 20 + int(progress*40)
+		// 下载阶段内部可能换源（见 hedge.go）：并发回调的到达顺序不保证，
+		// 这里只允许单调增长，避免进度条倒退，也避免覆盖后续阶段的更大值。
+		if p := 20 + int(progress*40); p > globalUpdateState.updateProgress && p <= 60 {
+			globalUpdateState.updateProgress = p
+		}
 		globalUpdateState.mu.Unlock()
 	}); err != nil {
 		setUpdateError("下载更新包失败: " + err.Error())
@@ -868,7 +911,8 @@ func verifyUpdateChecksum(info *releaseInfo, asset *configAsset, fpkFile, update
 			return fmt.Errorf("校验文件链接不安全")
 		}
 	}
-	if err := downloadFile(checksumURLs, checksumFile, nil); err != nil {
+	// 校验文件只有几十~几百字节：走朴素路径即可，没必要启动测速/对冲（对冲只对大包有意义）。
+	if err := downloadFile(checksumURLs, nil, checksumFile, nil); err != nil {
 		return fmt.Errorf("下载校验文件失败: %w", err)
 	}
 
@@ -898,18 +942,87 @@ func verifyUpdateChecksum(info *releaseInfo, asset *configAsset, fpkFile, update
 	return nil
 }
 
-// downloadFile 依次尝试 urls（前一个失败后尝试下一个），任一成功即写入 dest。
-func downloadFile(urls []string, dest string, onProgress func(float64)) error {
-	var lastErr error
-	for _, u := range urls {
-		if err := attemptDownloadFile(u, dest, onProgress); err != nil {
-			lastErr = err
-			slog.Warn("下载失败，尝试下一个地址", "url", u, "error", err)
-			continue
+// downloadFile 下载到 dest：lead（可空）是探测选出的优等候选，先由它直出；
+// 若它起步快后限速/停滞，则与下一个候选对冲。任一候选完整下完即成功。
+func downloadFile(urls []string, lead *probeWinner, dest string, onProgress func(float64)) error {
+	ordered := orderCandidatesForSpeed(urls)
+	if len(ordered) == 0 {
+		return fmt.Errorf("没有可用的下载地址")
+	}
+	if lead == nil {
+		lead = chooseLead(nil, ordered)
+	}
+	if err := downloadWithHedge(ordered, lead, dest, onProgress); err != nil {
+		slog.Warn("对冲下载失败，退回逐个重试", "error", err)
+		// 对冲只是加速手段：任何异常都退回最朴素的"逐个试"（按已排序的候选，
+		// 从最快的源开始，而不是回到原始顺序）。最后一个错误向上返回。
+		lastErr := err
+		for _, u := range ordered {
+			if err2 := attemptDownloadFile(u, dest, onProgress); err2 != nil {
+				lastErr = err2
+				slog.Warn("下载失败，尝试下一个地址", "url", u, "error", err2)
+				continue
+			}
+			return nil
 		}
+		return lastErr
+	}
+	return nil
+}
+
+// chooseLead 选定首个尝试的候选：探测优等者优先，否则用静态顺序的第一个。
+func chooseLead(lead *probeWinner, urls []string) *probeWinner {
+	if lead != nil {
+		return lead
+	}
+	if len(urls) == 0 {
 		return nil
 	}
-	return lastErr
+	return &probeWinner{URL: urls[0]}
+}
+
+// candidateLeadURL 仅用于日志。
+func candidateLeadURL(lead *probeWinner, urls []string) string {
+	if l := chooseLead(lead, urls); l != nil {
+		return l.URL
+	}
+	return ""
+}
+
+// downloadWithHedge 先让领先者直出，若起步快后限速/停滞则与下一候选对冲；
+// 逐个源推进，任一源完整下完即成功。判定逻辑见 hedge.go。
+func downloadWithHedge(urls []string, lead *probeWinner, dest string, onProgress func(float64)) error {
+	ordered := []string{}
+	if lead != nil && lead.URL != "" {
+		ordered = append(ordered, lead.URL)
+	}
+	for _, u := range orderCandidatesForSpeed(urls) {
+		if lead == nil || u != lead.URL {
+			ordered = append(ordered, u)
+		}
+	}
+	if len(ordered) == 0 {
+		return fmt.Errorf("没有可用的下载地址")
+	}
+	tune := defaultTransfer
+	if v := config.Get().Update.StallTimeoutMs; v > 0 {
+		tune.hedgeStall = time.Duration(v) * time.Millisecond
+	}
+	leadDelay := tune.leadDelay
+	if lead != nil && !lead.Ok {
+		// 领先者在测速阶段已经吃过一次首包等待，这里不再重复叠加
+		leadDelay = 0
+	}
+
+	engine := &hedgeEngine{
+		ordered:    ordered,
+		dest:       dest,
+		tune:       tune,
+		onProgress: onProgress,
+		open:       openHTTPTransfer,
+		now:        time.Now,
+	}
+	return engine.run(leadDelay)
 }
 
 func attemptDownloadFile(url, dest string, onProgress func(float64)) error {
@@ -957,15 +1070,50 @@ func attemptDownloadFile(url, dest string, onProgress func(float64)) error {
 
 	var downloaded int64
 	buf := make([]byte, 32*1024)
+
+	// 停滞检测：连接建立后长时间收不到字节（镜像假死）就立刻放弃并换下一个源，
+	// 而不是等满 DownloadTimeoutMs（默认 300s）。注意必须由独立 goroutine 计时：
+	// Read 是阻塞的，在循环里判断"距上次读到数据多久"永远不会在假死时触达。
+	stallTimeout := 20 * time.Second
+	if v := config.Get().Update.StallTimeoutMs; v > 0 {
+		stallTimeout = time.Duration(v) * time.Millisecond
+	}
+	var lastRead atomic.Int64
+	lastRead.Store(time.Now().UnixNano())
+	watchdogDone := make(chan struct{})
+	watchdogExit := make(chan struct{})
+	go func() {
+		defer close(watchdogExit)
+		t := time.NewTicker(500 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-watchdogDone:
+				return
+			case <-t.C:
+				if time.Since(time.Unix(0, lastRead.Load())) > stallTimeout {
+					slog.Warn("下载停滞，断开该源", "url", url, "stall", stallTimeout)
+					resp.Body.Close()
+					return
+				}
+			}
+		}
+	}()
+
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
+			lastRead.Store(time.Now().UnixNano())
 			if _, writeErr := f.Write(buf[:n]); writeErr != nil {
+				close(watchdogDone)
+				<-watchdogExit
 				return writeErr
 			}
 			downloaded += int64(n)
 
 			if downloaded > maxDownloadBytes {
+				close(watchdogDone)
+				<-watchdogExit
 				f.Close()
 				os.Remove(dest)
 				return fmt.Errorf("下载内容超过大小限制")
@@ -976,11 +1124,22 @@ func attemptDownloadFile(url, dest string, onProgress func(float64)) error {
 			}
 		}
 		if readErr == io.EOF {
+			close(watchdogDone)
+			<-watchdogExit
 			break
 		}
 		if readErr != nil {
+			close(watchdogDone)
+			<-watchdogExit
 			return readErr
 		}
+	}
+
+	// 长度一致性：服务器给了 Content-Length 就必须严格对应，
+	// 否则短包会被上层当成下载成功（后续 size 校验只对 fpk 生效）。
+	if totalSize > 0 && downloaded != totalSize {
+		os.Remove(dest)
+		return fmt.Errorf("下载不完整：期望 %d 字节，实际 %d 字节", totalSize, downloaded)
 	}
 
 	return nil
